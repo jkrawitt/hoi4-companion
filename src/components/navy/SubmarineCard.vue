@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import SubmarineAnalysis from './SubmarineAnalysis.vue'
+import SubmarineStats from './SubmarineStats.vue'
 
 export type Submarine = {
   BaseStats: SubmarineBaseStats
@@ -154,7 +155,6 @@ const testSub = calculateSubmarine(SubmarineHull1, SubmarineEngine1, [
 </script>
 
 <template>
-  <div>{{ testSub }}</div>
+  <SubmarineStats :sub="testSub"></SubmarineStats>
   <SubmarineAnalysis :year="1936" :sub="testSub"></SubmarineAnalysis>
-  
 </template>
