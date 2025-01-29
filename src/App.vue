@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import SubmarineCard from './components/navy/SubmarineCard.vue'
-
+import ShipCard from './components/navy/submarine/SubmarineCard.vue'
 </script>
 
 <template>
-  <SubmarineCard></SubmarineCard>
+  <ShipCard></ShipCard>
 </template>
