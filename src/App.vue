@@ -3,6 +3,6 @@
 
 <template>
   <header>
-    <div>hoi4 companion</div>
+    <div>hoi4 companion - work in progress</div>
   </header>
 </template>
