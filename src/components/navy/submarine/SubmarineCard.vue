@@ -2,6 +2,8 @@
 import SubmarineAnalysis from './SubmarineAnalysis.vue'
 import { type Ship } from '../ShipStatsTable.vue'
 import ShipStatsTable from '../ShipStatsTable.vue'
+import SubmarineCustomizer from './SubmarineCustomizer.vue'
+import { ref } from 'vue'
 
 export interface Submarine extends Ship {
   Hull: SubmarineHull
@@ -15,7 +17,8 @@ interface SubmarineModule {
   ProductionCost: number
 }
 
-type SubmarineHull = {
+export interface SubmarineHull {
+  id: string
   Manpower: number
   SurfaceVisibility: number
   MaxSpeed: number
@@ -57,18 +60,9 @@ interface SubmarineSnorkel extends SubmarineModule {
   SubVisibilityFactor: number
 }
 
-const SubmarineHull1: SubmarineHull = {
-  Manpower: 200,
-  SurfaceVisibility: 1,
-  MaxSpeed: 13,
-  WeatherPenalty: 1,
-  Reliability: 0.6,
-  ProductionCost: 320,
-  SurfaceDetection: 20,
-  SubVisibility: 25,
-  MaxRange: 2000,
-  Hp: 10,
-  FuelUsage: 1,
+const selectedHull = ref<SubmarineHull | null>(null)
+const handleHullChange = (hull: SubmarineHull | null) => {
+  selectedHull.value = hull
 }
 
 const SubmarineEngine1: SubmarineEngine = {
@@ -181,14 +175,21 @@ const applySubmarineSnorkelStats = (sub: Submarine, snorkel: SubmarineSnorkel) =
   sub.ProductionCost += snorkel.ProductionCost
   return sub
 }
-
-const testSub = calculateSubmarine(SubmarineHull1, SubmarineEngine1, [
-  SubmarineTorpedoes1,
-  SubmarineTorpedoes1,
-])
 </script>
 
 <template>
-  <ShipStatsTable :ship="testSub"></ShipStatsTable>
-  <SubmarineAnalysis :year="1936" :sub="testSub"></SubmarineAnalysis>
+  <SubmarineCustomizer @update-hull="handleHullChange"></SubmarineCustomizer>
+  <ShipStatsTable
+    v-if="selectedHull != null"
+    :ship="
+      calculateSubmarine(selectedHull, SubmarineEngine1, [SubmarineTorpedoes1, SubmarineTorpedoes1])
+    "
+  ></ShipStatsTable>
+  <SubmarineAnalysis
+    v-if="selectedHull != null"
+    :year="1936"
+    :sub="
+      calculateSubmarine(selectedHull, SubmarineEngine1, [SubmarineTorpedoes1, SubmarineTorpedoes1])
+    "
+  ></SubmarineAnalysis>
 </template>

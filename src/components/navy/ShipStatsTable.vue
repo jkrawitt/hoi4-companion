@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { addZeros, roundDecimal } from '@/utils'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -223,19 +224,8 @@ const cleanValue = (value: number, unit: string, decimals: number) => {
   if (unit === '%') {
     value *= 100
   }
-  const roundingFactor = Math.pow(10, decimals)
-  const cleanedValue = addZeros(
-    (Math.round(value * roundingFactor) / roundingFactor).toString(),
-    decimals,
-  )
+  const cleanedValue = addZeros(roundDecimal(value, decimals).toString(), decimals)
   return cleanedValue + unit
-}
-
-const addZeros = (baseString: string, numZeroes: number) => {
-  if (numZeroes > 0 && baseString.indexOf('.') < 0) {
-    return baseString + '.' + '0'.repeat(numZeroes)
-  }
-  return baseString
 }
 </script>
 
