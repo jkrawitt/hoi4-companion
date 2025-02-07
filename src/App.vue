@@ -1,8 +1,7 @@
 <script setup lang="ts">
+import ShipCard from './components/navy/submarine/SubmarineCard.vue'
 </script>
 
 <template>
-  <header>
-    <div>hoi4 companion - work in progress</div>
-  </header>
+  <ShipCard></ShipCard>
 </template>
