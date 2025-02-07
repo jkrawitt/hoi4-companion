@@ -12,7 +12,8 @@ export interface Submarine extends Ship {
   TorpedoHitChanceFactor: number
 }
 
-interface SubmarineModule {
+export interface SubmarineModule {
+  id: string
   Category: string
   ProductionCost: number
 }
@@ -30,16 +31,17 @@ export interface SubmarineHull {
   MaxRange: number
   Hp: number
   FuelUsage: number
+  CustomModules: number
 }
 
-interface SubmarineEngine extends SubmarineModule {
+export interface SubmarineEngine extends SubmarineModule {
   SubVisibilityFactor: number
   MaxSpeedFactor: number
   FuelUsage: number
   ProductionCostFactor: number
 }
 
-interface SubmarineTorpedo extends SubmarineModule {
+export interface SubmarineTorpedo extends SubmarineModule {
   TorpedoAttack: number
   TorpedoHitChanceFactor: number
   MaxSpeedFactor: number
@@ -65,22 +67,14 @@ const handleHullChange = (hull: SubmarineHull | null) => {
   selectedHull.value = hull
 }
 
-const SubmarineEngine1: SubmarineEngine = {
-  Category: 'engine',
-  SubVisibilityFactor: 1,
-  MaxSpeedFactor: 1.05,
-  FuelUsage: 7,
-  ProductionCostFactor: 1.1,
-  ProductionCost: 0,
+const selectedEngine = ref<SubmarineEngine | null>(null)
+const handleEngineChange = (engine: SubmarineEngine | null) => {
+  selectedEngine.value = engine
 }
 
-const SubmarineTorpedoes1: SubmarineTorpedo = {
-  Category: 'torpedo',
-  TorpedoAttack: 13,
-  TorpedoHitChanceFactor: 0.01,
-  MaxSpeedFactor: 0.99,
-  ReliabilityFactor: 1,
-  ProductionCost: 80,
+const selectedFixedModule = ref<SubmarineModule | null>(null)
+const handleFixedModuleChange = (module: SubmarineModule | null) => {
+  selectedFixedModule.value = module
 }
 
 const calculateSubmarine = (
@@ -178,18 +172,18 @@ const applySubmarineSnorkelStats = (sub: Submarine, snorkel: SubmarineSnorkel) =
 </script>
 
 <template>
-  <SubmarineCustomizer @update-hull="handleHullChange"></SubmarineCustomizer>
+  <SubmarineCustomizer
+    @update-hull="handleHullChange"
+    @update-engine="handleEngineChange"
+    @update-fixed-module="handleFixedModuleChange"
+  ></SubmarineCustomizer>
   <ShipStatsTable
-    v-if="selectedHull != null"
-    :ship="
-      calculateSubmarine(selectedHull, SubmarineEngine1, [SubmarineTorpedoes1, SubmarineTorpedoes1])
-    "
+    v-if="selectedHull != null && selectedEngine != null && selectedFixedModule != null"
+    :ship="calculateSubmarine(selectedHull, selectedEngine, [selectedFixedModule])"
   ></ShipStatsTable>
   <SubmarineAnalysis
-    v-if="selectedHull != null"
+    v-if="selectedHull != null && selectedEngine != null && selectedFixedModule != null"
     :year="1936"
-    :sub="
-      calculateSubmarine(selectedHull, SubmarineEngine1, [SubmarineTorpedoes1, SubmarineTorpedoes1])
-    "
+    :sub="calculateSubmarine(selectedHull, selectedEngine, [selectedFixedModule])"
   ></SubmarineAnalysis>
 </template>
