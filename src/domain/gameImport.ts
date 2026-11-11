@@ -186,7 +186,9 @@ export const importCountryFocuses = async (
   // like the id's prefix with different capitalisation (`DOD_romania.30` is in `DOD_Romania.txt`).
   const eventIds = new Set(
     focuses.flatMap((f) =>
-      f.effects.flatMap((e) => (e.key === 'country_event' && e.value ? [e.value] : [])),
+      f.effects.flatMap((e) =>
+        (e.key === 'country_event' || e.key === 'news_event') && e.value ? [e.value] : [],
+      ),
     ),
   )
   const eventPrefixes = new Set([...eventIds].map((id) => id.split('.')[0].toLowerCase()))
@@ -268,7 +270,10 @@ export const importCountryFocuses = async (
     description: names[`${f.id}_desc`],
     effects: f.effects.map((e, i) => ({
       ...e,
-      eventTitle: e.key === 'country_event' ? eventTitleFor(f.effects, i) : undefined,
+      eventTitle:
+        e.key === 'country_event' || e.key === 'news_event'
+          ? eventTitleFor(f.effects, i)
+          : undefined,
       valueName: e.value && !e.isModifier ? names[e.value] : undefined,
       subject: e.subject ?? tagOf(e),
       preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),

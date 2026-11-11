@@ -11,6 +11,31 @@ export const flattenEffects = (block: ScriptBlock, depth = 0): EffectLine[] =>
     return [{ depth, key: entry.key }, ...flattenEffects(entry.value, depth + 1)]
   })
 
+const collapseEvent = (
+  line: EffectLine,
+  field: (key: string) => string | undefined,
+  count: number,
+): EffectLine | null => {
+  const id = field('id')
+  return id && count <= 4 ? { depth: line.depth, key: line.key, value: id } : null
+}
+
+/**
+ * `key = number` effects that are stat changes (`add_stability = -0.05`). They are shown through
+ * the stat pipeline, so how each looks (label, percent or number) lives in `statOverrides.ts`.
+ */
+const STAT_EFFECT_KEYS = new Set([
+  'add_stability',
+  'add_political_power',
+  'add_research_slot',
+  'army_experience',
+  'air_experience',
+  'navy_experience',
+])
+
+/** Effects with nothing for a player to see; the game only uses them for its own bookkeeping. */
+const BOOKKEEPING_KEYS = new Set(['set_country_flag', 'set_state_flag', 'clr_country_flag'])
+
 /**
  * Compound effects (`key = { field = x field = y }`) that read better as one line. Each
  * collapser gets the header line and its fields, and returns the replacement line, or null to
@@ -18,7 +43,12 @@ export const flattenEffects = (block: ScriptBlock, depth = 0): EffectLine[] =>
  */
 const COLLAPSERS: Record<
   string,
-  (line: EffectLine, field: (key: string) => string | undefined, count: number) => EffectLine | null
+  (
+    line: EffectLine,
+    field: (key: string) => string | undefined,
+    count: number,
+    fields: EffectLine[],
+  ) => EffectLine | null
 > = {
   // `Communist popularity: +10%`, formatted like any other stat change.
   add_popularity: (line, field, count) => {
@@ -44,12 +74,37 @@ const COLLAPSERS: Record<
       ? { depth: line.depth, key: line.key, value: type, subject: target }
       : null
   },
-  // `Event: <title>`. The block form (`country_event = { id = X hours = 12 }`) carries a delay,
-  // which is not shown, so any other field is ignored.
-  country_event: (line, field, count) => {
-    const id = field('id')
-    return id && count <= 4 ? { depth: line.depth, key: line.key, value: id } : null
+  // `Event: <title>` and `News: <title>`. The block form (`country_event = { id = X hours = 12 }`)
+  // carries a delay, which is not shown, so any other field is ignored.
+  country_event: (line, field, count) => collapseEvent(line, field, count),
+  news_event: (line, field, count) => collapseEvent(line, field, count),
+  // `Remove <modifier> opinion modifier with <country>`.
+  remove_opinion_modifier: (line, field, count) => {
+    const target = field('target')
+    const modifier = field('modifier')
+    return count === 2 && target && modifier
+      ? { depth: line.depth, key: line.key, value: modifier, subject: target }
+      : null
   },
+  // `Add timed idea: <name> (360 days)`; the idea's modifiers are listed beneath.
+  add_timed_idea: (line, field, count) => {
+    const idea = field('idea')
+    const days = Number(field('days'))
+    return count === 2 && idea && Number.isFinite(days)
+      ? { depth: line.depth, key: line.key, value: idea, days }
+      : null
+  },
+  // `set_rule = { can_create_factions = yes }` becomes a yes/no rule line, like an idea's `rule`.
+  set_rule: (line, _field, count, fields) =>
+    count === 1 && fields[0].key && fields[0].value !== undefined
+      ? {
+          depth: line.depth,
+          key: fields[0].key,
+          value: fields[0].value,
+          isModifier: true,
+          isRule: true,
+        }
+      : null,
   // `Gains License German Equipment when dealing with German Reich`.
   add_relation_modifier: (line, field, count) => {
     const target = field('target')
@@ -101,6 +156,7 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]
+    if (line.key !== null && line.value !== undefined && BOOKKEEPING_KEYS.has(line.key)) continue
     const collapse =
       line.key !== null && line.value === undefined ? COLLAPSERS[line.key] : undefined
     if (collapse) {
@@ -112,6 +168,7 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
         line,
         (key) => fields.find((f) => f.key === key)?.value,
         fields.length,
+        fields,
       )
       if (collapsed) {
         result.push(collapsed)
@@ -119,9 +176,18 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
         continue
       }
     }
-    result.push(line)
+    result.push(
+      line.key !== null && line.value !== undefined && STAT_EFFECT_KEYS.has(line.key)
+        ? { ...line, isModifier: true }
+        : line,
+    )
   }
-  return result
+  // Dropping bookkeeping can leave a `hidden_effect` with nothing in it.
+  return result.filter((line, i) => {
+    if (line.key !== 'hidden_effect' || line.value !== undefined) return true
+    const next = result[i + 1]
+    return next !== undefined && next.depth > line.depth
+  })
 }
 
 /**
@@ -194,6 +260,9 @@ export const markHidden = (effects: EffectLine[]): EffectLine[] => {
   })
 }
 
+/** Other single-idea effects whose idea's modifiers are worth listing beneath them. */
+const OTHER_IDEA_KEYS = new Set(['add_idea', 'add_timed_idea', 'show_ideas_tooltip'])
+
 /** Indexes of the lines naming an idea, from `add_ideas = X` or `add_ideas = { X Y }`. */
 export const ideaLineIndexes = (effects: EffectLine[]): number[] => {
   const indexes: number[] = []
@@ -204,6 +273,8 @@ export const ideaLineIndexes = (effects: EffectLine[]): number[] => {
       if (e.value !== undefined) indexes.push(i)
       else addIdeasDepth = e.depth
     } else if (addIdeasDepth !== null && e.key === null && e.value !== undefined) {
+      indexes.push(i)
+    } else if (e.key !== null && e.value !== undefined && OTHER_IDEA_KEYS.has(e.key)) {
       indexes.push(i)
     }
   })
@@ -255,6 +326,25 @@ export const formatEffect = (e: EffectLine): string => {
   }
   if (e.key === 'country_event' && e.value !== undefined) {
     return `Event: ${e.eventTitle ?? e.value}`
+  }
+  if (e.key === 'news_event' && e.value !== undefined) {
+    return `News: ${e.eventTitle ?? e.value}`
+  }
+  if (e.key === 'remove_opinion_modifier' && e.subject && e.value !== undefined) {
+    const who = e.subjectName ?? (OWN_SCOPES.has(e.subject) ? 'us' : e.subject)
+    return `Remove ${e.valueName ?? humanize(e.value)} opinion modifier with ${who}`
+  }
+  if (e.key === 'add_timed_idea' && e.value !== undefined) {
+    return `Add timed idea: ${e.valueName ?? e.value} (${e.days} days)`
+  }
+  // Effects that only show something in the game's tooltip.
+  const TOOLTIP_LABELS: Record<string, string> = {
+    unlock_decision_tooltip: 'Unlocks decision',
+    unlock_decision_category_tooltip: 'Unlocks decision category',
+    show_ideas_tooltip: 'Idea',
+  }
+  if (e.key !== null && e.value !== undefined && e.key in TOOLTIP_LABELS) {
+    return `${TOOLTIP_LABELS[e.key]}: ${e.valueName ?? humanize(e.value)}`
   }
   if (e.key === 'add_relation_modifier' && e.subject && e.value !== undefined) {
     const who = e.subjectName ?? (OWN_SCOPES.has(e.subject) ? 'us' : e.subject)

@@ -72,6 +72,21 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       '  License production speed: +25%',
       '  License production speed from technology difference: +25%',
     ])
+    const lines = (id: string) =>
+      focuses.find((f) => f.id === id)?.effects.map((e) => formatEffect(e)) ?? []
+    expect(lines('ROM_army_maneuvers')).toContain('Army experience: +50')
+    expect(lines('ROM_expand_the_university_of_bucharest')).toContain('Research slots: +1')
+    expect(lines('ROM_his_majestys_loyal_government')).toContain('Political power: +120')
+    expect(lines('ROM_balkans_dominance')).toContain('Can create factions: yes')
+    expect(lines('ROM_appoint_german_friendly_government')).toEqual(
+      expect.arrayContaining(['Stability: -5%', 'Unlocks decision: Join the Axis']),
+    )
+    expect(lines('ROM_force_abdication')).toEqual(
+      expect.arrayContaining([
+        'News: King Carol II Abdicates',
+        'Add timed idea: King Carol Emptied Accounts (360 days)',
+      ]),
+    )
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')
     expect(transnistria?.effects.map((e) => formatEffect(e))).toEqual([
       'Gain Conquer (Focus) wargoal on Soviet Union',

@@ -25,6 +25,8 @@ export interface EffectLine {
   subjectName?: string
   /** For `add_opinion_modifier` lines: the modifier named by `value`, toward `subject`. */
   opinion?: OpinionModifier
+  /** For `add_timed_idea` lines: how long the idea lasts. */
+  days?: number
   /** For `country_event` lines: the event's title, with names filled in where we can. */
   eventTitle?: string
   /** For `random_owned_controlled_state` headers: state ids the game tries first. */

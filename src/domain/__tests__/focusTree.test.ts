@@ -197,14 +197,14 @@ describe('random owned controlled states', () => {
   it('keeps any other limit, since its meaning varies', () => {
     const effects = run(`random_owned_controlled_state = {
       limit = { free_building_slots = { building = arms_factory } }
-      set_state_flag = F
+      some_other_effect = yes
     }`)
     expect(effects.map((e) => e.key)).toEqual([
       'random_owned_controlled_state',
       'limit',
       'free_building_slots',
       'building',
-      'set_state_flag',
+      'some_other_effect',
     ])
   })
 
@@ -224,6 +224,57 @@ describe('random owned controlled states', () => {
     )
     expect(effectTone(resource)).toBe('good')
     expect(effectTone({ ...resource, value: '-3' })).toBe('bad')
+  })
+})
+
+describe('simple effects', () => {
+  const run = (text: string) => collapseEffects(flattenEffects(parseScript(text)))
+
+  it('treats number effects as stats', () => {
+    const [stability, pp] = run('add_stability = -0.05 add_political_power = 120')
+    expect(stability).toMatchObject({ key: 'add_stability', value: '-0.05', isModifier: true })
+    expect(pp).toMatchObject({ key: 'add_political_power', isModifier: true })
+  })
+
+  it('drops bookkeeping flags, and a hidden_effect left empty by that', () => {
+    expect(
+      run('set_country_flag = x hidden_effect = { set_state_flag = y } add_ideas = I'),
+    ).toEqual([{ depth: 0, key: 'add_ideas', value: 'I' }])
+    expect(run('hidden_effect = { set_country_flag = x news_event = { id = n.1 } }')).toEqual([
+      { depth: 0, key: 'hidden_effect' },
+      { depth: 1, key: 'news_event', value: 'n.1' },
+    ])
+  })
+
+  it('turns set_rule into a yes/no rule line', () => {
+    expect(run('set_rule = { can_create_factions = yes }')).toEqual([
+      { depth: 0, key: 'can_create_factions', value: 'yes', isModifier: true, isRule: true },
+    ])
+  })
+
+  it('collapses remove_opinion_modifier and add_timed_idea', () => {
+    const [remove, timed] = run(
+      'remove_opinion_modifier = { target = ROM modifier = M } add_timed_idea = { idea = I days = 360 }',
+    )
+    expect(remove).toEqual({ depth: 0, key: 'remove_opinion_modifier', value: 'M', subject: 'ROM' })
+    expect(formatEffect({ ...remove, valueName: 'Pact', subjectName: 'Romania' })).toBe(
+      'Remove Pact opinion modifier with Romania',
+    )
+    expect(timed).toEqual({ depth: 0, key: 'add_timed_idea', value: 'I', days: 360 })
+    expect(formatEffect({ ...timed, valueName: 'Accounts' })).toBe(
+      'Add timed idea: Accounts (360 days)',
+    )
+  })
+
+  it('formats news and tooltip-only effects, and finds more idea lines', () => {
+    expect(formatEffect({ depth: 0, key: 'news_event', value: 'n.1', eventTitle: 'Coup' })).toBe(
+      'News: Coup',
+    )
+    expect(
+      formatEffect({ depth: 0, key: 'unlock_decision_tooltip', value: 'd', valueName: 'Join' }),
+    ).toBe('Unlocks decision: Join')
+    const effects = run('swap_ideas = { add_idea = A remove_idea = B } show_ideas_tooltip = C')
+    expect(ideaIdsOf(effects)).toEqual(['A', 'C'])
   })
 })
 
