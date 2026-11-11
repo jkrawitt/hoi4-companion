@@ -35,6 +35,23 @@ export interface EffectLine {
   preferNames?: string[]
   /** For `add_doctrine_cost_reduction` lines: `value` is the category, e.g. `land_doctrine`. */
   doctrine?: { reduction: number; uses: number; name?: string }
+  /**
+   * For research effects: `tech_bonus` (`add_tech_bonus`), `mastery` (`add_mastery_bonus`) and
+   * `unlock` (`set_technology`). `targets` are the categories, doctrines or technologies it
+   * applies to, `targetNames` their localised names.
+   */
+  research?: {
+    kind: 'tech_bonus' | 'mastery' | 'unlock'
+    bonus?: number
+    uses?: number
+    days?: number
+    /** Years of the ahead-of-time research penalty that are ignored. */
+    ahead?: number
+    targets: string[]
+    targetNames?: string[]
+  }
+  /** For `add_building_construction` lines: the building is built at once, not queued. */
+  instant?: boolean
   /** For `diplomatic_relation` lines: whether the relation is being granted or removed. */
   active?: boolean
   /** Inside a `hidden_effect` block: the game does not show it to the player. */

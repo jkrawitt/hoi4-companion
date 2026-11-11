@@ -38,6 +38,12 @@ export const statOverrides: StatOverrides = {
   army_experience: { label: 'Army experience', kind: 'number', decimals: 0, goodWhen: 'positive' },
   air_experience: { label: 'Air experience', kind: 'number', decimals: 0, goodWhen: 'positive' },
   navy_experience: { label: 'Navy experience', kind: 'number', decimals: 0, goodWhen: 'positive' },
+  add_extra_state_shared_building_slots: {
+    label: 'Building slots',
+    kind: 'number',
+    decimals: 0,
+    goodWhen: 'positive',
+  },
   ai_license_acceptance: { goodWhen: 'positive' },
   license_production_speed: { goodWhen: 'positive' },
   license_tech_difference_speed: { goodWhen: 'positive' },

@@ -215,6 +215,7 @@ export const importCountryFocuses = async (
         ...(e.subject ? [e.subject] : []),
         ...(tagOf(e) ? [tagOf(e)!] : []),
         ...(e.key === 'add_resource' && e.subject ? [`state_resource_${e.subject}`] : []),
+        ...(e.research?.targets ?? []),
         ...(e.preferStates ?? []).map((id) => `STATE_${id}`),
         ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
       ]),
@@ -274,6 +275,15 @@ export const importCountryFocuses = async (
         e.key === 'country_event' || e.key === 'news_event'
           ? eventTitleFor(f.effects, i)
           : undefined,
+      research: e.research && {
+        ...e.research,
+        targetNames: e.research.targets.map((t) => {
+          // Some names are just a reference to another key, written `$key$`.
+          const name = (names[t] ?? t.replace(/_/g, ' ')).trim()
+          const ref = /^\$(.+)\$$/.exec(name)
+          return ref ? (names[ref[1]]?.trim() ?? ref[1].replace(/_/g, ' ')) : name
+        }),
+      },
       valueName: e.value && !e.isModifier ? names[e.value] : undefined,
       subject: e.subject ?? tagOf(e),
       preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),

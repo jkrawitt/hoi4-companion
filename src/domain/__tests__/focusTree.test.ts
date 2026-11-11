@@ -504,3 +504,38 @@ describe('stats', () => {
     )
   })
 })
+
+describe('research, building and design effects', () => {
+  const lines = (script: string) =>
+    collapseEffects(flattenEffects(parseScript(script))).map((e) => formatEffect(e))
+
+  it('reads tech bonuses with several categories and the ahead-of-time penalty', () => {
+    expect(
+      lines(
+        'add_tech_bonus = { name = N bonus = 1.0 uses = 2 category = a category = b ahead_reduction = 2 }',
+      ),
+    ).toEqual(['Research bonus: +100% (2 uses) for a, b, ignores 2 years of ahead-of-time penalty'])
+  })
+
+  it('reads mastery bonuses and technology unlocks', () => {
+    expect(lines('add_mastery_bonus = { name = N bonus = 0.2 days = 240 track = air }')).toEqual([
+      'Doctrine mastery: +20% for 240 days on air',
+    ])
+    expect(lines('set_technology = { mountain_gun = 1 }')).toEqual([
+      'Unlocks technology: mountain gun',
+    ])
+  })
+
+  it('reads buildings, slots and equipment designs', () => {
+    expect(
+      lines('add_building_construction = { type = arms_factory level = 2 instant_build = yes }'),
+    ).toEqual(['Build 2 arms factory (instantly)'])
+    // The label ("Building slots") comes from statOverrides at import, so it is the key here.
+    expect(lines('add_extra_state_shared_building_slots = 2')).toEqual([
+      'add extra state shared building slots: +2',
+    ])
+    expect(
+      lines('create_equipment_variant = { name = "IAR 80" type = x modules = { a = b } }'),
+    ).toEqual(['Create design: IAR 80'])
+  })
+})

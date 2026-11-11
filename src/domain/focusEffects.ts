@@ -31,6 +31,7 @@ const STAT_EFFECT_KEYS = new Set([
   'army_experience',
   'air_experience',
   'navy_experience',
+  'add_extra_state_shared_building_slots',
 ])
 
 /** Effects with nothing for a player to see; the game only uses them for its own bookkeeping. */
@@ -134,6 +135,68 @@ const COLLAPSERS: Record<
     return count === 2 && type && Number.isFinite(Number(amount))
       ? { depth: line.depth, key: line.key, value: amount, subject: type }
       : null
+  },
+  // `Research bonus: +100% (2 uses) for Industry`; `research.targets` are the categories or
+  // technologies, and the bonus' own `name` is not shown.
+  add_tech_bonus: (line, field, _count, fields) => {
+    const bonus = Number(field('bonus'))
+    const own = fields.filter((f) => f.depth === line.depth + 1)
+    const targets = own.filter((f) => f.key === 'category' || f.key === 'technology')
+    if (!Number.isFinite(bonus) || targets.length === 0) return null
+    return {
+      depth: line.depth,
+      key: line.key,
+      research: {
+        kind: 'tech_bonus',
+        bonus,
+        uses: field('uses') === undefined ? undefined : Number(field('uses')),
+        ahead:
+          field('ahead_reduction') === undefined ? undefined : Number(field('ahead_reduction')),
+        targets: targets.map((f) => f.value!),
+      },
+    }
+  },
+  // `Doctrine mastery: +20% for 240 days on <track or doctrine>`.
+  add_mastery_bonus: (line, field) => {
+    const bonus = Number(field('bonus'))
+    const target = field('track') ?? field('grand_doctrine')
+    return Number.isFinite(bonus) && target
+      ? {
+          depth: line.depth,
+          key: line.key,
+          research: { kind: 'mastery', bonus, days: Number(field('days')), targets: [target] },
+        }
+      : null
+  },
+  // `Unlocks technology: Mountain Gun` (`set_technology = { mountain_gun = 1 }`).
+  set_technology: (line, _field, _count, fields) => {
+    const targets = fields.filter((f) => f.depth === line.depth + 1 && f.value === '1')
+    return targets.length > 0 && targets.length === fields.length
+      ? {
+          depth: line.depth,
+          key: line.key,
+          research: { kind: 'unlock', targets: targets.map((f) => f.key!) },
+        }
+      : null
+  },
+  // `Build 1 Military Factory`; `value` is the level and `subject` the building type.
+  add_building_construction: (line, field) => {
+    const type = field('type')
+    const level = field('level')
+    return type && Number.isFinite(Number(level))
+      ? {
+          depth: line.depth,
+          key: line.key,
+          value: level,
+          subject: type,
+          instant: field('instant_build') === 'yes',
+        }
+      : null
+  },
+  // `Create design: IAR 80`; the modules are not shown.
+  create_equipment_variant: (line, field) => {
+    const name = field('name')
+    return name ? { depth: line.depth, key: line.key, value: name.replace(/^"|"$/g, '') } : null
   },
   // `Military access with Romania: yes`, under the scope header of the country giving it.
   diplomatic_relation: (line, field, count) => {
@@ -316,6 +379,23 @@ export const formatEffect = (e: EffectLine): string => {
     const amount = Number(e.value)
     return `${amount < 0 ? 'Remove' : 'Add'} production of ${Math.abs(amount)} ${name}`
   }
+  if (e.research) {
+    const r = e.research
+    const targets = (r.targetNames ?? r.targets.map((t) => humanize(t))).join(', ')
+    if (r.kind === 'unlock') return `Unlocks technology: ${targets}`
+    const percent = `+${Number(((r.bonus ?? 0) * 100).toFixed(1))}%`
+    if (r.kind === 'mastery') return `Doctrine mastery: ${percent} for ${r.days} days on ${targets}`
+    const uses = r.uses ? ` (${r.uses} ${r.uses === 1 ? 'use' : 'uses'})` : ''
+    const ahead = r.ahead ? `, ignores ${r.ahead} years of ahead-of-time penalty` : ''
+    return `Research bonus: ${percent}${uses} for ${targets}${ahead}`
+  }
+  if (e.key === 'add_building_construction' && e.subject && e.value !== undefined) {
+    const name = e.subjectName ?? humanize(e.subject)
+    return `Build ${e.value} ${name}${e.instant ? ' (instantly)' : ''}`
+  }
+  if (e.key === 'create_equipment_variant' && e.value !== undefined) {
+    return `Create design: ${e.value}`
+  }
   if (e.doctrine && e.value !== undefined) {
     const percent = Number((e.doctrine.reduction * 100).toFixed(1))
     return `${e.doctrine.uses}x ${percent}% cost reduction for: ${e.valueName ?? humanize(e.value)}`
@@ -372,7 +452,7 @@ export const formatEffect = (e: EffectLine): string => {
 
 /** Whether a line is an improvement, a setback, or neither, for colouring. */
 export const effectTone = (e: EffectLine): StatTone =>
-  e.doctrine
+  e.doctrine || e.research || e.key === 'add_building_construction'
     ? 'good'
     : e.key === 'add_resource' && e.value !== undefined
       ? Number(e.value) > 0

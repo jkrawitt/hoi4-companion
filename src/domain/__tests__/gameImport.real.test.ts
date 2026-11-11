@@ -1,4 +1,4 @@
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { layoutFocuses } from '../focusLayout'
@@ -85,6 +85,21 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       expect.arrayContaining([
         'News: King Carol II Abdicates',
         'Add timed idea: King Carol Emptied Accounts (360 days)',
+      ]),
+    )
+    await writeFile(
+      process.env.PROBE_OUT ?? '/dev/null',
+      [...new Set(focuses.flatMap((f) => f.effects.map((e) => formatEffect(e))))].sort().join('\n'),
+    )
+    expect(lines('ROM_national_defense_industry')).toEqual(
+      expect.arrayContaining(['Building slots: +1', 'Build 1 Military Factory (instantly)']),
+    )
+    const everything = focuses.flatMap((f) => f.effects.map((e) => formatEffect(e)))
+    expect(everything).toEqual(
+      expect.arrayContaining([
+        'Research bonus: +100% (2 uses) for Industry',
+        'Unlocks technology: Mountain Gun',
+        'Create design: IAR 80',
       ]),
     )
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')
