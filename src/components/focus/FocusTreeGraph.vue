@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Focus } from '@/domain/focus'
+import { effectTone, formatEffect } from '@/domain/focusEffects'
 import { layoutFocuses } from '@/domain/focusLayout'
 
 const props = defineProps<{
@@ -83,6 +84,23 @@ const lines = computed<Line[]>(() => {
   return result
 })
 
+// Hover details. The tooltip is `position: fixed` so the scrolling viewport cannot clip it.
+const TOOLTIP_W = 340
+const hovered = ref<{ focus: Focus; left: number; top: number } | null>(null)
+
+const showDetails = (focus: Focus, event: Event) => {
+  const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
+  const fitsRight = rect.right + 8 + TOOLTIP_W <= window.innerWidth
+  hovered.value = {
+    focus,
+    left: fitsRight ? rect.right + 8 : Math.max(8, rect.left - 8 - TOOLTIP_W),
+    top: Math.min(rect.top, Math.max(8, window.innerHeight - 320)),
+  }
+}
+const hideDetails = () => (hovered.value = null)
+
+const nameOf = (id: string) => props.focuses[id]?.name ?? id
+
 const orderOf = computed(() => {
   const order = new Map<string, number>()
   props.plan.forEach((id, i) => {
@@ -115,9 +133,12 @@ const orderOf = computed(() => {
           width: `${CARD_W}px`,
           height: `${CARD_H}px`,
         }"
-        :title="`${box.focus.name} (${box.focus.days} days)`"
         :disabled="blockedIds.has(box.focus.id)"
         @click="emit('toggle', box.focus.id)"
+        @mouseenter="showDetails(box.focus, $event)"
+        @mouseleave="hideDetails"
+        @focus="showDetails(box.focus, $event)"
+        @blur="hideDetails"
       >
         <span v-if="orderOf.has(box.focus.id)" class="order">{{ orderOf.get(box.focus.id) }}</span>
         <span class="name">{{ box.focus.name }}</span>
@@ -125,9 +146,86 @@ const orderOf = computed(() => {
       </button>
     </div>
   </div>
+  <div
+    v-if="hovered"
+    class="tooltip"
+    role="tooltip"
+    :style="{ left: `${hovered.left}px`, top: `${hovered.top}px`, width: `${TOOLTIP_W}px` }"
+  >
+    <strong>{{ hovered.focus.name }}</strong>
+    <div class="meta">{{ hovered.focus.days }} days</div>
+    <p v-if="hovered.focus.description" class="desc">{{ hovered.focus.description }}</p>
+    <div v-if="hovered.focus.prerequisites.length > 0" class="meta">
+      Requires
+      <template v-for="(group, i) in hovered.focus.prerequisites" :key="i">
+        <template v-if="i > 0">, and </template>{{ group.map(nameOf).join(' or ') }}
+      </template>
+    </div>
+    <div v-if="hovered.focus.mutuallyExclusive.length > 0" class="meta">
+      Excludes {{ hovered.focus.mutuallyExclusive.map(nameOf).join(', ') }}
+    </div>
+    <template v-if="hovered.focus.effects.length > 0">
+      <div class="heading">Effects</div>
+      <ul class="effects">
+        <li
+          v-for="(effect, i) in hovered.focus.effects"
+          :key="i"
+          :class="[effectTone(effect), { hidden: effect.hidden }]"
+          :style="{ paddingLeft: `${effect.depth * 12}px` }"
+        >
+          {{ formatEffect(effect) }}
+        </li>
+      </ul>
+    </template>
+  </div>
 </template>
 
 <style scoped>
+.tooltip {
+  position: fixed;
+  z-index: 10;
+  box-sizing: border-box;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #222;
+  background: #fff;
+  border: 1px solid #666;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgb(0 0 0 / 0.25);
+  pointer-events: none;
+}
+.tooltip .meta {
+  color: #555;
+}
+.tooltip .desc {
+  margin: 6px 0;
+  font-style: italic;
+  white-space: pre-line;
+}
+.tooltip .heading {
+  margin-top: 6px;
+  font-weight: 600;
+}
+.effects .good {
+  color: #1f7a3d;
+}
+.effects .bad {
+  color: #b3261e;
+}
+.effects .hidden {
+  color: #777;
+  font-style: italic;
+}
+.effects {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
 .viewport {
   overflow: auto;
   max-height: 70vh;

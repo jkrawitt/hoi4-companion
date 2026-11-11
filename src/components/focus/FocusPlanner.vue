@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
 import type { Focus } from '@/domain/focus'
+import { effectTone, formatEffect } from '@/domain/focusEffects'
 import { schedulePlan } from '@/domain/focusPlan'
-import { isValidPlan, pathTo, removeWithDependents } from '@/domain/focusSelection'
+import { pathTo, removeWithDependents } from '@/domain/focusSelection'
 import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
 import { canUseDirectoryPicker, fromFileList, pickWithDirectoryPicker } from '@/import/gameFolder'
 import FocusTreeGraph from './FocusTreeGraph.vue'
@@ -48,7 +50,7 @@ const runImport = async (files: GameFiles) => {
   status.value = 'Reading game files…'
   const target = country.value
   try {
-    const list = await importCountryFocuses(files, target.focusTreeFile)
+    const list = await importCountryFocuses(files, target, statOverrides)
     await saveCachedFocuses(target.tag, list)
     if (target.tag === countryTag.value) setFocuses(list)
     status.value = `Imported ${list.length} focuses for ${target.name}.`
@@ -89,6 +91,15 @@ const schedule = computed(() =>
 const formatDate = (d: Date) => d.toISOString().slice(0, 10)
 const formatDays = (days: number) => Math.round(days * 10) / 10
 
+// A focus's effects land when it completes, so rows are grouped under their completion year.
+const rows = computed(() =>
+  schedule.value.items.map((item, i, items) => {
+    const year = item.end.getUTCFullYear()
+    const previous = items[i - 1]?.end.getUTCFullYear()
+    return { item, banner: year !== previous ? year : null }
+  }),
+)
+
 const blockedIds = computed(
   () =>
     new Set(
@@ -109,20 +120,6 @@ const toggle = (id: string) => {
 }
 
 const reset = () => (plan.value = [])
-const remove = (index: number) => toggle(plan.value[index])
-const canMove = (index: number, delta: number) => {
-  const target = index + delta
-  if (target < 0 || target >= plan.value.length) return false
-  const next = [...plan.value]
-  ;[next[index], next[target]] = [next[target], next[index]]
-  return isValidPlan(next, focuses.value)
-}
-const move = (index: number, delta: number) => {
-  if (!canMove(index, delta)) return
-  const next = [...plan.value]
-  ;[next[index], next[index + delta]] = [next[index + delta], next[index]]
-  plan.value = next
-}
 </script>
 
 <template>
@@ -171,17 +168,28 @@ const move = (index: number, delta: number) => {
       <h2>Plan</h2>
       <button v-if="plan.length > 0" @click="reset">Reset plan</button>
       <p v-if="schedule.items.length === 0">Add focuses to build a plan.</p>
-      <ol v-else>
-        <li v-for="(item, i) in schedule.items" :key="i">
-          <button @click="move(i, -1)" :disabled="!canMove(i, -1)">↑</button>
-          <button @click="move(i, 1)" :disabled="!canMove(i, 1)">↓</button>
-          <button @click="remove(i)">✕</button>
-          <strong>{{ item.focus.name }}</strong>
-          {{ formatDate(item.start) }} → {{ formatDate(item.end) }} ({{
-            formatDays(item.durationDays)
-          }}
-          days)
-        </li>
+      <ol v-else class="plan">
+        <template v-for="({ item, banner }, i) in rows" :key="i">
+          <li v-if="banner !== null" class="year">{{ banner }}</li>
+          <li class="entry">
+            <div class="when">
+              <strong>{{ item.focus.name }}</strong>
+              <div>{{ formatDate(item.start) }} → {{ formatDate(item.end) }}</div>
+              <div class="muted">{{ formatDays(item.durationDays) }} days</div>
+            </div>
+            <ul class="effects">
+              <li
+                v-for="(effect, j) in item.focus.effects"
+                :key="j"
+                :class="[effectTone(effect), { hidden: effect.hidden }]"
+                :style="{ paddingLeft: `${effect.depth * 12}px` }"
+              >
+                {{ formatEffect(effect) }}
+              </li>
+              <li v-if="item.focus.effects.length === 0" class="muted">No direct effects.</li>
+            </ul>
+          </li>
+        </template>
       </ol>
       <p v-if="schedule.items.length > 0">
         <strong>Done on {{ formatDate(schedule.finish) }}</strong>
@@ -205,13 +213,44 @@ const move = (index: number, delta: number) => {
   margin-left: 0.5rem;
   color: #666;
 }
-.columns {
-  display: flex;
-  gap: 3rem;
-  flex-wrap: wrap;
+.plan {
+  padding: 0;
+  list-style: none;
 }
-li {
-  margin-bottom: 0.4rem;
+.plan > .entry {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr);
+  gap: 1.5rem;
+  padding: 0.5rem 0;
+  border-top: 1px solid #ddd;
+}
+.year {
+  margin-top: 1rem;
+  padding: 0.25rem 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: #2f4f6f;
+  border-radius: 3px;
+}
+.effects .good {
+  color: #1f7a3d;
+}
+.effects .bad {
+  color: #b3261e;
+}
+.effects .hidden {
+  color: #777;
+  font-style: italic;
+}
+.muted {
+  color: #666;
+}
+.effects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
 }
 button {
   margin-right: 0.25rem;
