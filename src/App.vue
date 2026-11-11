@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import ShipCard from './components/navy/submarine/SubmarineCard.vue'
+import FocusPlanner from './components/focus/FocusPlanner.vue'
 </script>
 
 <template>
-  <ShipCard></ShipCard>
+  <FocusPlanner />
 </template>
