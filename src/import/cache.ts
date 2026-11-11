@@ -7,7 +7,7 @@ import type { Focus } from '@/domain/focus'
 const DB_NAME = 'hoi4-companion'
 const STORE = 'focuses'
 /** Bump when the shape of Focus changes; older cached data is then ignored (re-import needed). */
-const CACHE_VERSION = 2
+const CACHE_VERSION = 7
 
 interface CachedFocuses {
   version: number

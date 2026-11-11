@@ -1,7 +1,17 @@
 import type { GameFiles } from '@/domain/gameImport'
 
 /** Directory prefixes the importer reads; used to avoid holding on to every file of the install. */
-const NEEDED_PREFIXES = ['common/national_focus/', 'localisation/english/']
+const NEEDED_PREFIXES = [
+  'common/national_focus/',
+  'common/ideas/',
+  'common/opinion_modifiers/',
+  'common/modifiers/',
+  'common/factions/templates/',
+  'events/',
+  'history/countries/',
+  'localisation/english/',
+  'documentation/modifiers_documentation.md',
+]
 
 interface DirHandle {
   getDirectoryHandle(name: string): Promise<DirHandle>
