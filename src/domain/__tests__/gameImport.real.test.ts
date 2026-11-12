@@ -100,6 +100,14 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         '2x 100% research bonus for: Industry',
         'Unlocks technology: Mountain Gun',
         'Create design: IAR 80',
+        'Ruling party: Non-Aligned (no elections)',
+        'Set Non-Aligned popularity: 65%',
+        'Rename Fascist party: Garda de Fier',
+        'Promote Michael I to country leader (Liberalism)',
+        'Create country leader: Carol II (Despotic)',
+        'Autonomy of Romania: Personal Union',
+        'Remove advisor role: Chief of Army',
+        'Claim added for: Romania',
       ]),
     )
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')

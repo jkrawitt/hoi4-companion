@@ -539,3 +539,51 @@ describe('research, building and design effects', () => {
     ).toEqual(['Create design: IAR 80'])
   })
 })
+
+describe('politics and leader effects', () => {
+  const lines = (script: string) =>
+    collapseEffects(flattenEffects(parseScript(script))).map((e) => formatEffect(e))
+
+  it('reads ruling party, popularity and party names', () => {
+    expect(lines('set_politics = { ruling_party = a elections_allowed = no }')).toEqual([
+      'Ruling party: a (no elections)',
+    ])
+    expect(lines('set_politics = { ruling_party = a elections_allowed = yes }')).toEqual([
+      'Ruling party: a',
+    ])
+    expect(lines('set_political_party = { ideology = a popularity = 65 }')).toEqual([
+      'Set a popularity: 65%',
+    ])
+    expect(lines('set_party_name = { ideology = a long_name = L name = N }')).toEqual([
+      'Rename a party: N',
+    ])
+  })
+
+  it('reads leader promotion, creation and retirement', () => {
+    expect(lines('promote_character = { character = X ideology = liberalism }')).toEqual([
+      'Promote X to country leader (liberalism)',
+    ])
+    expect(lines('promote_character = { ideology = fascism }')).toEqual([
+      'Promote a new leader to country leader (fascism)',
+    ])
+    expect(lines('create_country_leader = { name = "Carol II" ideology = d id = 5 }')).toEqual([
+      'Create country leader: Carol II (d)',
+    ])
+    expect(lines('create_corps_commander = { name = "B P" skill = 2 }')).toEqual([
+      'Create corps commander: B P',
+    ])
+    expect(lines('retire_country_leader = yes')).toEqual(['Retire country leader'])
+    expect(lines('add_country_leader_trait = camarilla_leader')).toEqual([
+      'Add leader trait: camarilla leader',
+    ])
+  })
+
+  it('reads autonomy and advisor removal', () => {
+    expect(lines('set_autonomy = { target = ROM autonomy_state = puppet }')).toEqual([
+      'Autonomy of ROM: puppet',
+    ])
+    expect(lines('remove_advisor_role = { slot = army_chief }')).toEqual([
+      'Remove advisor role: army chief',
+    ])
+  })
+})

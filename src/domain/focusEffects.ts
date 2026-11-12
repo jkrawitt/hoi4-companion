@@ -193,6 +193,72 @@ const COLLAPSERS: Record<
         }
       : null
   },
+  // `Ruling party: Non-Aligned (no elections)`; `value` is the party, `active` allows elections.
+  set_politics: (line, field) => {
+    const party = field('ruling_party')
+    return party
+      ? {
+          depth: line.depth,
+          key: line.key,
+          value: party,
+          active: field('elections_allowed') !== 'no',
+        }
+      : null
+  },
+  // `Set Non-Aligned popularity: 65%`; `value` is the popularity, `subject` the ideology.
+  set_political_party: (line, field, count) => {
+    const ideology = field('ideology')
+    const popularity = field('popularity')
+    return count === 2 && ideology && Number.isFinite(Number(popularity))
+      ? { depth: line.depth, key: line.key, value: popularity, subject: ideology }
+      : null
+  },
+  // `Rename Fascist party: Garda de Fier`; `value` is the name key, `subject` the ideology.
+  set_party_name: (line, field) => {
+    const ideology = field('ideology')
+    const name = field('name')
+    return ideology && name
+      ? { depth: line.depth, key: line.key, value: name, subject: ideology }
+      : null
+  },
+  // `Promote Michael I to country leader (Liberalism)`; both fields are optional.
+  promote_character: (line, field) => {
+    const character = field('character')
+    const ideology = field('ideology')
+    return character || ideology
+      ? { depth: line.depth, key: line.key, value: character, subject: ideology }
+      : null
+  },
+  // `Create country leader: Carol II (Despotic)`.
+  create_country_leader: (line, field) => {
+    const name = field('name')
+    return name
+      ? {
+          depth: line.depth,
+          key: line.key,
+          value: name.replace(/^"|"$/g, ''),
+          subject: field('ideology'),
+        }
+      : null
+  },
+  // `Create corps commander: Barbu Paraianu`; the skills and traits are not shown.
+  create_corps_commander: (line, field) => {
+    const name = field('name')
+    return name ? { depth: line.depth, key: line.key, value: name.replace(/^"|"$/g, '') } : null
+  },
+  // `Remove advisor role: Chief of Army`.
+  remove_advisor_role: (line, field, count) => {
+    const slot = field('slot')
+    return count === 1 && slot ? { depth: line.depth, key: line.key, value: slot } : null
+  },
+  // `Autonomy of Romania: Personal Union`; `value` is the state, `subject` the target.
+  set_autonomy: (line, field, count) => {
+    const state = field('autonomy_state')
+    const target = field('target')
+    return count === 2 && state && target
+      ? { depth: line.depth, key: line.key, value: state, subject: target }
+      : null
+  },
   // `Create design: IAR 80`; the modules are not shown.
   create_equipment_variant: (line, field) => {
     const name = field('name')
@@ -379,6 +445,33 @@ export const formatEffect = (e: EffectLine): string => {
     const amount = Number(e.value)
     return `${amount < 0 ? 'Remove' : 'Add'} production of ${Math.abs(amount)} ${name}`
   }
+  const valueText = e.value === undefined ? '' : (e.valueName ?? humanize(e.value))
+  const subjectText = e.subject ? (e.subjectName ?? humanize(e.subject)) : ''
+  if (e.key === 'set_politics' && e.value !== undefined) {
+    return `Ruling party: ${valueText}${e.active === false ? ' (no elections)' : ''}`
+  }
+  if (e.key === 'set_political_party' && e.value !== undefined && e.subject) {
+    return `Set ${subjectText} popularity: ${Number(e.value)}%`
+  }
+  if (e.key === 'set_party_name' && e.value !== undefined && e.subject) {
+    return `Rename ${subjectText} party: ${valueText}`
+  }
+  if (e.key === 'promote_character') {
+    const ideology = e.subject ? ` (${subjectText})` : ''
+    return `Promote ${e.value === undefined ? 'a new leader' : valueText} to country leader${ideology}`
+  }
+  if (e.key === 'create_country_leader' && e.value !== undefined) {
+    return `Create country leader: ${e.value}${e.subject ? ` (${subjectText})` : ''}`
+  }
+  if (e.key === 'create_corps_commander' && e.value !== undefined) {
+    return `Create corps commander: ${e.value}`
+  }
+  if (e.key === 'set_autonomy' && e.subject && e.value !== undefined) {
+    return `Autonomy of ${subjectText}: ${valueText}`
+  }
+  if (e.key === 'retire_country_leader' && e.value === 'yes') return 'Retire country leader'
+  if (e.key === 'remove_unit_leader_role' && e.value === 'yes') return 'Remove unit leader role'
+  if (e.key === 'promote_leader' && e.value === 'yes') return 'Promote to country leader'
   if (e.research) {
     const r = e.research
     const targets = (r.targetNames ?? r.targets.map((t) => humanize(t))).join(', ')
@@ -422,6 +515,12 @@ export const formatEffect = (e: EffectLine): string => {
     unlock_decision_tooltip: 'Unlocks decision',
     unlock_decision_category_tooltip: 'Unlocks decision category',
     show_ideas_tooltip: 'Idea',
+    add_country_leader_trait: 'Add leader trait',
+    remove_country_leader_trait: 'Remove leader trait',
+    remove_advisor_role: 'Remove advisor role',
+    retire_character: 'Retire',
+    set_cosmetic_tag: 'Country name becomes',
+    add_claim_by: 'Claim added for',
   }
   if (e.key !== null && e.value !== undefined && e.key in TOOLTIP_LABELS) {
     return `${TOOLTIP_LABELS[e.key]}: ${e.valueName ?? humanize(e.value)}`

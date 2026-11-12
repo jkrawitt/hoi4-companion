@@ -284,7 +284,15 @@ export const importCountryFocuses = async (
           return ref ? (names[ref[1]]?.trim() ?? ref[1].replace(/_/g, ' ')) : name
         }),
       },
-      valueName: e.value && !e.isModifier ? names[e.value] : undefined,
+      valueName:
+        e.key === 'add_claim_by' && e.value && isOwnScope(e.value)
+          ? country.name
+          : e.key === 'set_cosmetic_tag' && e.value && !names[e.value]
+            ? // No localisation: drop the country tag from `ROM_polish_loyalists`.
+              e.value.replace(/^[A-Z]{3}_/, '').replace(/_/g, ' ')
+            : e.value && !e.isModifier
+              ? names[e.value]
+              : undefined,
       subject: e.subject ?? tagOf(e),
       preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
       subjectName:
