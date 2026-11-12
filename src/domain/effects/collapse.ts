@@ -188,8 +188,7 @@ const COLLAPSERS: Record<string, Collapser> = {
     const own = fields.filter((f) => f.depth === line.depth + 1)
     const targets = own.filter((f) => f.key === 'category' || f.key === 'technology')
     if (!Number.isFinite(bonus) || targets.length === 0) return null
-    const optional = (key: string) =>
-      field(key) === undefined ? undefined : Number(field(key))
+    const optional = (key: string) => (field(key) === undefined ? undefined : Number(field(key)))
     return {
       depth: line.depth,
       key: line.key,

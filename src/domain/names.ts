@@ -22,10 +22,7 @@ export interface LoadedNames {
 }
 
 /** Reads the display text for `wanted`, plus whatever the texts it finds refer to in turn. */
-export const loadNames = async (
-  files: GameFiles,
-  wanted: Set<string>,
-): Promise<LoadedNames> => {
+export const loadNames = async (files: GameFiles, wanted: Set<string>): Promise<LoadedNames> => {
   const names: Record<string, string> = {}
   const rawNames: Record<string, string> = {}
 

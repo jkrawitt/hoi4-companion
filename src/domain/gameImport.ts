@@ -75,8 +75,7 @@ const isCharacterScope = (e: EffectLine): boolean =>
 const isStateScope = (e: EffectLine): boolean =>
   e.value === undefined && e.key !== null && /^\d+$/.test(e.key)
 
-const isEventLine = (e: EffectLine): boolean =>
-  e.key === 'country_event' || e.key === 'news_event'
+const isEventLine = (e: EffectLine): boolean => e.key === 'country_event' || e.key === 'news_event'
 
 /** The country an effect line names, as its subject or as a `SOV = { ... }` scope header. */
 const tagOf = (e: EffectLine): string | undefined => {
@@ -241,11 +240,7 @@ export const importCountryFocuses = async (
       ...Array.from(tags, (tag) => (rulingParties[tag] ? `${tag}_${rulingParties[tag]}` : tag)),
       ...Object.values(eventTitles),
       ...Object.values(factionNames),
-      ...focuses.flatMap((f) => [
-        f.id,
-        `${f.id}_desc`,
-        ...f.effects.flatMap(effectNameKeys),
-      ]),
+      ...focuses.flatMap((f) => [f.id, `${f.id}_desc`, ...f.effects.flatMap(effectNameKeys)]),
     ]),
   )
   const statDocs = parseStatDocs((await files.readText(GAME_PATHS.statDocs)) ?? '')
@@ -330,9 +325,7 @@ export const importCountryFocuses = async (
             .map((key) => names[key])
             .find(Boolean),
         )
-    const fallbacks = e.isRule
-      ? { kind: 'flag' as const }
-      : { goodWhen: defaultGoodWhen(e.key) }
+    const fallbacks = e.isRule ? { kind: 'flag' as const } : { goodWhen: defaultGoodWhen(e.key) }
     return resolveStat(e.key, label, statDocs, statOverrides, fallbacks)
   }
 
