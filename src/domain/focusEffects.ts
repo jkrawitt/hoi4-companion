@@ -710,4 +710,12 @@ export const effectTone = (e: EffectLine): StatTone =>
           : 'neutral'
 
 /** Localisation keys that may hold the display name of a modifier, most specific first. */
-export const modifierNameKeys = (key: string): string[] => [`MODIFIER_${key.toUpperCase()}`, key]
+export const modifierNameKeys = (key: string): string[] => [
+  `MODIFIER_${key.toUpperCase()}`,
+  `modifier_${key}`,
+  key,
+]
+
+/** Construction speed of one kind of building, e.g. `production_speed_nuclear_reactor_factor`. */
+export const isBuildingSpeedModifier = (key: string): boolean =>
+  /^production_speed_.+_factor$/.test(key)

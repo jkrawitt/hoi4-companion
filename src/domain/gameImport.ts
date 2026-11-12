@@ -6,6 +6,7 @@ import {
   ideaLineIndexes,
   isCountryTag,
   isOwnScope,
+  isBuildingSpeedModifier,
   modifierNameKeys,
   resolveDlcConditions,
 } from './focusEffects'
@@ -102,6 +103,14 @@ export interface ImportTarget {
   focusTreeFile: string
   ideasFile?: string
 }
+
+/** A `46 = { ... }` block: effects applied to the state with that id. */
+const isStateScope = (e: EffectLine): boolean =>
+  e.value === undefined && e.key !== null && /^\d+$/.test(e.key)
+
+/** `Nuclear Reactor construction speed` as `Nuclear Reactor Construction Speed`. */
+const titleCaseIf = (apply: boolean, text: string | undefined) =>
+  apply && text ? text.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : text
 
 /**
  * Reads a country's focus tree from the game files and attaches English display names.
@@ -225,6 +234,7 @@ export const importCountryFocuses = async (
         ...(e.key === 'add_resource' && e.subject ? [`state_resource_${e.subject}`] : []),
         ...(e.research?.targets ?? []),
         ...(e.preferStates ?? []).map((id) => `STATE_${id}`),
+        ...(isStateScope(e) ? [`STATE_${e.key}`] : []),
         ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
       ]),
     ]),
@@ -307,13 +317,15 @@ export const importCountryFocuses = async (
         subjectName:
           e.key === 'add_resource' && e.subject
             ? names[`state_resource_${e.subject}`]
-            : tagOf(e)
-              ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
-              : e.subject && isOwnScope(e.subject)
-                ? country.name
-                : e.subject
-                  ? names[e.subject]
-                  : undefined,
+            : isStateScope(e)
+              ? (names[`STATE_${e.key}`] ?? `State ${e.key}`)
+              : tagOf(e)
+                ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
+                : e.subject && isOwnScope(e.subject)
+                  ? country.name
+                  : e.subject
+                    ? names[e.subject]
+                    : undefined,
         opinion:
           e.key === 'add_opinion_modifier' && e.value
             ? (opinions[e.value] ?? undefined)
@@ -324,12 +336,20 @@ export const importCountryFocuses = async (
                 e.key,
                 e.subject
                   ? `${names[e.subject] ?? e.subject.replace(/_/g, ' ')} popularity`
-                  : modifierNameKeys(e.key)
-                      .map((k) => names[k])
-                      .find(Boolean),
+                  : titleCaseIf(
+                      isBuildingSpeedModifier(e.key),
+                      modifierNameKeys(e.key)
+                        .map((k) => names[k])
+                        .find(Boolean),
+                    ),
                 statDocs,
                 statOverrides,
-                e.isRule ? { kind: 'flag' } : {},
+                e.isRule
+                  ? { kind: 'flag' }
+                  : // Faster construction of a building is always an improvement.
+                    isBuildingSpeedModifier(e.key)
+                    ? { goodWhen: 'positive' }
+                    : {},
               )
             : undefined,
       })),

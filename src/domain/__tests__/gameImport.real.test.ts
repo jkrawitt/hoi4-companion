@@ -121,6 +121,17 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       expect.arrayContaining(['Available as Design Company:', 'Idea: IAR']),
     )
     expect(everything.filter((l) => /\bmio\b/i.test(l))).toEqual([])
+    const ploiesti = focuses.find((f) => f.id === 'ROM_expand_ploiesti_oil_production')
+    expect(ploiesti?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual(
+      expect.arrayContaining(['Muntenia:', '  Add production of 24 Oil']),
+    )
+    const tone = (text: string) => {
+      const line = focuses.flatMap((f) => f.effects).find((e) => formatEffect(e) === text)
+      return line && effectTone(line)
+    }
+    expect(tone('Consumer Goods Factories factor: -15%')).toBe('good')
+    expect(tone('Consumer Goods Factories factor: +30%')).toBe('bad')
+    expect(tone('Nuclear Reactor Construction Speed: +25%')).toBe('good')
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

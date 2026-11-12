@@ -44,6 +44,8 @@ export const statOverrides: StatOverrides = {
     decimals: 0,
     goodWhen: 'positive',
   },
+  // Fewer consumer goods means more factories for everything else.
+  consumer_goods_factor: { goodWhen: 'negative' },
   ai_license_acceptance: { goodWhen: 'positive' },
   license_production_speed: { goodWhen: 'positive' },
   license_tech_difference_speed: { goodWhen: 'positive' },
