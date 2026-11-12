@@ -154,6 +154,20 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       ]),
     )
     expect(everything.filter((l) => /^(if|limit|else|NOT|OR):?$/.test(l))).toEqual([])
+    const dictatorship = focuses.find((f) => f.id === 'ROM_institute_royal_dictatorship')
+    const hedonist = dictatorship?.effects.findIndex((e) => e.key === 'leader_trait') ?? -1
+    expect(
+      dictatorship?.effects
+        .slice(hedonist - 1, hedonist + 3)
+        .map((e) => '  '.repeat(e.depth) + formatEffect(e)),
+    ).toEqual([
+      'Carol II Becomes Leader',
+      '  Leader trait: Hedonist',
+      '    Stability: -5%',
+      'Ruling party: Non-Aligned (no elections)',
+    ])
+    expect(tone('Stability: -5%')).toBe('bad')
+    expect(tone('Economy Laws Cost: -25%')).toBe('good')
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

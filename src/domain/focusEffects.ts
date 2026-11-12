@@ -252,14 +252,24 @@ const COLLAPSERS: Record<
       : null
   },
   // `Carol II Becomes Leader`; the leader's ideology is kept on `subject` but not shown.
-  create_country_leader: (line, field) => {
+  create_country_leader: (line, field, _count, fields) => {
     const name = field('name')
+    const at = fields.findIndex((f) => f.key === 'traits' && f.value === undefined)
+    const traits: string[] = []
+    for (
+      let i = at + 1;
+      at !== -1 && i < fields.length && fields[i].depth > fields[at].depth;
+      i++
+    ) {
+      if (fields[i].key === null && fields[i].value) traits.push(fields[i].value!)
+    }
     return name
       ? {
           depth: line.depth,
           key: line.key,
           value: name.replace(/^"|"$/g, ''),
           subject: field('ideology'),
+          ...(traits.length > 0 ? { traits } : {}),
         }
       : null
   },
@@ -652,6 +662,7 @@ export const formatEffect = (e: EffectLine): string => {
     unlock_decision_category_tooltip: 'Unlocks decision category',
     show_ideas_tooltip: 'Idea',
     create_unit: 'Create unit',
+    leader_trait: 'Leader trait',
     add_country_leader_trait: 'Add leader trait',
     remove_country_leader_trait: 'Remove leader trait',
     remove_advisor_role: 'Remove advisor role',
@@ -876,6 +887,14 @@ export const modifierNameKeys = (key: string): string[] => [
   `modifier_${key}`,
   key,
 ]
+
+/**
+ * Which direction is an improvement for a family of stats, judged from the key: costs (`*_cost_
+ * factor`) are better lower and building construction speeds better higher. Anything else is
+ * left to `statOverrides.ts`.
+ */
+export const defaultGoodWhen = (key: string): 'positive' | 'negative' | undefined =>
+  isBuildingSpeedModifier(key) ? 'positive' : key.endsWith('_cost_factor') ? 'negative' : undefined
 
 /** Construction speed of one kind of building, e.g. `production_speed_nuclear_reactor_factor`. */
 export const isBuildingSpeedModifier = (key: string): boolean =>

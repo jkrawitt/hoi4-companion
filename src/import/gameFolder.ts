@@ -6,6 +6,7 @@ const NEEDED_PREFIXES = [
   'common/ideas/',
   'common/opinion_modifiers/',
   'common/modifiers/',
+  'common/country_leader/',
   'common/factions/templates/',
   'events/',
   'history/countries/',

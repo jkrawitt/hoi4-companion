@@ -44,6 +44,8 @@ export const statOverrides: StatOverrides = {
     decimals: 0,
     goodWhen: 'positive',
   },
+  // Leader traits such as `hedonist` (-5%) change stability as a factor.
+  stability_factor: { label: 'Stability', kind: 'percent', goodWhen: 'positive' },
   // A shorter time to justify a war goal is an improvement.
   justify_war_goal_time: { goodWhen: 'negative' },
   // Fewer consumer goods means more factories for everything else.

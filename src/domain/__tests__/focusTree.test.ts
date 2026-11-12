@@ -3,6 +3,7 @@ import {
   collapseEffects,
   foldConditions,
   pruneEmptyBlocks,
+  defaultGoodWhen,
   resolveDlcConditions,
   unwrapEventConditions,
   effectTone,
@@ -21,6 +22,7 @@ import { parseFactionTemplates } from '../factions'
 import { resolveEventText } from '../localisation'
 import { formatStatValue, parseStatDocs, resolveStat, statTone } from '../stats'
 import { cleanLocalisation, parseLocalisation } from '../localisation'
+import { parseLeaderTraits } from '../leaderTraits'
 import { parseScript } from '../paradoxScript'
 
 const sample = `
@@ -687,5 +689,27 @@ describe('politics and leader effects', () => {
       '    a: b',
       '  add extra'.replace('add extra', 'add stability: +1'),
     ])
+  })
+
+  it('keeps the traits of a new country leader and reads trait stats', () => {
+    const [leader] = collapseEffects(
+      flattenEffects(
+        parseScript(
+          'create_country_leader = { name = "C" ideology = d traits = { hedonist other } }',
+        ),
+      ),
+    )
+    expect(leader.traits).toEqual(['hedonist', 'other'])
+    expect(
+      parseLeaderTraits(
+        'hedonist = { random = no sprite = 3 stability_factor = -0.05 x = 0 }',
+        new Set(['hedonist']),
+      ),
+    ).toEqual({
+      hedonist: [{ depth: 0, key: 'stability_factor', value: '-0.05', isModifier: true }],
+    })
+    expect(defaultGoodWhen('economy_cost_factor')).toBe('negative')
+    expect(defaultGoodWhen('production_speed_bunker_factor')).toBe('positive')
+    expect(defaultGoodWhen('stability_factor')).toBeUndefined()
   })
 })

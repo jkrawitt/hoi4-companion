@@ -6,12 +6,14 @@ import {
   ideaLineIndexes,
   isCountryTag,
   isOwnScope,
+  defaultGoodWhen,
   isBuildingSpeedModifier,
   modifierNameKeys,
   resolveDlcConditions,
 } from './focusEffects'
 import { parseIdeas } from './ideas'
 import { parseOpinionModifiers } from './opinionModifiers'
+import { parseLeaderTraits } from './leaderTraits'
 import { parseStaticModifiers } from './staticModifiers'
 import { parseEventTitles } from './events'
 import { parseFactionTemplates } from './factions'
@@ -31,6 +33,7 @@ const LOCALISATION_DIR = 'localisation/english'
 const IDEAS_DIR = 'common/ideas'
 const OPINION_DIR = 'common/opinion_modifiers'
 const STATIC_MODIFIERS_DIR = 'common/modifiers'
+const LEADER_TRAITS_DIR = 'common/country_leader'
 const HISTORY_DIR = 'history/countries'
 const FACTION_TEMPLATES_DIR = 'common/factions/templates'
 const EVENTS_DIR = 'events'
@@ -170,20 +173,51 @@ export const importCountryFocuses = async (
     `${STATIC_MODIFIERS_DIR}/00_static_modifiers.txt`,
     parseStaticModifiers,
   )
+  // Country leader traits (`add_country_leader_trait`, and the `traits` of a new leader) show
+  // their stats beneath, like ideas do.
+  const traitIds = new Set(
+    parsed.flatMap((f) =>
+      f.effects.flatMap((e) =>
+        e.key === 'add_country_leader_trait' && e.value ? [e.value] : (e.traits ?? []),
+      ),
+    ),
+  )
+  const leaderTraits = await readDefinitions(
+    files,
+    LEADER_TRAITS_DIR,
+    traitIds,
+    `${LEADER_TRAITS_DIR}/00_traits.txt`,
+    parseLeaderTraits,
+  )
   const focuses = parsed.map((f) => {
     const adds = new Set(ideaLineIndexes(f.effects))
     return {
       ...f,
-      effects: f.effects.flatMap((line, i) => {
+      effects: f.effects.flatMap((line, i): EffectLine[] => {
+        const under = (lines: EffectLine[], extra = 0) =>
+          lines.map((m) => ({
+            ...m,
+            depth: line.depth + 1 + extra + m.depth,
+            hidden: line.hidden,
+          }))
+        if (line.key === 'create_country_leader' && line.traits) {
+          // Each trait is a line of its own, with its stats one level further in.
+          return [
+            line,
+            ...line.traits.flatMap((trait) => [
+              { depth: line.depth + 1, key: 'leader_trait', value: trait, hidden: line.hidden },
+              ...under(leaderTraits[trait] ?? [], 1),
+            ]),
+          ]
+        }
         const modifiers = adds.has(i)
           ? (ideas[line.value!] ?? [])
           : line.key === 'add_relation_modifier' && line.value
             ? (relations[line.value] ?? [])
-            : []
-        return [
-          line,
-          ...modifiers.map((m) => ({ ...m, depth: line.depth + 1 + m.depth, hidden: line.hidden })),
-        ]
+            : line.key === 'add_country_leader_trait' && line.value
+              ? (leaderTraits[line.value] ?? [])
+              : []
+        return [line, ...under(modifiers)]
       }),
     }
   })
@@ -355,12 +389,7 @@ export const importCountryFocuses = async (
                     ),
                 statDocs,
                 statOverrides,
-                e.isRule
-                  ? { kind: 'flag' }
-                  : // Faster construction of a building is always an improvement.
-                    isBuildingSpeedModifier(e.key)
-                    ? { goodWhen: 'positive' }
-                    : {},
+                e.isRule ? { kind: 'flag' } : { goodWhen: defaultGoodWhen(e.key) },
               )
             : undefined,
       })),
