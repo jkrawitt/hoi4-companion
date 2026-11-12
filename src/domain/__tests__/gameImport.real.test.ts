@@ -131,6 +131,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     }
     expect(tone('Consumer Goods Factories factor: -15%')).toBe('good')
     expect(tone('Consumer Goods Factories factor: +30%')).toBe('bad')
+    expect(tone('Justify war goal time: -25%')).toBe('good')
     expect(tone('Nuclear Reactor Construction Speed: +25%')).toBe('good')
     const guards = focuses.find((f) => f.id === 'ROM_royal_guards_divisions')
     expect(guards?.effects.slice(1).map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
