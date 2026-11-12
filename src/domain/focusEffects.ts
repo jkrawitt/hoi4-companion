@@ -251,7 +251,7 @@ const COLLAPSERS: Record<
       ? { depth: line.depth, key: line.key, value: character, subject: ideology }
       : null
   },
-  // `Create country leader: Carol II (Despotic)`.
+  // `Carol II Becomes Leader`; the leader's ideology is kept on `subject` but not shown.
   create_country_leader: (line, field) => {
     const name = field('name')
     return name
@@ -593,7 +593,8 @@ export const formatEffect = (e: EffectLine): string => {
     return `Promote ${e.value === undefined ? 'a new leader' : valueText} to country leader${ideology}`
   }
   if (e.key === 'create_country_leader' && e.value !== undefined) {
-    return `Create country leader: ${e.value}${e.subject ? ` (${subjectText})` : ''}`
+    // The leader's sub-ideology (`despotism`) is only a label with no effect of its own.
+    return `${e.value} Becomes Leader`
   }
   if (e.key === 'create_corps_commander' && e.value !== undefined) {
     return `Create corps commander: ${e.value}`

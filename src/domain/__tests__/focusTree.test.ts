@@ -568,7 +568,7 @@ describe('politics and leader effects', () => {
       'Promote a new leader to country leader (fascism)',
     ])
     expect(lines('create_country_leader = { name = "Carol II" ideology = d id = 5 }')).toEqual([
-      'Create country leader: Carol II (d)',
+      'Carol II Becomes Leader',
     ])
     expect(lines('create_corps_commander = { name = "B P" skill = 2 }')).toEqual([
       'Create corps commander: B P',
