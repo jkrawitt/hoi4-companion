@@ -3,6 +3,7 @@ import {
   collapseEffects,
   flattenEffects,
   markHidden,
+  pruneEmptyBlocks,
   simplifyRandomStates,
   unwrapEventConditions,
 } from './focusEffects'
@@ -35,9 +36,11 @@ const parseFocus = (block: ScriptBlock): Focus | null => {
     y: coordinate('y'),
     relativeTo: getString(block, 'relative_position_id'),
     effects: markHidden(
-      simplifyRandomStates(
-        unwrapEventConditions(
-          collapseEffects(flattenEffects(getBlock(block, 'completion_reward') ?? [])),
+      pruneEmptyBlocks(
+        simplifyRandomStates(
+          unwrapEventConditions(
+            collapseEffects(flattenEffects(getBlock(block, 'completion_reward') ?? [])),
+          ),
         ),
       ),
     ),

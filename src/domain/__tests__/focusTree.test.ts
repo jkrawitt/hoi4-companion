@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collapseEffects,
   foldConditions,
+  pruneEmptyBlocks,
   resolveDlcConditions,
   unwrapEventConditions,
   effectTone,
@@ -637,5 +638,28 @@ describe('politics and leader effects', () => {
     // Unknown DLCs, and an `if` without an `else`, are left as they were.
     expect(show({})[0]).toBe('if:')
     expect(show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 }')[0]).toBe('if:')
+  })
+
+  it('reads create_unit, drops division templates and prunes what that empties', () => {
+    const show = (script: string) =>
+      pruneEmptyBlocks(collapseEffects(flattenEffects(parseScript(script)))).map(
+        (e) => '  '.repeat(e.depth) + formatEffect(e),
+      )
+    const unit =
+      'create_unit = { division = "name = \\"Royal Guards\\" division_template = \\"Royal Guards\\" start_experience_factor = 1.0" owner = ROM }'
+    expect(show(unit)).toEqual(['Create unit: Royal Guards'])
+    const template = 'division_template = { name = "X" regiments = { infantry = { x = 0 y = 0 } } }'
+    expect(
+      show(
+        `hidden_effect = { if = { limit = { a = b } ${template} } else = { ${template} } ${unit} }`,
+      ),
+    ).toEqual(['Hidden effect:', '  Create unit: Royal Guards'])
+    // A block with something left in it stays.
+    expect(show('if = { limit = { a = b } add_stability = 1 }')).toEqual([
+      'if:',
+      '  limit:',
+      '    a: b',
+      '  add extra'.replace('add extra', 'add stability: +1'),
+    ])
   })
 })

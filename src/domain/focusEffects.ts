@@ -40,6 +40,12 @@ const STAT_EFFECT_KEYS = new Set([
 const BOOKKEEPING_KEYS = new Set(['set_country_flag', 'set_state_flag', 'clr_country_flag'])
 
 /**
+ * Blocks that only define something for the game's own use. A division template is set up for
+ * the `create_unit` that follows it, and the focus's tooltip already describes the unit.
+ */
+const DROPPED_BLOCKS = new Set(['division_template'])
+
+/**
  * Compound effects (`key = { field = x field = y }`) that read better as one line. Each
  * collapser gets the header line and its fields, and returns the replacement line, or null to
  * leave the effect as it was (e.g. when it has fields we do not know about).
@@ -267,6 +273,16 @@ const COLLAPSERS: Record<
     const name = field('name')
     return name ? { depth: line.depth, key: line.key, value: name } : null
   },
+  // `Create unit: Royal Guards Division`. The `division` field is one string with escaped quotes
+  // (`"name = \"X\" division_template = \"X\" ..."`), which the parser splits into pieces, so
+  // the name is read back out of the pieces joined together.
+  create_unit: (line, _field, _count, fields) => {
+    const text = fields.map((f) => f.value ?? f.key ?? '').join(' ')
+    const name = /division_template\s*=\s*\\?"?([^"\\]+?)\\?"?\s+(?:start_|\w+\s*=|$)/.exec(
+      text,
+    )?.[1]
+    return name ? { depth: line.depth, key: line.key, value: name.trim() } : null
+  },
   // `Create design: IAR 80`; the modules are not shown.
   create_equipment_variant: (line, field) => {
     const name = field('name')
@@ -294,6 +310,10 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]
     if (line.key !== null && line.value !== undefined && BOOKKEEPING_KEYS.has(line.key)) continue
+    if (line.key !== null && line.value === undefined && DROPPED_BLOCKS.has(line.key)) {
+      while (i + 1 < effects.length && effects[i + 1].depth > line.depth) i++
+      continue
+    }
     const collapse =
       line.key !== null && line.value === undefined ? COLLAPSERS[line.key] : undefined
     if (collapse) {
@@ -409,6 +429,45 @@ export const unwrapEventConditions = (effects: EffectLine[]): EffectLine[] => {
     }
     result.push(...body.map((e) => ({ ...e, depth: e.depth - 1 })))
     i = end - 1
+  }
+  return result
+}
+
+/** Headers that only group other effects, so they mean nothing once those are gone. */
+const GROUPING_KEYS = new Set([
+  'if',
+  'else',
+  'else_if',
+  'hidden_effect',
+  'random_owned_controlled_state',
+])
+
+/**
+ * Removes grouping blocks (`if`, `else`, `hidden_effect`, ...) with no effect left in them. A
+ * `limit` does not count as an effect, so an `if` holding only a condition goes too. This
+ * cleans up after dropped effects such as division templates.
+ */
+export const pruneEmptyBlocks = (effects: EffectLine[]): EffectLine[] => {
+  const result: EffectLine[] = []
+  for (let i = 0; i < effects.length; i++) {
+    const line = effects[i]
+    if (line.key === null || line.value !== undefined || !GROUPING_KEYS.has(line.key)) {
+      result.push(line)
+      continue
+    }
+    let end = i + 1
+    while (end < effects.length && effects[end].depth > line.depth) end++
+    let limitDepth: number | null = null
+    let hasEffect = false
+    for (let j = i + 1; j < end && !hasEffect; j++) {
+      const e = effects[j]
+      if (limitDepth !== null && e.depth <= limitDepth) limitDepth = null
+      if (limitDepth !== null) continue
+      if (e.key === 'limit' && e.value === undefined) limitDepth = e.depth
+      else if (e.value !== undefined || e.research !== undefined) hasEffect = true
+    }
+    if (hasEffect) result.push(line)
+    else i = end - 1
   }
   return result
 }
@@ -555,6 +614,7 @@ export const formatEffect = (e: EffectLine): string => {
     unlock_decision_tooltip: 'Unlocks decision',
     unlock_decision_category_tooltip: 'Unlocks decision category',
     show_ideas_tooltip: 'Idea',
+    create_unit: 'Create unit',
     add_country_leader_trait: 'Add leader trait',
     remove_country_leader_trait: 'Remove leader trait',
     remove_advisor_role: 'Remove advisor role',
