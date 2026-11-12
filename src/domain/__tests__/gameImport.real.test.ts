@@ -111,6 +111,19 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         'Create faction: Cordon Sanitaire',
       ]),
     )
+    const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
+    expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
+      'Can create factions: yes',
+      'Create faction: Cordon Sanitaire',
+      'Czechoslovak Republic:',
+      '  Event: The Cordon Sanitaire',
+      'Poland:',
+      '  Event: The Cordon Sanitaire',
+      'Poland:',
+      '  Event: Romania seeks to join our faction',
+      'Hidden effect:',
+      '  News: The Cordon Sanitaire',
+    ])
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')
     expect(transnistria?.effects.map((e) => formatEffect(e))).toEqual([
       'Gain Conquer (Focus) wargoal on Soviet Union',

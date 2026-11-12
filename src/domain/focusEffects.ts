@@ -383,6 +383,46 @@ export const simplifyRandomStates = (effects: EffectLine[]): EffectLine[] => {
   return result
 }
 
+/**
+ * `if = { limit = { ... } POL = { country_event = X } }` becomes just the event under `POL:`.
+ * Only done when the whole body is events sent to other countries, so the condition (is that
+ * country free, in a faction, ...) is not shown for those. Other conditionals are left as is.
+ */
+export const unwrapEventConditions = (effects: EffectLine[]): EffectLine[] => {
+  const result: EffectLine[] = []
+  for (let i = 0; i < effects.length; i++) {
+    const line = effects[i]
+    if (line.key !== 'if' || line.value !== undefined) {
+      result.push(line)
+      continue
+    }
+    let end = i + 1
+    while (end < effects.length && effects[end].depth > line.depth) end++
+    const next = effects[end]
+    const inner = effects.slice(i + 1, end)
+    const limit = inner[0]
+    const limitEnd = inner.findIndex((e, j) => j > 0 && e.depth <= limit?.depth)
+    const body = limitEnd === -1 ? [] : inner.slice(limitEnd)
+    const onlyEvents =
+      limit?.key === 'limit' &&
+      limit.value === undefined &&
+      body.length > 0 &&
+      body.every((e) =>
+        e.depth === line.depth + 1
+          ? isCountryTag(e.key) && e.value === undefined
+          : e.key === 'country_event' && e.value !== undefined,
+      )
+    const hasElse = next?.depth === line.depth && (next.key === 'else' || next.key === 'else_if')
+    if (!onlyEvents || hasElse) {
+      result.push(line)
+      continue
+    }
+    result.push(...body.map((e) => ({ ...e, depth: e.depth - 1 })))
+    i = end - 1
+  }
+  return result
+}
+
 /** Marks everything inside a `hidden_effect = { ... }` block, which the game does not show. */
 export const markHidden = (effects: EffectLine[]): EffectLine[] => {
   let hiddenDepth: number | null = null

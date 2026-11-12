@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   collapseEffects,
+  unwrapEventConditions,
   effectTone,
   flattenEffects,
   formatEffect,
@@ -591,5 +592,20 @@ describe('politics and leader effects', () => {
     expect(lines('create_faction_from_template = { template = t name = F_NAME }')).toEqual([
       'Create faction: F NAME',
     ])
+  })
+
+  it('drops the conditions around events sent to other countries', () => {
+    const show = (script: string) =>
+      unwrapEventConditions(collapseEffects(flattenEffects(parseScript(script)))).map(
+        (e) => '  '.repeat(e.depth) + formatEffect(e),
+      )
+    expect(
+      show('if = { limit = { POL = { exists = yes } } POL = { country_event = a.1 } }'),
+    ).toEqual(['POL:', '  Event: a.1'])
+    // Other conditionals, and ones with an else branch, are kept.
+    expect(show('if = { limit = { a = b } add_stability = 1 }')[0]).toBe('if:')
+    expect(
+      show('if = { limit = { a = b } POL = { country_event = a.1 } } else = { x = y }')[0],
+    ).toBe('if:')
   })
 })
