@@ -259,6 +259,12 @@ const COLLAPSERS: Record<
       ? { depth: line.depth, key: line.key, value: state, subject: target }
       : null
   },
+  // `Create faction: Cordon Sanitaire`; `value` is the faction name key. The template's goals
+  // and rules are not shown.
+  create_faction_from_template: (line, field) => {
+    const name = field('name')
+    return name ? { depth: line.depth, key: line.key, value: name } : null
+  },
   // `Create design: IAR 80`; the modules are not shown.
   create_equipment_variant: (line, field) => {
     const name = field('name')
@@ -468,6 +474,9 @@ export const formatEffect = (e: EffectLine): string => {
   }
   if (e.key === 'set_autonomy' && e.subject && e.value !== undefined) {
     return `Autonomy of ${subjectText}: ${valueText}`
+  }
+  if (e.key === 'create_faction_from_template' && e.value !== undefined) {
+    return `Create faction: ${valueText}`
   }
   if (e.key === 'retire_country_leader' && e.value === 'yes') return 'Retire country leader'
   if (e.key === 'remove_unit_leader_role' && e.value === 'yes') return 'Remove unit leader role'

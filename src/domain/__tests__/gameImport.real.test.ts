@@ -108,6 +108,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         'Autonomy of Romania: Personal Union',
         'Remove advisor role: Chief of Army',
         'Claim added for: Romania',
+        'Create faction: Cordon Sanitaire',
       ]),
     )
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')

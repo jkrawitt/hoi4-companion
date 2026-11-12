@@ -586,4 +586,10 @@ describe('politics and leader effects', () => {
       'Remove advisor role: army chief',
     ])
   })
+
+  it('reads faction creation', () => {
+    expect(lines('create_faction_from_template = { template = t name = F_NAME }')).toEqual([
+      'Create faction: F NAME',
+    ])
+  })
 })
