@@ -514,7 +514,7 @@ describe('research, building and design effects', () => {
       lines(
         'add_tech_bonus = { name = N bonus = 1.0 uses = 2 category = a category = b ahead_reduction = 2 }',
       ),
-    ).toEqual(['Research bonus: +100% (2 uses) for a, b, ignores 2 years of ahead-of-time penalty'])
+    ).toEqual(['2x 100% research bonus for: a, b, ignores 2 years of ahead-of-time penalty'])
   })
 
   it('reads mastery bonuses and technology unlocks', () => {

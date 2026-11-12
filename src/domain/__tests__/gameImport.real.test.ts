@@ -97,7 +97,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const everything = focuses.flatMap((f) => f.effects.map((e) => formatEffect(e)))
     expect(everything).toEqual(
       expect.arrayContaining([
-        'Research bonus: +100% (2 uses) for Industry',
+        '2x 100% research bonus for: Industry',
         'Unlocks technology: Mountain Gun',
         'Create design: IAR 80',
       ]),

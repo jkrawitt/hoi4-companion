@@ -136,7 +136,7 @@ const COLLAPSERS: Record<
       ? { depth: line.depth, key: line.key, value: amount, subject: type }
       : null
   },
-  // `Research bonus: +100% (2 uses) for Industry`; `research.targets` are the categories or
+  // `2x 100% research bonus for: Industry`; `research.targets` are the categories or
   // technologies, and the bonus' own `name` is not shown.
   add_tech_bonus: (line, field, _count, fields) => {
     const bonus = Number(field('bonus'))
@@ -385,9 +385,9 @@ export const formatEffect = (e: EffectLine): string => {
     if (r.kind === 'unlock') return `Unlocks technology: ${targets}`
     const percent = `+${Number(((r.bonus ?? 0) * 100).toFixed(1))}%`
     if (r.kind === 'mastery') return `Doctrine mastery: ${percent} for ${r.days} days on ${targets}`
-    const uses = r.uses ? ` (${r.uses} ${r.uses === 1 ? 'use' : 'uses'})` : ''
+    // Same shape as the doctrine cost reduction: `2x 100% research bonus for: Industry`.
     const ahead = r.ahead ? `, ignores ${r.ahead} years of ahead-of-time penalty` : ''
-    return `Research bonus: ${percent}${uses} for ${targets}${ahead}`
+    return `${r.uses ?? 1}x ${percent.slice(1)} research bonus for: ${targets}${ahead}`
   }
   if (e.key === 'add_building_construction' && e.subject && e.value !== undefined) {
     const name = e.subjectName ?? humanize(e.subject)
