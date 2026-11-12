@@ -13,7 +13,7 @@ import {
   modifierNameKeys,
   resolveDlcConditions,
 } from './focusEffects'
-import { parseIdeas } from './ideas'
+import { parseIdeaNames, parseIdeas } from './ideas'
 import { parseOpinionModifiers } from './opinionModifiers'
 import { parseLeaderTraits } from './leaderTraits'
 import { parseStaticModifiers } from './staticModifiers'
@@ -115,6 +115,10 @@ const popularityComparison = (e: EffectLine): [string, string] | undefined => {
   return other && e.key ? [e.key, other[1]] : undefined
 }
 
+/** A `ROM_ion_antonescu = { ... }` block: effects applied to that character. */
+const isCharacterScope = (e: EffectLine): boolean =>
+  e.value === undefined && e.key !== null && /^[A-Z]{3}_\w+$/.test(e.key)
+
 /** A `46 = { ... }` block: effects applied to the state with that id. */
 const isStateScope = (e: EffectLine): boolean =>
   e.value === undefined && e.key !== null && /^\d+$/.test(e.key)
@@ -150,6 +154,8 @@ export const importCountryFocuses = async (
   // Put each added idea's modifiers right under the line that adds it.
   const ideaIds = new Set(parsed.flatMap((f) => ideaIdsOf(f.effects)))
   const ideas = await readDefinitions(files, IDEAS_DIR, ideaIds, ideasFile, parseIdeas)
+  // Some ideas share another idea's name (`name = ROM_x`) instead of having their own.
+  const ideaAliases = await readDefinitions(files, IDEAS_DIR, ideaIds, ideasFile, parseIdeaNames)
   const opinionIds = new Set(
     parsed.flatMap((f) =>
       f.effects.flatMap((e) => (e.key === 'add_opinion_modifier' && e.value ? [e.value] : [])),
@@ -203,7 +209,7 @@ export const importCountryFocuses = async (
             depth: line.depth + 1 + extra + m.depth,
             hidden: line.hidden,
           }))
-        if (line.key === 'create_country_leader' && line.traits) {
+        if (line.traits) {
           // Each trait is a line of its own, with its stats one level further in.
           return [
             line,
@@ -281,6 +287,8 @@ export const importCountryFocuses = async (
         ...(e.preferStates ?? []).map((id) => `STATE_${id}`),
         ...(isStateScope(e) ? [`STATE_${e.key}`] : []),
         ...(popularityComparison(e) ?? []),
+        ...(isCharacterScope(e) ? [e.key!] : []),
+        ...(e.value && ideaAliases[e.value] ? [ideaAliases[e.value]] : []),
         ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
       ]),
     ]),
@@ -295,12 +303,26 @@ export const importCountryFocuses = async (
     localisationFiles.filter(isFocusFile),
     localisationFiles.filter((f) => !isFocusFile(f)),
   ]
-  for (const batch of batches) {
-    if (Object.keys(names).length >= wanted.size) break
-    for (const file of batch) {
-      const text = await files.readText(`${LOCALISATION_DIR}/${file}`)
-      if (text !== null) Object.assign(names, parseLocalisation(text, wanted, rawNames))
+  const load = async (want: Set<string>) => {
+    for (const batch of batches) {
+      if ([...want].every((key) => key in names)) return
+      for (const file of batch) {
+        const text = await files.readText(`${LOCALISATION_DIR}/${file}`)
+        if (text !== null) Object.assign(names, parseLocalisation(text, want, rawNames))
+      }
     }
+  }
+  await load(wanted)
+  // Some texts are built from others (`$ROM_national_christian_party_in_power$`): fetch and fill
+  // those in too.
+  const REFERENCE = /\$([\w.]+)\$/g
+  const referenced = new Set(
+    Object.values(names).flatMap((text) => [...text.matchAll(REFERENCE)].map((m) => m[1])),
+  )
+  const unread = new Set([...referenced].filter((key) => !(key in names)))
+  if (unread.size > 0) await load(unread)
+  for (const key of Object.keys(names)) {
+    names[key] = names[key].replace(REFERENCE, (whole, ref: string) => names[ref] ?? whole)
   }
 
   const countryName = (tag: string) => names[`${tag}_${rulingParties[tag]}`] ?? names[tag]
@@ -358,7 +380,7 @@ export const importCountryFocuses = async (
               : popularityComparison(e)
                 ? names[popularityComparison(e)![1]]
                 : e.value && !e.isModifier
-                  ? names[e.value]
+                  ? (names[e.value] ?? names[ideaAliases[e.value]])
                   : undefined,
         subject: e.subject ?? tagOf(e),
         preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
@@ -367,15 +389,17 @@ export const importCountryFocuses = async (
             ? names[`state_resource_${e.subject}`]
             : isStateScope(e)
               ? (names[`STATE_${e.key}`] ?? `State ${e.key}`)
-              : popularityComparison(e)
-                ? names[popularityComparison(e)![0]]
-                : tagOf(e)
-                  ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
-                  : e.subject && isOwnScope(e.subject)
-                    ? country.name
-                    : e.subject
-                      ? names[e.subject]
-                      : undefined,
+              : isCharacterScope(e)
+                ? names[e.key!]
+                : popularityComparison(e)
+                  ? names[popularityComparison(e)![0]]
+                  : tagOf(e)
+                    ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
+                    : e.subject && isOwnScope(e.subject)
+                      ? country.name
+                      : e.subject
+                        ? names[e.subject]
+                        : undefined,
         opinion:
           e.key === 'add_opinion_modifier' && e.value
             ? (opinions[e.value] ?? undefined)

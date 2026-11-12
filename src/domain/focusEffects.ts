@@ -59,6 +59,16 @@ const DROPPED_BLOCKS = new Set([
   'add_to_array',
 ])
 
+/** The ids listed in a `traits = { a b }` block among the fields of an effect. */
+const traitsOf = (fields: EffectLine[]): string[] => {
+  const at = fields.findIndex((f) => f.key === 'traits' && f.value === undefined)
+  const traits: string[] = []
+  for (let i = at + 1; at !== -1 && i < fields.length && fields[i].depth > fields[at].depth; i++) {
+    if (fields[i].key === null && fields[i].value) traits.push(fields[i].value!)
+  }
+  return traits
+}
+
 /**
  * Compound effects (`key = { field = x field = y }`) that read better as one line. Each
  * collapser gets the header line and its fields, and returns the replacement line, or null to
@@ -254,15 +264,7 @@ const COLLAPSERS: Record<
   // `Carol II Becomes Leader`; the leader's ideology is kept on `subject` but not shown.
   create_country_leader: (line, field, _count, fields) => {
     const name = field('name')
-    const at = fields.findIndex((f) => f.key === 'traits' && f.value === undefined)
-    const traits: string[] = []
-    for (
-      let i = at + 1;
-      at !== -1 && i < fields.length && fields[i].depth > fields[at].depth;
-      i++
-    ) {
-      if (fields[i].key === null && fields[i].value) traits.push(fields[i].value!)
-    }
+    const traits = traitsOf(fields)
     return name
       ? {
           depth: line.depth,
@@ -271,6 +273,25 @@ const COLLAPSERS: Record<
           subject: field('ideology'),
           ...(traits.length > 0 ? { traits } : {}),
         }
+      : null
+  },
+  // `Becomes country leader`, with the leader's traits listed beneath; `value` is `promote` when
+  // the effect also makes them the leader. The expiry date and ideology are not shown.
+  add_country_leader_role: (line, field, _count, fields) => {
+    const traits = traitsOf(fields)
+    return {
+      depth: line.depth,
+      key: line.key,
+      value: field('promote_leader') === 'yes' ? 'promote' : 'role',
+      ...(traits.length > 0 ? { traits } : {}),
+    }
+  },
+  // `Nuclear Research breakthrough progress: +75%`; `subject` is the specialization.
+  add_breakthrough_progress: (line, field, count) => {
+    const specialization = field('specialization')
+    const value = field('value')
+    return count === 2 && specialization && Number.isFinite(Number(value))
+      ? { depth: line.depth, key: line.key, value, subject: specialization }
       : null
   },
   // `Create corps commander: Barbu Paraianu`; the skills and traits are not shown.
@@ -636,6 +657,13 @@ export const formatEffect = (e: EffectLine): string => {
   if (e.key === 'create_faction_from_template' && e.value !== undefined) {
     return `Create faction: ${valueText}`
   }
+  if (e.key === 'add_country_leader_role') {
+    return e.value === 'promote' ? 'Becomes country leader' : 'Gains a country leader role'
+  }
+  if (e.key === 'add_breakthrough_progress' && e.subject && e.value !== undefined) {
+    const percent = Number((Number(e.value) * 100).toFixed(1))
+    return `${subjectText} breakthrough progress: ${percent > 0 ? '+' : ''}${percent}%`
+  }
   if (e.key === 'retire_country_leader' && e.value === 'yes') return 'Retire country leader'
   if (e.key === 'remove_unit_leader_role' && e.value === 'yes') return 'Remove unit leader role'
   if (e.key === 'promote_leader' && e.value === 'yes') return 'Promote to country leader'
@@ -884,7 +912,10 @@ export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
 
 /** Whether a line is an improvement, a setback, or neither, for colouring. */
 export const effectTone = (e: EffectLine): StatTone =>
-  e.doctrine || e.research || e.key === 'add_building_construction'
+  e.doctrine ||
+  e.research ||
+  e.key === 'add_building_construction' ||
+  e.key === 'add_breakthrough_progress'
     ? 'good'
     : e.key === 'add_resource' && e.value !== undefined
       ? Number(e.value) > 0

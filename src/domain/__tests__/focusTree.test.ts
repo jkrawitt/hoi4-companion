@@ -25,6 +25,7 @@ import { parseFactionTemplates } from '../factions'
 import { resolveEventText } from '../localisation'
 import { formatStatValue, parseStatDocs, resolveStat, statTone } from '../stats'
 import { cleanLocalisation, parseLocalisation } from '../localisation'
+import { parseIdeaNames } from '../ideas'
 import { parseLeaderTraits } from '../leaderTraits'
 import { parseScript } from '../paradoxScript'
 
@@ -730,5 +731,27 @@ describe('politics and leader effects', () => {
     expect(reverseModifier({ ...line, value: '-0.5' }).value).toBe('0.5')
     const rule = { depth: 0, key: 'can_send_volunteers', value: 'yes', isRule: true }
     expect(reverseModifier(rule).value).toBe('no')
+  })
+
+  it('reads leader roles, breakthrough progress and idea aliases', () => {
+    const run = (script: string) => collapseEffects(flattenEffects(parseScript(script)))
+    const [role] = run(
+      'add_country_leader_role = { country_leader = { ideology = f traits = { t1 t2 } } promote_leader = yes }',
+    )
+    expect(role).toMatchObject({
+      key: 'add_country_leader_role',
+      value: 'promote',
+      traits: ['t1', 't2'],
+    })
+    expect(formatEffect(role)).toBe('Becomes country leader')
+    expect(formatEffect({ ...role, value: 'role' })).toBe('Gains a country leader role')
+    const [progress] = run('add_breakthrough_progress = { specialization = s value = 0.75 }')
+    expect(formatEffect({ ...progress, subjectName: 'Nuclear Research' })).toBe(
+      'Nuclear Research breakthrough progress: +75%',
+    )
+    expect(effectTone(progress)).toBe('good')
+    expect(
+      parseIdeaNames('A_2 = { name = A picture = p } B = { x = 1 }', new Set(['A_2', 'B'])),
+    ).toEqual({ A_2: 'A', B: '' })
   })
 })

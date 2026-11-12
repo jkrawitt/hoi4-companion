@@ -1,6 +1,6 @@
 import type { EffectLine } from './focus'
 import { flattenEffects } from './focusEffects'
-import { findBlocks, getBlock } from './paradoxScript'
+import { findBlocks, getBlock, getString } from './paradoxScript'
 
 /**
  * Returns what each wanted idea in a `common/ideas` file does, as effect lines: its `modifier`
@@ -21,5 +21,17 @@ export const parseIdeas = (text: string, wanted: Set<string>): Record<string, Ef
           isRule: true,
         })),
       ],
+    ]),
+  )
+
+/**
+ * The `name` an idea is displayed under when it is not named after its id (`ROM_x_2` with
+ * `name = ROM_x`), so the same text can be shared by several ideas. Ideas without one map to ''.
+ */
+export const parseIdeaNames = (text: string, wanted: Set<string>): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(findBlocks(text, wanted)).map(([id, block]) => [
+      id,
+      getString(block, 'name') ?? '',
     ]),
   )

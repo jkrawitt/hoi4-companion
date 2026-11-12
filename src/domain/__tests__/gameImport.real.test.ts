@@ -176,6 +176,15 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       ]),
     )
     expect(tone('Recruitable Population: -1.00%')).toBe('bad')
+    const crackDown = focuses.find((f) => f.id === 'ROM_crack_down_on_extremism')
+    expect(
+      crackDown?.effects.slice(0, 3).map((e) => '  '.repeat(e.depth) + formatEffect(e)),
+    ).toEqual(['Ion Antonescu:', '  Becomes country leader', '    Leader trait: Conducător'])
+    expect(everything).toContain('Nuclear Research breakthrough progress: +75%')
+    // Texts built from other texts (`$key$`) are filled in, and shared idea names are found.
+    expect(everything.filter((l) => /\$[\w.]+\$/.test(l) && !l.includes('airframe'))).toEqual([])
+    expect(everything).toContain('add idea: King Carol II')
+    expect(everything.filter((l) => l.includes('ROM_king_carol_ii_handled_2'))).toEqual([])
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',
