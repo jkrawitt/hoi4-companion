@@ -1,6 +1,7 @@
 import type { EffectLine, Focus } from './focus'
 import { parseFocusTreeFile } from './focusTree'
 import {
+  foldConditions,
   ideaIdsOf,
   ideaLineIndexes,
   isCountryTag,
@@ -269,58 +270,62 @@ export const importCountryFocuses = async (
     ...f,
     name: names[f.id] ?? f.id,
     description: names[`${f.id}_desc`],
-    effects: f.effects.map((e, i) => ({
-      ...e,
-      eventTitle:
-        e.key === 'country_event' || e.key === 'news_event'
-          ? eventTitleFor(f.effects, i)
-          : undefined,
-      research: e.research && {
-        ...e.research,
-        targetNames: e.research.targets.map((t) => {
-          // Some names are just a reference to another key, written `$key$`.
-          const name = (names[t] ?? t.replace(/_/g, ' ')).trim()
-          const ref = /^\$(.+)\$$/.exec(name)
-          return ref ? (names[ref[1]]?.trim() ?? ref[1].replace(/_/g, ' ')) : name
-        }),
-      },
-      valueName:
-        e.key === 'add_claim_by' && e.value && isOwnScope(e.value)
-          ? country.name
-          : e.key === 'set_cosmetic_tag' && e.value && !names[e.value]
-            ? // No localisation: drop the country tag from `ROM_polish_loyalists`.
-              e.value.replace(/^[A-Z]{3}_/, '').replace(/_/g, ' ')
-            : e.value && !e.isModifier
-              ? names[e.value]
-              : undefined,
-      subject: e.subject ?? tagOf(e),
-      preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
-      subjectName:
-        e.key === 'add_resource' && e.subject
-          ? names[`state_resource_${e.subject}`]
-          : tagOf(e)
-            ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
-            : e.subject && isOwnScope(e.subject)
-              ? country.name
-              : e.subject
-                ? names[e.subject]
+    effects: foldConditions(
+      f.effects.map((e, i) => ({
+        ...e,
+        eventTitle:
+          e.key === 'country_event' || e.key === 'news_event'
+            ? eventTitleFor(f.effects, i)
+            : undefined,
+        research: e.research && {
+          ...e.research,
+          targetNames: e.research.targets.map((t) => {
+            // Some names are just a reference to another key, written `$key$`.
+            const name = (names[t] ?? t.replace(/_/g, ' ')).trim()
+            const ref = /^\$(.+)\$$/.exec(name)
+            return ref ? (names[ref[1]]?.trim() ?? ref[1].replace(/_/g, ' ')) : name
+          }),
+        },
+        valueName:
+          e.key === 'add_claim_by' && e.value && isOwnScope(e.value)
+            ? country.name
+            : e.key === 'set_cosmetic_tag' && e.value && !names[e.value]
+              ? // No localisation: drop the country tag from `ROM_polish_loyalists`.
+                e.value.replace(/^[A-Z]{3}_/, '').replace(/_/g, ' ')
+              : e.value && !e.isModifier
+                ? names[e.value]
                 : undefined,
-      opinion:
-        e.key === 'add_opinion_modifier' && e.value ? (opinions[e.value] ?? undefined) : undefined,
-      stat:
-        e.isModifier && e.key
-          ? resolveStat(
-              e.key,
-              e.subject
-                ? `${names[e.subject] ?? e.subject.replace(/_/g, ' ')} popularity`
-                : modifierNameKeys(e.key)
-                    .map((k) => names[k])
-                    .find(Boolean),
-              statDocs,
-              statOverrides,
-              e.isRule ? { kind: 'flag' } : {},
-            )
-          : undefined,
-    })),
+        subject: e.subject ?? tagOf(e),
+        preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
+        subjectName:
+          e.key === 'add_resource' && e.subject
+            ? names[`state_resource_${e.subject}`]
+            : tagOf(e)
+              ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
+              : e.subject && isOwnScope(e.subject)
+                ? country.name
+                : e.subject
+                  ? names[e.subject]
+                  : undefined,
+        opinion:
+          e.key === 'add_opinion_modifier' && e.value
+            ? (opinions[e.value] ?? undefined)
+            : undefined,
+        stat:
+          e.isModifier && e.key
+            ? resolveStat(
+                e.key,
+                e.subject
+                  ? `${names[e.subject] ?? e.subject.replace(/_/g, ' ')} popularity`
+                  : modifierNameKeys(e.key)
+                      .map((k) => names[k])
+                      .find(Boolean),
+                statDocs,
+                statOverrides,
+                e.isRule ? { kind: 'flag' } : {},
+              )
+            : undefined,
+      })),
+    ),
   }))
 }

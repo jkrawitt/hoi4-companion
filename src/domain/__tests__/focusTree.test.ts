@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   collapseEffects,
+  foldConditions,
   unwrapEventConditions,
   effectTone,
   flattenEffects,
@@ -607,5 +608,23 @@ describe('politics and leader effects', () => {
     expect(
       show('if = { limit = { a = b } POL = { country_event = a.1 } } else = { x = y }')[0],
     ).toBe('if:')
+  })
+
+  it('folds a simple limit into its if header', () => {
+    const show = (script: string) =>
+      foldConditions(collapseEffects(flattenEffects(parseScript(script)))).map(
+        (e) => '  '.repeat(e.depth) + formatEffect(e),
+      )
+    expect(
+      show('if = { limit = { FRA = { is_in_faction_with = ENG } } add_stability = 1 }'),
+    ).toEqual(['If FRA is in faction with: ENG:', '  add stability: +1'])
+    expect(show('if = { limit = { has_idea = X is_ok = no } a = b }')[0]).toBe(
+      'If has idea: X and is ok: no:',
+    )
+    // Anything with NOT or OR in the limit is left as it was.
+    expect(show('if = { limit = { NOT = { a = b } } c = d }').slice(0, 2)).toEqual([
+      'if:',
+      '  limit:',
+    ])
   })
 })

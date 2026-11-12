@@ -491,6 +491,7 @@ export const formatEffect = (e: EffectLine): string => {
     const amount = Number(e.value)
     return `${amount < 0 ? 'Remove' : 'Add'} production of ${Math.abs(amount)} ${name}`
   }
+  if (e.key === 'if' && e.condition) return `If ${e.condition}:`
   const valueText = e.value === undefined ? '' : (e.valueName ?? humanize(e.value))
   const subjectText = e.subject ? (e.subjectName ?? humanize(e.subject)) : ''
   if (e.key === 'set_politics' && e.value !== undefined) {
@@ -596,6 +597,53 @@ export const formatEffect = (e: EffectLine): string => {
   if (e.value === undefined) return `${label}:`
   const value = e.valueName ?? e.value
   return e.key === null ? value : `${label}: ${value}`
+}
+
+/**
+ * Folds a simple `limit` into its `if` header: `if` / `limit` / `France:` / `is in faction with:
+ * Britain` becomes `If France is in faction with: Britain:`. Run after names are resolved, since
+ * the condition is written with them. A limit is simple when it only holds plain conditions,
+ * alone or under country scopes; anything with `NOT`, `OR` or deeper nesting is left as it was.
+ */
+export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
+  const result: EffectLine[] = []
+  for (let i = 0; i < effects.length; i++) {
+    const line = effects[i]
+    const limit = effects[i + 1]
+    if (
+      line.key !== 'if' ||
+      line.value !== undefined ||
+      limit?.key !== 'limit' ||
+      limit.value !== undefined ||
+      limit.depth !== line.depth + 1
+    ) {
+      result.push(line)
+      continue
+    }
+    let end = i + 2
+    while (end < effects.length && effects[end].depth > limit.depth) end++
+    const parts: string[] = []
+    let scope = ''
+    let simple = end > i + 2
+    for (const e of effects.slice(i + 2, end)) {
+      if (e.key === null || e.key === 'NOT' || e.key === 'OR' || e.key === 'AND' || !simple) {
+        simple = false
+      } else if (e.depth === limit.depth + 1 && e.value === undefined) {
+        scope = formatEffect(e).replace(/:$/, '')
+      } else if (e.value !== undefined && e.depth <= limit.depth + 2) {
+        parts.push(`${e.depth === limit.depth + 2 ? scope : ''} ${formatEffect(e)}`.trim())
+      } else {
+        simple = false
+      }
+    }
+    if (!simple || parts.length === 0) {
+      result.push(line)
+      continue
+    }
+    result.push({ ...line, condition: parts.join(' and ') })
+    i = end - 1
+  }
+  return result
 }
 
 /** Whether a line is an improvement, a setback, or neither, for colouring. */

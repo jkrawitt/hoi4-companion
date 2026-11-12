@@ -52,6 +52,8 @@ export interface EffectLine {
   }
   /** For `add_building_construction` lines: the building is built at once, not queued. */
   instant?: boolean
+  /** For `if` headers whose `limit` was folded in: the condition, e.g. `France is in faction`. */
+  condition?: string
   /** For `diplomatic_relation` lines: whether the relation is being granted or removed. */
   active?: boolean
   /** Inside a `hidden_effect` block: the game does not show it to the player. */

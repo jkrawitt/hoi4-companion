@@ -124,6 +124,8 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       'Hidden effect:',
       '  News: The Cordon Sanitaire',
     ])
+    const guarantee = focuses.flatMap((f) => f.effects.map((e) => formatEffect(e)))
+    expect(guarantee).toContain('If France is in faction with: Britain:')
     const transnistria = focuses.find((f) => f.id === 'ROM_demand_transnistria')
     expect(transnistria?.effects.map((e) => formatEffect(e))).toEqual([
       'Gain Conquer (Focus) wargoal on Soviet Union',
