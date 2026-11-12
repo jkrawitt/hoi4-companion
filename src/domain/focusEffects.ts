@@ -8,7 +8,9 @@ export const flattenEffects = (block: ScriptBlock, depth = 0): EffectLine[] =>
     if (typeof entry.value === 'string') {
       return [{ depth, key: entry.key, value: entry.value }]
     }
-    return [{ depth, key: entry.key }, ...flattenEffects(entry.value, depth + 1)]
+    // Script keywords are case-insensitive, and the game files write `IF` as well as `if`.
+    const key = entry.key === 'IF' ? 'if' : entry.key
+    return [{ depth, key }, ...flattenEffects(entry.value, depth + 1)]
   })
 
 const collapseEvent = (
@@ -585,6 +587,59 @@ export const formatEffect = (e: EffectLine): string => {
   if (e.value === undefined) return `${label}:`
   const value = e.valueName ?? e.value
   return e.key === null ? value : `${label}: ${value}`
+}
+
+/**
+ * `if = { limit = { has_dlc = "X" } ... } else = { ... }` for a DLC whose ownership is known
+ * (`ownedDlc`, from `src/data/dlc.ts`): keeps the branch that applies and drops the condition,
+ * so a player without the DLC sees what they would get. DLCs not listed, and a `has_dlc` `if`
+ * without an `else`, are left as they were.
+ */
+export const resolveDlcConditions = (
+  effects: EffectLine[],
+  ownedDlc: Record<string, boolean>,
+): EffectLine[] => {
+  const result: EffectLine[] = []
+  for (let i = 0; i < effects.length; i++) {
+    const line = effects[i]
+    const limit = effects[i + 1]
+    const dlc = effects[i + 2]
+    let end = i + 1
+    while (end < effects.length && effects[end].depth > line.depth) end++
+    const els = effects[end]
+    const limitEnd = i + 2 + 1
+    const matches =
+      line.key === 'if' &&
+      line.value === undefined &&
+      limit?.key === 'limit' &&
+      limit.value === undefined &&
+      limit.depth === line.depth + 1 &&
+      dlc?.key === 'has_dlc' &&
+      dlc.value !== undefined &&
+      dlc.value in ownedDlc &&
+      (effects[limitEnd]?.depth ?? 0) <= limit.depth &&
+      els?.key === 'else' &&
+      els.value === undefined &&
+      els.depth === line.depth
+    if (!matches) {
+      result.push(line)
+      continue
+    }
+    let elseEnd = end + 1
+    while (elseEnd < effects.length && effects[elseEnd].depth > line.depth) elseEnd++
+    const chosen = ownedDlc[dlc.value!]
+      ? effects.slice(limitEnd, end)
+      : effects.slice(end + 1, elseEnd)
+    // Handle the chosen body too, in case it holds another such condition.
+    result.push(
+      ...resolveDlcConditions(
+        chosen.map((e) => ({ ...e, depth: e.depth - 1 })),
+        ownedDlc,
+      ),
+    )
+    i = elseEnd - 1
+  }
+  return result
 }
 
 /**

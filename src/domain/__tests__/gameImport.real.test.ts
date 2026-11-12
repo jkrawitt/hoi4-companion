@@ -2,6 +2,7 @@ import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { layoutFocuses } from '../focusLayout'
+import { ownedDlc } from '../../data/dlc'
 import { statOverrides } from '../../data/statOverrides'
 import { effectTone, formatEffect } from '../focusEffects'
 import { importCountryFocuses } from '../gameImport'
@@ -23,6 +24,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         ideasFile: 'common/ideas/romania.txt',
       },
       statOverrides,
+      ownedDlc,
     )
     expect(focuses.length).toBeGreaterThan(50)
     const first = focuses.find((f) => f.id === 'ROM_preserve_greater_romania')
@@ -114,6 +116,11 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(
       focuses.flatMap((f) => f.effects.filter((e) => e.key === 'free_building_slots')),
     ).toEqual([])
+    // Without Arms Against Tyranny the `else` branch is shown in place of the MIO.
+    expect(lines('ROM_invest_in_the_iar')).toEqual(
+      expect.arrayContaining(['Available as Design Company:', 'Idea: IAR']),
+    )
+    expect(everything.filter((l) => /\bmio\b/i.test(l))).toEqual([])
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
 import type { Focus } from '@/domain/focus'
@@ -50,7 +51,7 @@ const runImport = async (files: GameFiles) => {
   status.value = 'Reading game files…'
   const target = country.value
   try {
-    const list = await importCountryFocuses(files, target, statOverrides)
+    const list = await importCountryFocuses(files, target, statOverrides, ownedDlc)
     await saveCachedFocuses(target.tag, list)
     if (target.tag === countryTag.value) setFocuses(list)
     status.value = `Imported ${list.length} focuses for ${target.name}.`

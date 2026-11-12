@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   collapseEffects,
   foldConditions,
+  resolveDlcConditions,
   unwrapEventConditions,
   effectTone,
   flattenEffects,
@@ -623,5 +624,18 @@ describe('politics and leader effects', () => {
       'if:',
       '  limit:',
     ])
+  })
+
+  it('keeps the branch for a DLC we know the ownership of', () => {
+    const script = `IF = { limit = { has_dlc = "AAT" } a = 1 b = 2 } else = { c = 3 }`
+    const show = (owned: Record<string, boolean>, text = script) =>
+      resolveDlcConditions(collapseEffects(flattenEffects(parseScript(text))), owned).map(
+        (e) => '  '.repeat(e.depth) + formatEffect(e),
+      )
+    expect(show({ AAT: false })).toEqual(['c: 3'])
+    expect(show({ AAT: true })).toEqual(['a: 1', 'b: 2'])
+    // Unknown DLCs, and an `if` without an `else`, are left as they were.
+    expect(show({})[0]).toBe('if:')
+    expect(show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 }')[0]).toBe('if:')
   })
 })

@@ -7,6 +7,7 @@ import {
   isCountryTag,
   isOwnScope,
   modifierNameKeys,
+  resolveDlcConditions,
 } from './focusEffects'
 import { parseIdeas } from './ideas'
 import { parseOpinionModifiers } from './opinionModifiers'
@@ -110,6 +111,7 @@ export const importCountryFocuses = async (
   files: GameFiles,
   country: ImportTarget,
   statOverrides: StatOverrides = {},
+  ownedDlc: Record<string, boolean> = {},
 ): Promise<Focus[]> => {
   const { focusTreeFile, ideasFile } = country
   const treeText = await files.readText(focusTreeFile)
@@ -118,7 +120,12 @@ export const importCountryFocuses = async (
       `Could not find ${focusTreeFile}. Choose the Hearts of Iron IV installation folder (the one containing "common" and "localisation").`,
     )
   }
-  const parsed = parseFocusTreeFile(treeText)
+  // Pick the branch that applies to the DLCs we know about before anything is looked up, so
+  // names and idea modifiers are only read for what will be shown.
+  const parsed = parseFocusTreeFile(treeText).map((f) => ({
+    ...f,
+    effects: resolveDlcConditions(f.effects, ownedDlc),
+  }))
 
   // Put each added idea's modifiers right under the line that adds it.
   const ideaIds = new Set(parsed.flatMap((f) => ideaIdsOf(f.effects)))
