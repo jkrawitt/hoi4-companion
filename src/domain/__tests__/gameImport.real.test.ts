@@ -111,6 +111,9 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         'Create faction: Cordon Sanitaire',
       ]),
     )
+    expect(
+      focuses.flatMap((f) => f.effects.filter((e) => e.key === 'free_building_slots')),
+    ).toEqual([])
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

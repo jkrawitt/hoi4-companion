@@ -326,20 +326,10 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
 }
 
 /**
- * `limit = { X = { has_full_control_of_state = PREV } }` inside `random_owned_controlled_state`
- * says nothing new, since the state is already owned and controlled by that country.
- */
-const isImpliedLimit = (body: EffectLine[]): boolean =>
-  body.length === 2 &&
-  body[0].key !== null &&
-  body[0].value === undefined &&
-  body[1].key === 'has_full_control_of_state' &&
-  body[1].value === 'PREV'
-
-/**
  * Tidies `random_owned_controlled_state = { prioritize = { 46 } limit = { ... } ... }`: the
- * prioritized state ids move onto the header line (`preferStates`), and a `limit` that only
- * restates ownership is dropped. Any other limit is kept, since what it means varies by focus.
+ * prioritized state ids move onto the header line (`preferStates`), and the `limit` is dropped.
+ * It only says which states qualify (free building slots, ownership, ...), which is the game's
+ * business of picking one, not something the player decides.
  */
 export const simplifyRandomStates = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
@@ -369,10 +359,8 @@ export const simplifyRandomStates = (effects: EffectLine[]): EffectLine[] => {
           j = k - 1
           continue
         }
-        if (isImpliedLimit(inner)) {
-          j = k - 1
-          continue
-        }
+        j = k - 1
+        continue
       }
       kept.push(child)
     }

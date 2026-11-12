@@ -184,7 +184,7 @@ describe('random owned controlled states', () => {
   const run = (text: string) =>
     simplifyRandomStates(collapseEffects(flattenEffects(parseScript(text))))
 
-  it('moves prioritize onto the header and drops an implied limit', () => {
+  it('moves prioritize onto the header and drops the limit', () => {
     const effects = run(`random_owned_controlled_state = {
       prioritize = { 46 79 }
       limit = { ROOT = { has_full_control_of_state = PREV } }
@@ -196,16 +196,13 @@ describe('random owned controlled states', () => {
     ])
   })
 
-  it('keeps any other limit, since its meaning varies', () => {
+  it('drops any limit, including ones about building slots', () => {
     const effects = run(`random_owned_controlled_state = {
       limit = { free_building_slots = { building = arms_factory } }
       some_other_effect = yes
     }`)
     expect(effects.map((e) => e.key)).toEqual([
       'random_owned_controlled_state',
-      'limit',
-      'free_building_slots',
-      'building',
       'some_other_effect',
     ])
   })
