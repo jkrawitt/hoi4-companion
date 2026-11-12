@@ -6,7 +6,11 @@ import type { ScriptBlock } from './paradoxScript'
 export const flattenEffects = (block: ScriptBlock, depth = 0): EffectLine[] =>
   block.flatMap((entry): EffectLine[] => {
     if (typeof entry.value === 'string') {
-      return [{ depth, key: entry.key, value: entry.value }]
+      return [
+        entry.operator && entry.operator !== '='
+          ? { depth, key: entry.key, value: entry.value, operator: entry.operator }
+          : { depth, key: entry.key, value: entry.value },
+      ]
     }
     // Script keywords are case-insensitive, and the game files write `IF` as well as `if`.
     const key = entry.key === 'IF' ? 'if' : entry.key
@@ -37,13 +41,23 @@ const STAT_EFFECT_KEYS = new Set([
 ])
 
 /** Effects with nothing for a player to see; the game only uses them for its own bookkeeping. */
-const BOOKKEEPING_KEYS = new Set(['set_country_flag', 'set_state_flag', 'clr_country_flag'])
+const BOOKKEEPING_KEYS = new Set([
+  'set_country_flag',
+  'set_state_flag',
+  'clr_country_flag',
+  'log', // writes to the game's debug log
+])
 
 /**
  * Blocks that only define something for the game's own use. A division template is set up for
  * the `create_unit` that follows it, and the focus's tooltip already describes the unit.
  */
-const DROPPED_BLOCKS = new Set(['division_template'])
+const DROPPED_BLOCKS = new Set([
+  'division_template',
+  // Script arrays are the game's own bookkeeping (e.g. which countries a faction targets).
+  'remove_from_array',
+  'add_to_array',
+])
 
 /**
  * Compound effects (`key = { field = x field = y }`) that read better as one line. Each
@@ -440,6 +454,8 @@ const GROUPING_KEYS = new Set([
   'else_if',
   'hidden_effect',
   'random_owned_controlled_state',
+  'every_other_country',
+  'capital_scope',
 ])
 
 /**
@@ -451,7 +467,10 @@ export const pruneEmptyBlocks = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]
-    if (line.key === null || line.value !== undefined || !GROUPING_KEYS.has(line.key)) {
+    const groups =
+      line.key !== null &&
+      (GROUPING_KEYS.has(line.key) || isCountryTag(line.key) || isOwnScope(line.key))
+    if (line.key === null || line.value !== undefined || !groups) {
       result.push(line)
       continue
     }
@@ -540,7 +559,24 @@ export const formatEffect = (e: EffectLine): string => {
     const amount = Number(e.value)
     return `${amount < 0 ? 'Remove' : 'Add'} production of ${Math.abs(amount)} ${name}`
   }
-  if (e.key === 'if' && e.condition) return `If ${e.condition}:`
+  if (e.operator && e.key !== null && e.value !== undefined) {
+    // `communism > party_popularity@fascism`: one ideology's popularity against another's.
+    const other = /^party_popularity@(.+)$/.exec(e.value)
+    if (other) {
+      const name = (n: string | undefined, key: string) => n ?? humanize(key)
+      return `${name(e.subjectName, e.key)} popularity ${e.operator} ${name(e.valueName, other[1])} popularity`
+    }
+    return `${humanize(e.key)} ${e.operator} ${e.valueName ?? e.value}`
+  }
+  if (e.value === undefined) {
+    const when = e.condition
+    if (e.key === 'if') return when ? `If ${when}:` : 'If:'
+    if (e.key === 'else_if') return when ? `Otherwise, if ${when}:` : 'Otherwise, if:'
+    if (e.key === 'else') return 'Otherwise:'
+    if (e.key === 'every_other_country') {
+      return when ? `Every other country where ${when}:` : 'Every other country:'
+    }
+  }
   const valueText = e.value === undefined ? '' : (e.valueName ?? humanize(e.value))
   const subjectText = e.subject ? (e.subjectName ?? humanize(e.subject)) : ''
   if (e.key === 'set_politics' && e.value !== undefined) {
@@ -702,11 +738,62 @@ export const resolveDlcConditions = (
   return result
 }
 
+/** A line with the lines nested under it, to read a `limit` as the condition it describes. */
+interface ConditionNode {
+  line: EffectLine
+  kids: ConditionNode[]
+}
+
+const toTree = (lines: EffectLine[]): ConditionNode[] => {
+  const roots: ConditionNode[] = []
+  const stack: ConditionNode[] = []
+  for (const line of lines) {
+    const node: ConditionNode = { line, kids: [] }
+    while (stack.length > 0 && stack[stack.length - 1].line.depth >= line.depth) stack.pop()
+    ;(stack.length > 0 ? stack[stack.length - 1].kids : roots).push(node)
+    stack.push(node)
+  }
+  return roots
+}
+
+const wrap = (terms: string[]) => (terms.length > 1 ? `(${terms.join(' and ')})` : terms[0])
+
+/** The terms of a condition block, or null when it holds something we cannot read. */
+const conditionTerms = (nodes: ConditionNode[]): string[] | null => {
+  const terms: string[] = []
+  for (const { line, kids } of nodes) {
+    if (line.key === null) return null
+    const key: string = line.key
+    if (line.value !== undefined) {
+      terms.push(formatEffect(line))
+      continue
+    }
+    const inner = conditionTerms(kids)
+    if (inner === null || inner.length === 0) return null
+    if (line.key === 'NOT') terms.push(`not ${wrap(inner)}`)
+    else if (line.key === 'OR') terms.push(inner.length > 1 ? `(${inner.join(' or ')})` : inner[0])
+    else if (line.key === 'AND') terms.push(wrap(inner))
+    else if (line.key === 'capital_scope') terms.push(`capital ${wrap(inner)}`)
+    else if (isCountryTag(line.key) || isOwnScope(line.key) || /^\d+$/.test(line.key)) {
+      terms.push(`${formatEffect(line).replace(/:$/, '')} ${wrap(inner)}`)
+    } else if (kids.every((k) => k.line.value !== undefined && k.line.key !== null)) {
+      // A condition with fields of its own: `has_country_leader = { id = 550 }`.
+      terms.push(`${humanize(key)} (${kids.map((k) => formatEffect(k.line)).join(', ')})`)
+    } else return null
+  }
+  return terms
+}
+
+/** Headers that take a `limit`, which is folded into the header as its condition. */
+const CONDITIONAL_KEYS = new Set(['if', 'else_if', 'every_other_country'])
+
 /**
- * Folds a simple `limit` into its `if` header: `if` / `limit` / `France:` / `is in faction with:
- * Britain` becomes `If France is in faction with: Britain:`. Run after names are resolved, since
- * the condition is written with them. A limit is simple when it only holds plain conditions,
- * alone or under country scopes; anything with `NOT`, `OR` or deeper nesting is left as it was.
+ * Folds a `limit` into the header it belongs to: `if` / `limit` / `France:` / `is in faction
+ * with: Britain` becomes `If France is in faction with: Britain:`. Run after names are resolved,
+ * since the condition is written with them. `NOT`, `OR` and `AND` are written out
+ * (`not (...)`, `(a or b)`); a limit holding anything else is left as it was. An `if` with an
+ * empty limit always applies, so it is dropped and its body shown (with its `else` branches
+ * removed, since they never apply).
  */
 export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
@@ -714,7 +801,8 @@ export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
     const line = effects[i]
     const limit = effects[i + 1]
     if (
-      line.key !== 'if' ||
+      line.key === null ||
+      !CONDITIONAL_KEYS.has(line.key) ||
       line.value !== undefined ||
       limit?.key !== 'limit' ||
       limit.value !== undefined ||
@@ -723,28 +811,40 @@ export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
       result.push(line)
       continue
     }
-    let end = i + 2
-    while (end < effects.length && effects[end].depth > limit.depth) end++
-    const parts: string[] = []
-    let scope = ''
-    let simple = end > i + 2
-    for (const e of effects.slice(i + 2, end)) {
-      if (e.key === null || e.key === 'NOT' || e.key === 'OR' || e.key === 'AND' || !simple) {
-        simple = false
-      } else if (e.depth === limit.depth + 1 && e.value === undefined) {
-        scope = formatEffect(e).replace(/:$/, '')
-      } else if (e.value !== undefined && e.depth <= limit.depth + 2) {
-        parts.push(`${e.depth === limit.depth + 2 ? scope : ''} ${formatEffect(e)}`.trim())
-      } else {
-        simple = false
+    let limitEnd = i + 2
+    while (limitEnd < effects.length && effects[limitEnd].depth > limit.depth) limitEnd++
+    let blockEnd = limitEnd
+    while (blockEnd < effects.length && effects[blockEnd].depth > line.depth) blockEnd++
+    if (limitEnd === i + 2 && line.key === 'if') {
+      result.push(
+        ...foldConditions(
+          effects.slice(limitEnd, blockEnd).map((e) => ({ ...e, depth: e.depth - 1 })),
+        ),
+      )
+      // The branches that follow never apply.
+      while (
+        blockEnd < effects.length &&
+        effects[blockEnd].depth === line.depth &&
+        (effects[blockEnd].key === 'else' || effects[blockEnd].key === 'else_if')
+      ) {
+        blockEnd++
+        while (blockEnd < effects.length && effects[blockEnd].depth > line.depth) blockEnd++
       }
+      i = blockEnd - 1
+      continue
     }
-    if (!simple || parts.length === 0) {
+    const terms = limitEnd === i + 2 ? null : conditionTerms(toTree(effects.slice(i + 2, limitEnd)))
+    if (!terms || terms.length === 0) {
       result.push(line)
       continue
     }
-    result.push({ ...line, condition: parts.join(' and ') })
-    i = end - 1
+    let condition = terms.join(' and ')
+    // A single `or` group needs no brackets of its own.
+    if (terms.length === 1 && terms[0].startsWith('(') && !terms[0].includes(' and ')) {
+      condition = terms[0].slice(1, -1)
+    }
+    result.push({ ...line, condition })
+    i = limitEnd - 1
   }
   return result
 }

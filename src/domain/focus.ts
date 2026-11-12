@@ -17,6 +17,8 @@ export interface EffectLine {
   /** Effect or field name as written in the game files; null for a bare value. */
   key: string | null
   value?: string
+  /** Comparison operator when it is not `=`, e.g. `>` in `communism > party_popularity@fascism`. */
+  operator?: string
   /** Localised name of `value` when it refers to something with one (e.g. an idea). */
   valueName?: string
   /** What the effect applies to, e.g. the ideology of an `add_popularity` line. */

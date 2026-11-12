@@ -138,6 +138,21 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       '  Random owned and controlled state (prioritize Muntenia):',
       '    Create unit: Royal Guards Division',
     ])
+    const yugoslavia = focuses.find((f) => f.id === 'ROM_divide_yugoslavia')
+    expect(yugoslavia?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
+      'If Yugoslavia (has war: yes or is subject: yes):',
+      '  Gain Annex wargoal on Yugoslavia',
+      'Otherwise:',
+      '  Unlocks decision category: The Partition of Yugoslavia',
+    ])
+    const dominance = focuses.find((f) => f.id === 'ROM_balkans_dominance')
+    expect(dominance?.effects.map((e) => formatEffect(e))).toEqual(
+      expect.arrayContaining([
+        'Every other country where has opinion modifier: The Balkan Pact:',
+        'Opinion of Bulgaria: -30 (Incongruous Neighbors)',
+      ]),
+    )
+    expect(everything.filter((l) => /^(if|limit|else|NOT|OR):?$/.test(l))).toEqual([])
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

@@ -104,6 +104,12 @@ export interface ImportTarget {
   ideasFile?: string
 }
 
+/** The two ideologies of `communism > party_popularity@fascism`, for looking up their names. */
+const popularityComparison = (e: EffectLine): [string, string] | undefined => {
+  const other = e.operator && e.value ? /^party_popularity@(.+)$/.exec(e.value) : null
+  return other && e.key ? [e.key, other[1]] : undefined
+}
+
 /** A `46 = { ... }` block: effects applied to the state with that id. */
 const isStateScope = (e: EffectLine): boolean =>
   e.value === undefined && e.key !== null && /^\d+$/.test(e.key)
@@ -235,6 +241,7 @@ export const importCountryFocuses = async (
         ...(e.research?.targets ?? []),
         ...(e.preferStates ?? []).map((id) => `STATE_${id}`),
         ...(isStateScope(e) ? [`STATE_${e.key}`] : []),
+        ...(popularityComparison(e) ?? []),
         ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
       ]),
     ]),
@@ -309,9 +316,11 @@ export const importCountryFocuses = async (
             : e.key === 'set_cosmetic_tag' && e.value && !names[e.value]
               ? // No localisation: drop the country tag from `ROM_polish_loyalists`.
                 e.value.replace(/^[A-Z]{3}_/, '').replace(/_/g, ' ')
-              : e.value && !e.isModifier
-                ? names[e.value]
-                : undefined,
+              : popularityComparison(e)
+                ? names[popularityComparison(e)![1]]
+                : e.value && !e.isModifier
+                  ? names[e.value]
+                  : undefined,
         subject: e.subject ?? tagOf(e),
         preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
         subjectName:
@@ -319,13 +328,15 @@ export const importCountryFocuses = async (
             ? names[`state_resource_${e.subject}`]
             : isStateScope(e)
               ? (names[`STATE_${e.key}`] ?? `State ${e.key}`)
-              : tagOf(e)
-                ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
-                : e.subject && isOwnScope(e.subject)
-                  ? country.name
-                  : e.subject
-                    ? names[e.subject]
-                    : undefined,
+              : popularityComparison(e)
+                ? names[popularityComparison(e)![0]]
+                : tagOf(e)
+                  ? (names[`${tagOf(e)}_${rulingParties[tagOf(e)!]}`] ?? names[tagOf(e)!])
+                  : e.subject && isOwnScope(e.subject)
+                    ? country.name
+                    : e.subject
+                      ? names[e.subject]
+                      : undefined,
         opinion:
           e.key === 'add_opinion_modifier' && e.value
             ? (opinions[e.value] ?? undefined)

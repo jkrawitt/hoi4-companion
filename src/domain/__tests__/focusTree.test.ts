@@ -603,10 +603,10 @@ describe('politics and leader effects', () => {
       show('if = { limit = { POL = { exists = yes } } POL = { country_event = a.1 } }'),
     ).toEqual(['POL:', '  Event: a.1'])
     // Other conditionals, and ones with an else branch, are kept.
-    expect(show('if = { limit = { a = b } add_stability = 1 }')[0]).toBe('if:')
+    expect(show('if = { limit = { a = b } add_stability = 1 }')[0]).toBe('If:')
     expect(
       show('if = { limit = { a = b } POL = { country_event = a.1 } } else = { x = y }')[0],
-    ).toBe('if:')
+    ).toBe('If:')
   })
 
   it('folds a simple limit into its if header', () => {
@@ -620,10 +620,36 @@ describe('politics and leader effects', () => {
     expect(show('if = { limit = { has_idea = X is_ok = no } a = b }')[0]).toBe(
       'If has idea: X and is ok: no:',
     )
-    // Anything with NOT or OR in the limit is left as it was.
-    expect(show('if = { limit = { NOT = { a = b } } c = d }').slice(0, 2)).toEqual([
-      'if:',
+    // NOT, OR and scopes are written out.
+    expect(show('if = { limit = { NOT = { a = b } } c = d }')[0]).toBe('If not a: b:')
+    expect(
+      show('if = { limit = { FRA = { OR = { has_war = yes is_subject = yes } } } c = d }')[0],
+    ).toBe('If FRA (has war: yes or is subject: yes):')
+    expect(show('if = { limit = { OR = { a = 1 b = 2 } } c = d }')[0]).toBe('If a: 1 or b: 2:')
+    expect(show('if = { limit = { has_country_leader = { id = 5 } } c = d }')[0]).toBe(
+      'If has country leader (id: 5):',
+    )
+    // A condition we cannot read keeps the raw limit.
+    expect(show('if = { limit = { x = { y = { z = 1 } } } c = d }').slice(0, 2)).toEqual([
+      'If:',
       '  limit:',
+    ])
+  })
+
+  it('writes comparisons, else branches and empty limits', () => {
+    const show = (script: string) =>
+      foldConditions(collapseEffects(flattenEffects(parseScript(script)))).map(
+        (e) => '  '.repeat(e.depth) + formatEffect(e),
+      )
+    expect(
+      show(
+        'if = { limit = { a > 5 } x = 1 } else_if = { limit = { b = 1 } y = 2 } else = { z = 3 }',
+      ),
+    ).toEqual(['If a > 5:', '  x: 1', 'Otherwise, if b: 1:', '  y: 2', 'Otherwise:', '  z: 3'])
+    // An empty limit always applies: the body is shown and the else branches never are.
+    expect(show('if = { limit = { } x = 1 } else = { z = 3 }')).toEqual(['x: 1'])
+    expect(show('every_other_country = { limit = { has_war = yes } x = 1 }').slice(0, 1)).toEqual([
+      'Every other country where has war: yes:',
     ])
   })
 
@@ -636,8 +662,8 @@ describe('politics and leader effects', () => {
     expect(show({ AAT: false })).toEqual(['c: 3'])
     expect(show({ AAT: true })).toEqual(['a: 1', 'b: 2'])
     // Unknown DLCs, and an `if` without an `else`, are left as they were.
-    expect(show({})[0]).toBe('if:')
-    expect(show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 }')[0]).toBe('if:')
+    expect(show({})[0]).toBe('If:')
+    expect(show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 }')[0]).toBe('If:')
   })
 
   it('reads create_unit, drops division templates and prunes what that empties', () => {
@@ -656,7 +682,7 @@ describe('politics and leader effects', () => {
     ).toEqual(['Hidden effect:', '  Create unit: Royal Guards'])
     // A block with something left in it stays.
     expect(show('if = { limit = { a = b } add_stability = 1 }')).toEqual([
-      'if:',
+      'If:',
       '  limit:',
       '    a: b',
       '  add extra'.replace('add extra', 'add stability: +1'),
