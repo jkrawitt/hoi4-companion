@@ -107,3 +107,21 @@ export const getString = (block: ScriptBlock, key: string): string | undefined =
 /** Values of every `key = value` entry inside a block, e.g. all `focus = X` in a prerequisite. */
 export const getStrings = (block: ScriptBlock, key: string): string[] =>
   getAll(block, key).flatMap((e) => (typeof e.value === 'string' ? [e.value] : []))
+
+/**
+ * Finds the blocks whose key is one of `wanted`, at any depth (not looking inside a match). The
+ * first definition of an id wins. Used for files like ideas and opinion modifiers, where
+ * definitions sit under category blocks whose layout we do not want to depend on.
+ */
+export const findBlocks = (text: string, wanted: Set<string>): Record<string, ScriptBlock> => {
+  const found: Record<string, ScriptBlock> = {}
+  const visit = (block: ScriptBlock) => {
+    for (const entry of block) {
+      if (typeof entry.value !== 'object') continue
+      if (entry.key !== null && wanted.has(entry.key)) found[entry.key] ??= entry.value
+      else visit(entry.value)
+    }
+  }
+  visit(parseScript(text))
+  return found
+}

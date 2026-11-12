@@ -1,5 +1,13 @@
 import { DAYS_PER_WEEK, type Focus } from './focus'
 import {
+  collapseEffects,
+  flattenEffects,
+  markHidden,
+  pruneEmptyBlocks,
+  simplifyRandomStates,
+  unwrapEventConditions,
+} from './focusEffects'
+import {
   getAll,
   getBlock,
   getString,
@@ -27,6 +35,15 @@ const parseFocus = (block: ScriptBlock): Focus | null => {
     x: coordinate('x'),
     y: coordinate('y'),
     relativeTo: getString(block, 'relative_position_id'),
+    effects: markHidden(
+      pruneEmptyBlocks(
+        simplifyRandomStates(
+          unwrapEventConditions(
+            collapseEffects(flattenEffects(getBlock(block, 'completion_reward') ?? [])),
+          ),
+        ),
+      ),
+    ),
   }
 }
 
