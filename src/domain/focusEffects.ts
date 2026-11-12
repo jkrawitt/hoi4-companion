@@ -515,27 +515,48 @@ export const markHidden = (effects: EffectLine[]): EffectLine[] => {
 
 /** Other single-idea effects whose idea's modifiers are worth listing beneath them. */
 const OTHER_IDEA_KEYS = new Set(['add_idea', 'add_timed_idea', 'show_ideas_tooltip'])
+const REMOVE_IDEA_KEYS = new Set(['remove_idea'])
 
-/** Indexes of the lines naming an idea, from `add_ideas = X` or `add_ideas = { X Y }`. */
-export const ideaLineIndexes = (effects: EffectLine[]): number[] => {
+/** Indexes of lines naming an idea, from `<header> = X` or `<header> = { X Y }`. */
+const ideaLines = (effects: EffectLine[], header: string, singles: Set<string>): number[] => {
   const indexes: number[] = []
-  let addIdeasDepth: number | null = null
+  let blockDepth: number | null = null
   effects.forEach((e, i) => {
-    if (addIdeasDepth !== null && e.depth <= addIdeasDepth) addIdeasDepth = null
-    if (e.key === 'add_ideas') {
+    if (blockDepth !== null && e.depth <= blockDepth) blockDepth = null
+    if (e.key === header) {
       if (e.value !== undefined) indexes.push(i)
-      else addIdeasDepth = e.depth
-    } else if (addIdeasDepth !== null && e.key === null && e.value !== undefined) {
+      else blockDepth = e.depth
+    } else if (blockDepth !== null && e.key === null && e.value !== undefined) {
       indexes.push(i)
-    } else if (e.key !== null && e.value !== undefined && OTHER_IDEA_KEYS.has(e.key)) {
+    } else if (e.key !== null && e.value !== undefined && singles.has(e.key)) {
       indexes.push(i)
     }
   })
   return indexes
 }
 
+/** Lines that add an idea (`add_ideas`, `add_idea`, ...): its modifiers are listed beneath. */
+export const ideaLineIndexes = (effects: EffectLine[]): number[] =>
+  ideaLines(effects, 'add_ideas', OTHER_IDEA_KEYS)
+
+/** Lines that remove an idea (`remove_ideas`, `remove_idea`): its modifiers are listed reversed. */
+export const removedIdeaLineIndexes = (effects: EffectLine[]): number[] =>
+  ideaLines(effects, 'remove_ideas', REMOVE_IDEA_KEYS)
+
 export const ideaIdsOf = (effects: EffectLine[]): string[] =>
-  ideaLineIndexes(effects).map((i) => effects[i].value!)
+  [...ideaLineIndexes(effects), ...removedIdeaLineIndexes(effects)].map((i) => effects[i].value!)
+
+/**
+ * A modifier line as it reads when its idea is removed: the change is undone, so `+5%` becomes
+ * `-5%` and a rule that was `yes` becomes `no`.
+ */
+export const reverseModifier = (line: EffectLine): EffectLine => {
+  if (line.value === undefined) return line
+  if (line.isRule)
+    return { ...line, value: line.value === 'no' || line.value === '0' ? 'yes' : 'no' }
+  const n = Number(line.value)
+  return Number.isFinite(n) ? { ...line, value: String(-n) } : line
+}
 
 const humanize = (key: string) => key.replace(/_/g, ' ')
 

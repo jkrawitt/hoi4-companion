@@ -168,6 +168,14 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     ])
     expect(tone('Stability: -5%')).toBe('bad')
     expect(tone('Economy Laws Cost: -25%')).toBe('good')
+    const sentinels = focuses.find((f) => f.id === 'ROM_militarize_the_sentinels')
+    expect(sentinels?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual(
+      expect.arrayContaining([
+        '  remove idea: The Sentinel of the Motherland',
+        '    Recruitable Population: -1.00%',
+      ]),
+    )
+    expect(tone('Recruitable Population: -1.00%')).toBe('bad')
     const cordon = focuses.find((f) => f.id === 'ROM_the_cordon_sanitaire')
     expect(cordon?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
       'Can create factions: yes',

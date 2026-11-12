@@ -4,6 +4,8 @@ import {
   foldConditions,
   ideaIdsOf,
   ideaLineIndexes,
+  removedIdeaLineIndexes,
+  reverseModifier,
   isCountryTag,
   isOwnScope,
   defaultGoodWhen,
@@ -191,6 +193,7 @@ export const importCountryFocuses = async (
   )
   const focuses = parsed.map((f) => {
     const adds = new Set(ideaLineIndexes(f.effects))
+    const removes = new Set(removedIdeaLineIndexes(f.effects))
     return {
       ...f,
       effects: f.effects.flatMap((line, i): EffectLine[] => {
@@ -212,11 +215,13 @@ export const importCountryFocuses = async (
         }
         const modifiers = adds.has(i)
           ? (ideas[line.value!] ?? [])
-          : line.key === 'add_relation_modifier' && line.value
-            ? (relations[line.value] ?? [])
-            : line.key === 'add_country_leader_trait' && line.value
-              ? (leaderTraits[line.value] ?? [])
-              : []
+          : removes.has(i)
+            ? (ideas[line.value!] ?? []).map(reverseModifier)
+            : line.key === 'add_relation_modifier' && line.value
+              ? (relations[line.value] ?? [])
+              : line.key === 'add_country_leader_trait' && line.value
+                ? (leaderTraits[line.value] ?? [])
+                : []
         return [line, ...under(modifiers)]
       }),
     }

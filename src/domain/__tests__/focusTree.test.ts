@@ -4,6 +4,9 @@ import {
   foldConditions,
   pruneEmptyBlocks,
   defaultGoodWhen,
+  ideaLineIndexes,
+  removedIdeaLineIndexes,
+  reverseModifier,
   resolveDlcConditions,
   unwrapEventConditions,
   effectTone,
@@ -277,7 +280,8 @@ describe('simple effects', () => {
       formatEffect({ depth: 0, key: 'unlock_decision_tooltip', value: 'd', valueName: 'Join' }),
     ).toBe('Unlocks decision: Join')
     const effects = run('swap_ideas = { add_idea = A remove_idea = B } show_ideas_tooltip = C')
-    expect(ideaIdsOf(effects)).toEqual(['A', 'C'])
+    // Removed ideas are included too, since their modifiers are shown reversed.
+    expect(ideaIdsOf(effects)).toEqual(['A', 'C', 'B'])
   })
 })
 
@@ -711,5 +715,20 @@ describe('politics and leader effects', () => {
     expect(defaultGoodWhen('economy_cost_factor')).toBe('negative')
     expect(defaultGoodWhen('production_speed_bunker_factor')).toBe('positive')
     expect(defaultGoodWhen('stability_factor')).toBeUndefined()
+  })
+
+  it('finds removed ideas and reverses their modifiers', () => {
+    const effects = collapseEffects(
+      flattenEffects(
+        parseScript('remove_ideas = A swap_ideas = { add_idea = B remove_idea = C } add_ideas = D'),
+      ),
+    )
+    expect(removedIdeaLineIndexes(effects).map((i) => effects[i].value)).toEqual(['A', 'C'])
+    expect(ideaLineIndexes(effects).map((i) => effects[i].value)).toEqual(['B', 'D'])
+    const line = { depth: 0, key: 'conscription', value: '0.01', isModifier: true }
+    expect(reverseModifier(line).value).toBe('-0.01')
+    expect(reverseModifier({ ...line, value: '-0.5' }).value).toBe('0.5')
+    const rule = { depth: 0, key: 'can_send_volunteers', value: 'yes', isRule: true }
+    expect(reverseModifier(rule).value).toBe('no')
   })
 })
