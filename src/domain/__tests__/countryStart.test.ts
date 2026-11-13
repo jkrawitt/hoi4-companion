@@ -22,6 +22,7 @@ describe('parseStartingLines', () => {
       '0:add_research_slot=3',
       '0:add_stability=0.6',
       '0:add_war_support=0.5',
+      '0:set_technology=',
       '0:add_ideas=',
       '1:null=king_idea',
       '0:add_ideas=neutrality_idea',
@@ -35,5 +36,19 @@ describe('parseStartingLines', () => {
   it('drops DLC ideas for a DLC that is not owned, and ignores dated blocks', () => {
     const lines = parseStartingLines(text)
     expect(lines.some((l) => l.value === 'king_idea' || l.value === 'late_idea')).toBe(false)
+  })
+
+  it('reads starting technologies, including the ones in a DLC branch', () => {
+    const lines = parseStartingLines(
+      `set_technology = { infantry_weapons = 1 tech_support = 1 skipped = 0 }
+       if = { limit = { has_dlc = "By Blood Alone" } set_technology = { air_new = 1 } else = { set_technology = { air_old = 1 } } }
+       if = { limit = { not = { has_dlc = "Man the Guns" } } set_technology = { ship_old = 1 } }
+       1939.1.1 = { set_technology = { late = 1 } }`,
+      { 'By Blood Alone': true, 'Man the Guns': true },
+    )
+    expect(lines.map((l) => l.research)).toEqual([
+      { kind: 'unlock', targets: ['infantry_weapons', 'tech_support'] },
+      { kind: 'unlock', targets: ['air_new'] },
+    ])
   })
 })

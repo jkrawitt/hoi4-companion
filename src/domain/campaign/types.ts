@@ -1,4 +1,5 @@
 import type { EffectLine, LeaderData } from '../focus'
+import type { ResearchEnvironment } from '../research'
 import type { ScheduledFocus } from '../plan/types'
 import type { StatDefinition } from '../stats'
 
@@ -87,6 +88,8 @@ export interface CountryState {
   /** Extra building slots added by completed focuses, summed. */
   buildingSlots: number
   conditional: ConditionalEffects[]
+  /** The dated slots, speed, bonuses and techs the research planner schedules with. */
+  research: ResearchEnvironment
 }
 
 export interface CountryStateOptions {
@@ -101,4 +104,9 @@ export interface CountryStateOptions {
   leaders?: LeaderData
   /** When the starting state applies, i.e. the campaign's start date. */
   startDate?: Date
+  /**
+   * Whether the country has a technology on a date (a focus completing), which settles `has_tech`
+   * conditions. Without it they are listed as conditional.
+   */
+  hasTech?: (id: string, date: Date) => boolean | undefined
 }

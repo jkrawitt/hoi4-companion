@@ -1,13 +1,22 @@
 /**
- * Strips game markup from a localised string: colour codes (`§Y` ... `§!`), `\n` line breaks and
+ * Strips game markup from a localised string: colour codes (`§Y` ... `§!`), `£icon` tokens
+ * (`£prod_eff_cap`, `£icon|3`, `£icon£`; the game draws a picture there), `\n` line breaks and
  * `[SCOPE.GetName]` style dynamic text, which becomes just the scope (e.g. `SOU`).
  */
-export const cleanLocalisation = (text: string): string =>
-  text
+export const cleanLocalisation = (text: string): string => {
+  const cleaned = text
     .replace(/§./g, '')
     .replace(/\\n/g, '\n')
     .replace(/\[([^\].]+)\.[^\]]*\]/g, '$1')
     .replace(/\[[^\]]*\]/g, '')
+  // An icon leaves its spacing behind (`£icon  Name`), so tidy only where one was removed.
+  return cleaned.includes('£')
+    ? cleaned
+        .replace(/£\w+(?:\|[^\s£]*)?£?/g, '')
+        .replace(/ {2,}/g, ' ')
+        .trim()
+    : cleaned
+}
 
 /**
  * Parses a HoI4 localisation `.yml` file (`KEY:0 "text"` or `KEY: "text"` lines) into a map.

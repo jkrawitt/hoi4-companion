@@ -43,6 +43,20 @@ export const parseStatDocs = (text: string): StatDocs => {
   return docs
 }
 
+/**
+ * A modifier's localised name as a plain label. The game writes some for its own tooltips, with a
+ * trailing `: ` before the value, a `$VALUE|Y0$` or `$RIGHT|+=%$` template for where the value
+ * goes, an icon that leaves `( )` behind, or spacing left over from one; we draw `label: value`
+ * ourselves.
+ */
+export const tidyLabel = (label: string | undefined): string | undefined =>
+  label
+    ?.replace(/:?\s*\$[A-Za-z]+\|[^$]*\$/g, '')
+    .replace(/\s*\(\s*\)/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[:\s]+$/, '')
+    .trim() || undefined
+
 /** Combines the three sources into one definition. */
 export const resolveStat = (
   key: string,
@@ -51,7 +65,13 @@ export const resolveStat = (
   overrides: StatOverrides,
   /** Fallbacks below the docs, e.g. `{ kind: 'flag' }` for yes/no rules. */
   defaults: Partial<StatDefinition> = {},
-): StatDefinition => ({ key, label, ...defaults, ...docs[key], ...overrides[key] })
+): StatDefinition => ({
+  key,
+  label: tidyLabel(label),
+  ...defaults,
+  ...docs[key],
+  ...overrides[key],
+})
 
 const trimmed = (n: number, decimals: number) => String(Number(n.toFixed(decimals)))
 

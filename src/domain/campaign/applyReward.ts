@@ -6,13 +6,14 @@
  * below in turn; the first that recognises it takes it. Each handler changes only its own part of
  * `Working`, so a new kind of effect is a new handler.
  */
-import type { EffectLine } from '../focus'
+import { START_ID, type EffectLine } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
 import { resolveConditions } from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
-import { addTo, isNumeric, round } from './totals'
+import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
+import { isNumeric, round, addTo } from './totals'
 import type {
   ActiveIdea,
   BuildingTotal,
@@ -49,6 +50,7 @@ export interface Working {
   leaderGroup?: string
   retiredLeaders: Set<string>
   leader?: CountryLeader
+  research: ResearchWorking
 }
 
 export const newWorking = (): Working => ({
@@ -61,6 +63,7 @@ export const newWorking = (): Working => ({
   resources: new Map(),
   doneFocuses: new Set(),
   retiredLeaders: new Set(),
+  research: newResearchWorking(),
 })
 
 /** What a handler needs to know about the reward it is part of. */
@@ -79,6 +82,8 @@ interface Context {
   /** Set by the handlers: the reward made, or retired, a leader. */
   leaderChosen: boolean
   leaderRetired: boolean
+  /** How many research bonuses the reward has given so far, to tell them apart. */
+  techBonuses: number
 }
 
 type Handler = (c: Context, e: EffectLine, i: number) => boolean
@@ -237,7 +242,45 @@ const statChange: Handler = (c, e, i) => {
   return true
 }
 
-const HANDLERS: Handler[] = [ideas, construction, popularity, leaders, politics, statChange]
+/**
+ * Technologies handed out and research bonuses. The bonuses of a reward are numbered in the order
+ * they happen, which stays the same when a `has_tech` condition settles the other way (the
+ * branches that give a bonus give the same one).
+ */
+const research: Handler = (c, e) => {
+  const r = e.research
+  if (!r) return false
+  const { w, step } = c
+  if (r.kind === 'unlock') {
+    if (step.focus.id === START_ID) w.research.startTechs.push(...r.targets)
+    else w.research.grants.push({ date: step.end, techIds: r.targets })
+    return true
+  }
+  if (r.kind !== 'tech_bonus' || !r.bonus) return false
+  w.research.bonuses.push({
+    ref: { focusId: step.focus.id, index: c.techBonuses++ },
+    date: step.end,
+    name: step.focus.name,
+    bonus: r.bonus,
+    uses: r.uses ?? 1,
+    ahead: r.ahead ?? 0,
+    targets: r.targets,
+    // Without kinds (a line built by hand) the targets are taken to be categories.
+    targetKinds: r.targets.map((_, i) => r.targetKinds?.[i] ?? 'category'),
+    targetNames: r.targetNames,
+  })
+  return true
+}
+
+const HANDLERS: Handler[] = [
+  research,
+  ideas,
+  construction,
+  popularity,
+  leaders,
+  politics,
+  statChange,
+]
 
 // --- What happens after a reward's lines are applied. ---
 
@@ -318,6 +361,7 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
     // Only known once the start has set the popularities; the plan alone only has changes.
     popularity: (ideology) =>
       options.start?.length ? (w.popularity.get(ideology)?.total ?? 0) : undefined,
+    hasTech: (id) => options.hasTech?.(id, step.end),
   })
 
   const { applied, conditional: skipped, states } = classify(effects, options.tag)
@@ -347,6 +391,7 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
     built,
     leaderChosen: false,
     leaderRetired: false,
+    techBonuses: 0,
   }
   const governmentBefore = w.government
 
@@ -358,4 +403,11 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
   pickNextLeader(c, governmentBefore)
   w.doneFocuses.add(focus.id)
   totalConstruction(w, built)
+  recordResearchState(
+    w.research,
+    step.end,
+    w.statChanges.get('add_research_slot')?.total ?? 0,
+    [...w.ideas.values()],
+    w.leader?.traits ?? [],
+  )
 }

@@ -12,6 +12,7 @@ const campaign = useCampaign()
     <nav>
       <RouterLink to="/">Overview</RouterLink>
       <RouterLink to="/focus">Focus plan</RouterLink>
+      <RouterLink to="/research">Research plan</RouterLink>
     </nav>
     <label class="country">
       Country

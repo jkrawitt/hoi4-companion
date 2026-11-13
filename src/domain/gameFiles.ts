@@ -25,6 +25,12 @@ export const GAME_PATHS = {
   /** Characters (a country's file is named `<TAG>.txt`) and the ideology groups their roles use. */
   characters: 'common/characters',
   ideologies: 'common/ideologies',
+  /** Technologies, the folders they are shown in, and the defines that set research costs. */
+  technologies: 'common/technologies',
+  technologyTags: 'common/technology_tags',
+  defines: 'common/defines/00_defines.lua',
+  /** The research screen, which places each folder's sub-trees (`<root tech>_tree` grid boxes). */
+  techTreeLayout: 'interface/countrytechtreeview.gui',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',

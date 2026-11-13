@@ -12,10 +12,14 @@
  * 5. put those names and the stat definitions onto the effect lines (`nameLines.ts`), and fold
  *    `limit` blocks into conditions now that they can be written out in English.
  *
+ * The technologies are read whole (the research planner needs the tree, not a handful of ids),
+ * and their names and stats are looked up in the same phases.
+ *
  * The starting state and the leader candidates are not focuses, but they go through the same
  * phases as one more list of effect lines each, so their ideas and names are looked up too.
  */
 import type { EffectLine, ImportedCountry } from './focus'
+import type { Technology } from './research'
 import { parseFocusTreeFile } from './parsers/focusTree'
 import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
 import { listModifiersUnderLines } from './effects/modifierLines'
@@ -23,12 +27,14 @@ import { readCountryHistory, readCountryHistoryText, readDefinitions } from './d
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
 import { loadNames } from './names'
 import { nameKeysOf, nameLines, tagOf } from './nameLines'
+import { humanize } from './focusEffects'
 import { parseIdeaNames, parseIdeas } from './parsers/ideas'
 import { parseOpinionModifiers } from './parsers/opinionModifiers'
 import { parseLeaderTraits } from './parsers/leaderTraits'
 import { parseStaticModifiers } from './parsers/staticModifiers'
 import { parseEventTitles } from './parsers/events'
 import { parseStartingLines } from './parsers/countryStart'
+import { readTechnologies } from './parsers/technologies'
 import {
   parseIdeologyGroups,
   parseLeaderRoles,
@@ -221,7 +227,14 @@ export const importCountryFocuses = async (
   const focuses = tree.map((f) => ({ ...f, effects: listed(f.effects) }))
   const start = listed(startLines)
   const candidatesListed = listed(candidateLines)
-  const lists = [...focuses.map((f) => f.effects), start, candidatesListed]
+  // The tech tree: its folders, and the stats of each tech, which are named like any other line.
+  const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
+  const lists = [
+    ...focuses.map((f) => f.effects),
+    start,
+    candidatesListed,
+    ...research.techs.map((t) => t.modifiers),
+  ]
 
   // 3. What the countries and events they mention are.
   const context = await readCountryContext(files, lists)
@@ -237,6 +250,9 @@ export const importCountryFocuses = async (
       ...Object.values(context.eventTitles),
       ...Object.values(context.factionNames),
       ...focuses.flatMap((f) => [f.id, `${f.id}_desc`]),
+      ...research.techs.map((t) => t.id),
+      ...research.folders.map((f) => f.id),
+      ...Object.values(fallbackNames).flat(),
       ...lists.flatMap((lines) => lines.flatMap((e) => nameKeysOf(e, defs.ideaAliases))),
     ]),
   )
@@ -258,6 +274,11 @@ export const importCountryFocuses = async (
   }
   const named = (lines: EffectLine[]) => nameLines(lines, nameContext)
   const namedCandidates = named(candidatesListed)
+  /** A tech's name; one without its own is named after what it unlocks, and failing that its id. */
+  const techName = (id: string) => {
+    const candidates = [id, ...(fallbackNames[id] ?? [])].map((key) => (names[key] ?? '').trim())
+    return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
+  }
   return {
     focuses: focuses.map((f) => ({
       ...f,
@@ -269,6 +290,13 @@ export const importCountryFocuses = async (
     leaders: {
       candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
       groups,
+    },
+    research: {
+      ...research,
+      techs: research.techs.map(
+        (t): Technology => ({ ...t, name: techName(t.id), modifiers: named(t.modifiers) }),
+      ),
+      folders: research.folders.map((f) => ({ ...f, name: names[f.id] ?? humanize(f.id) })),
     },
   }
 }

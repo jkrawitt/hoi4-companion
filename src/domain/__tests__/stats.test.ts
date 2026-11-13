@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { effectTone, formatEffect } from '../focusEffects'
 import { parseIdeas } from '../parsers/ideas'
-import { formatStatValue, parseStatDocs, resolveStat, statTone } from '../stats'
+import { formatStatValue, parseStatDocs, resolveStat, statTone, tidyLabel } from '../stats'
 
 describe('stats', () => {
   it('colours popularity gains green and losses red', () => {
@@ -71,5 +71,16 @@ describe('stats', () => {
     expect(formatEffect({ ...line, stat: { key: 'k', label: 'Cost', kind: 'percent' } })).toBe(
       'Cost: -50%',
     )
+  })
+
+  it('tidies tooltip-style labels from the game', () => {
+    expect(tidyLabel('Spotting Speed Modifier: ')).toBe('Spotting Speed Modifier')
+    expect(tidyLabel(' Attack bonus against country')).toBe('Attack bonus against country')
+    expect(tidyLabel('Assign Army Leader Cost ( ): $VALUE|Y0$')).toBe('Assign Army Leader Cost')
+    expect(tidyLabel('Support Value $RIGHT|+=%$')).toBe('Support Value')
+    expect(tidyLabel('Production  Efficiency Cap')).toBe('Production Efficiency Cap')
+    expect(tidyLabel('')).toBeUndefined()
+    expect(tidyLabel(undefined)).toBeUndefined()
+    expect(resolveStat('k', 'Cap: ', {}, {}).label).toBe('Cap')
   })
 })

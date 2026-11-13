@@ -11,22 +11,70 @@ import { importCountryFocuses } from '../gameImport'
 //   HOI4_DIR="/path/to/Hearts of Iron IV" npm run test
 const dir = process.env.HOI4_DIR
 
+const importRomania = () =>
+  importCountryFocuses(
+    {
+      readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
+      listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
+    },
+    {
+      tag: 'ROM',
+      name: 'Romania',
+      focusTreeFile: 'common/national_focus/romania.txt',
+      ideasFile: 'common/ideas/romania.txt',
+    },
+    statOverrides,
+    ownedDlc,
+  )
+
 describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
-  it('imports Romania', async () => {
-    const { focuses, start } = await importCountryFocuses(
-      {
-        readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
-        listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
-      },
-      {
-        tag: 'ROM',
-        name: 'Romania',
-        focusTreeFile: 'common/national_focus/romania.txt',
-        ideasFile: 'common/ideas/romania.txt',
-      },
-      statOverrides,
-      ownedDlc,
+  it('imports the research tree', async () => {
+    const { research, start } = await importRomania()
+    const techs = Object.fromEntries(research.techs.map((t) => [t.id, t]))
+    expect(research.techs.length).toBeGreaterThan(300)
+    const folders = research.folders.map((f) => f.id)
+    // The DLC variants of the owned DLCs, and not the one for a DLC that is not owned.
+    expect(folders).toEqual(
+      expect.arrayContaining(['bba_air_techs_folder', 'mtgnavalfolder', 'armour_folder']),
     )
+    expect(folders).not.toContain('nsb_armour_folder')
+    expect(folders).not.toContain('air_techs_folder')
+    expect(research.folders.find((f) => f.id === 'industry_folder')?.name).toBe('Industry')
+    expect(research.defines).toEqual({ baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 })
+
+    const unlocked = start.flatMap((l) => (l.research?.kind === 'unlock' ? l.research.targets : []))
+    expect(unlocked).toEqual(expect.arrayContaining(['infantry_weapons', 'iw_small_airframe']))
+    expect(unlocked).not.toContain('early_fighter')
+
+    expect(techs.infantry_weapons1.researchable).toBe(true)
+    // A tech with no name of its own goes by the equipment it unlocks.
+    expect(techs.infantry_weapons1.name).toBe('Infantry Equipment I')
+    expect(techs.basic_machine_tools.name).toBe('Basic Machine Tools')
+    // Each folder is several trees, each placed by the research screen's own grid box.
+    const at = (id: string) => techs[id].folders[0]
+    expect(at('basic_machine_tools').id).toBe('industry_folder')
+    expect(at('construction1').x).toBeGreaterThan(at('dispersed_industry').x + 2)
+    expect(at('fuel_silos').x).toBeGreaterThan(at('excavation1').x + 2)
+    // The army folders run sideways: a later tech is further right, not further down.
+    expect(research.folders.find((f) => f.id === 'infantry_folder')?.sideways).toBe(true)
+    expect(at('infantry_weapons2').x).toBeGreaterThan(at('infantry_weapons1').x)
+    expect(at('infantry_weapons2').y).toBe(at('infantry_weapons1').y)
+    expect(techs.infantry_weapons2.prerequisites).toEqual([['infantry_weapons1']])
+    expect(techs.basic_machine_tools).toMatchObject({ cost: 1.5, startYear: 1936 })
+    expect(techs.improved_small_airframe.name).toBeTruthy()
+    expect(techs.improved_small_airframe.name).not.toContain('$')
+    expect(techs.flexible_line.exclusiveWith).toEqual(['streamlined_line'])
+    // Special projects cannot be researched in a slot.
+    expect(techs.cavity_magnatron.researchable).toBe(false)
+    expect(research.techs.every((t) => t.folders.every((f) => folders.includes(f.id)))).toBe(true)
+    // Several parents are alternatives: the medium and heavy tank lines lead to each other.
+    expect(techs.improved_medium_tank.prerequisites).toEqual([
+      expect.arrayContaining(['basic_medium_tank', 'improved_heavy_tank']),
+    ])
+  })
+
+  it('imports Romania', async () => {
+    const { focuses, start } = await importRomania()
     expect(focuses.length).toBeGreaterThan(50)
     expect(start.map((e) => e.key)).toEqual(
       expect.arrayContaining(['add_stability', 'set_politics', 'add_popularity', 'add_ideas']),

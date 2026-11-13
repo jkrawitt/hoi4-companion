@@ -184,6 +184,18 @@ describe('research, building and design effects', () => {
     ).toEqual(['2x 100% research bonus for: a, b, ignores 2 years of ahead-of-time penalty'])
   })
 
+  it('tells the categories of a tech bonus from its technologies', () => {
+    const [bonus] = collapseEffects(
+      flattenEffects(
+        parseScript('add_tech_bonus = { name = N bonus = 1 category = a technology = t }'),
+      ),
+    )
+    expect(bonus.research).toMatchObject({
+      targets: ['a', 't'],
+      targetKinds: ['category', 'technology'],
+    })
+  })
+
   it('reads mastery bonuses and technology unlocks', () => {
     expect(lines('add_mastery_bonus = { name = N bonus = 0.2 days = 240 track = air }')).toEqual([
       'Doctrine mastery: +20% for 240 days on air',
