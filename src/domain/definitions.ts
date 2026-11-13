@@ -40,6 +40,17 @@ export const readDefinitions = async <T>(
   return found
 }
 
+/** The text of `history/countries/<TAG> - <name>.txt`, or null when the country has no file. */
+export const readCountryHistoryText = async (
+  files: GameFiles,
+  tag: string,
+  historyFiles?: string[],
+): Promise<string | null> => {
+  const list = historyFiles ?? (await files.listFiles(GAME_PATHS.history))
+  const file = list.find((f) => f.startsWith(`${tag} -`))
+  return file ? files.readText(`${GAME_PATHS.history}/${file}`) : null
+}
+
 /** What a country's history file says about how it starts the game. */
 export interface CountryHistory {
   /** Ruling party at the start of the game, by country tag. */
@@ -64,8 +75,7 @@ export const readCountryHistory = async (
   if (tags.size === 0) return { parties, factionTemplates }
   const historyFiles = await files.listFiles(GAME_PATHS.history)
   for (const tag of tags) {
-    const file = historyFiles.find((f) => f.startsWith(`${tag} -`))
-    const text = file ? await files.readText(`${GAME_PATHS.history}/${file}`) : null
+    const text = await readCountryHistoryText(files, tag, historyFiles)
     if (!text) continue
     const script = parseScript(text)
     const party = getString(getBlock(script, 'set_politics') ?? [], 'ruling_party')

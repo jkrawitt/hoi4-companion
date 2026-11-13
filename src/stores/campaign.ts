@@ -7,12 +7,17 @@ import { computed, ref, watch } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
-import type { Focus } from '@/domain/focus'
+import type { EffectLine, Focus } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { schedulePlan } from '@/domain/plan/focusPlan'
 import { isValidPlan, pathTo, removeWithDependents } from '@/domain/plan/focusSelection'
-import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
-import { loadCachedFocuses, saveCachedFocuses } from '@/import/cache'
+import {
+  GameFolderError,
+  importCountryFocuses,
+  type GameFiles,
+  type ImportedCountry,
+} from '@/domain/gameImport'
+import { loadCachedCountry, saveCachedCountry } from '@/import/cache'
 
 const STORAGE_KEY = 'hoi4-companion:campaign'
 const STORAGE_VERSION = 1
@@ -56,6 +61,8 @@ const createCampaign = () => {
   const country = computed(() => countries.find((c) => c.tag === countryTag.value)!)
 
   const focuses = ref<Record<string, Focus>>({})
+  /** What the country starts the game with, as effect lines. */
+  const start = ref<EffectLine[]>([])
   const hasData = computed(() => Object.keys(focuses.value).length > 0)
   const status = ref('')
   const error = ref('')
@@ -68,21 +75,23 @@ const createCampaign = () => {
   const viewDate = ref(saved.viewDate ?? startDate.value)
 
   /** Keeps the saved plan when the focuses still support it, and drops it when they do not. */
-  const setFocuses = (list: Focus[]) => {
+  const setCountry = ({ focuses: list, start: startLines }: ImportedCountry) => {
+    start.value = startLines
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
   }
 
   const loadCached = async (tag: string) => {
-    const cached = await loadCachedFocuses(tag)
-    if (cached && tag === countryTag.value) setFocuses(cached)
+    const cached = await loadCachedCountry(tag)
+    if (cached && tag === countryTag.value) setCountry(cached)
   }
   void loadCached(countryTag.value)
 
   // Another country is another campaign: start its plan from scratch.
   watch(countryTag, async (tag) => {
     focuses.value = {}
+    start.value = []
     plan.value = []
     error.value = ''
     status.value = ''
@@ -95,10 +104,10 @@ const createCampaign = () => {
     status.value = 'Reading game files…'
     const target = country.value
     try {
-      const list = await importCountryFocuses(files, target, statOverrides, ownedDlc)
-      await saveCachedFocuses(target.tag, list)
-      if (target.tag === countryTag.value) setFocuses(list)
-      status.value = `Imported ${list.length} focuses for ${target.name}.`
+      const imported = await importCountryFocuses(files, target, statOverrides, ownedDlc)
+      await saveCachedCountry(target.tag, imported)
+      if (target.tag === countryTag.value) setCountry(imported)
+      status.value = `Imported ${imported.focuses.length} focuses for ${target.name}.`
     } catch (e) {
       status.value = ''
       error.value = e instanceof GameFolderError ? e.message : `Import failed: ${String(e)}`
@@ -112,6 +121,15 @@ const createCampaign = () => {
       startDate: parseDate(startDate.value),
       speedBonus: speedBonusPercent.value / 100,
     }),
+  )
+
+  // A view that sits at the end of the plan stays there as the plan changes, so new focuses show
+  // up; one scrubbed to an earlier date is left where the user put it.
+  watch(
+    () => completionDay(schedule.value.finish),
+    (finish, previousFinish) => {
+      if (viewDate.value >= previousFinish) viewDate.value = finish
+    },
   )
 
   const blockedIds = computed(
@@ -136,7 +154,11 @@ const createCampaign = () => {
   const reset = () => (plan.value = [])
 
   const state = computed(() =>
-    countryStateAt(schedule.value, parseDate(viewDate.value), { tag: countryTag.value }),
+    countryStateAt(schedule.value, parseDate(viewDate.value), {
+      tag: countryTag.value,
+      start: start.value,
+      startDate: parseDate(startDate.value),
+    }),
   )
 
   watch([countryTag, plan, startDate, speedBonusPercent, viewDate], () =>

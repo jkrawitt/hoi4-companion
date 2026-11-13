@@ -28,7 +28,7 @@ import {
   resolveDlcConditions,
   reverseModifier,
 } from './focusEffects'
-import { readCountryHistory, readDefinitions } from './definitions'
+import { readCountryHistory, readCountryHistoryText, readDefinitions } from './definitions'
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
 import { loadNames } from './names'
 import { parseIdeaNames, parseIdeas } from './parsers/ideas'
@@ -36,6 +36,13 @@ import { parseOpinionModifiers } from './parsers/opinionModifiers'
 import { parseLeaderTraits } from './parsers/leaderTraits'
 import { parseStaticModifiers } from './parsers/staticModifiers'
 import { parseEventTitles } from './parsers/events'
+import { parseStartingLines } from './parsers/countryStart'
+import {
+  parseIdeologyGroups,
+  parseLeaderRoles,
+  parseRecruited,
+  pickStartingLeader,
+} from './parsers/leaders'
 import { parseFactionTemplates } from './parsers/factions'
 import { resolveEventText } from './parsers/localisation'
 import { parseStatDocs, resolveStat, type StatDefinition, type StatOverrides } from './stats'
@@ -45,10 +52,46 @@ export { GameFolderError, type GameFiles } from './gameFiles'
 
 /** What to import: a country's focus tree, and where its ideas most likely live. */
 export interface ImportTarget {
+  tag: string
   /** Display name, used where a focus refers to its own country (`ROOT`). */
   name: string
   focusTreeFile: string
   ideasFile?: string
+}
+
+/** What an import produces: the focus tree, and what the country starts the game with. */
+export interface ImportedCountry {
+  focuses: Focus[]
+  /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
+  start: EffectLine[]
+}
+
+/** Stands in for the starting state while it goes through the same passes as the focuses. */
+const START_ID = '__start__'
+
+/**
+ * The line making the country's starting leader its leader (`promote_character`), or nothing when
+ * the history recruits nobody who leads the ruling party.
+ */
+const startingLeaderLine = async (
+  files: GameFiles,
+  tag: string,
+  historyText: string,
+  rulingParty: string,
+): Promise<EffectLine[]> => {
+  const roles = parseLeaderRoles(
+    (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
+  )
+  const ideologies = await Promise.all(
+    (await files.listFiles(GAME_PATHS.ideologies))
+      .filter((file) => file.endsWith('.txt'))
+      .map((file) => files.readText(`${GAME_PATHS.ideologies}/${file}`)),
+  )
+  const groups = Object.assign({}, ...ideologies.map((text) => parseIdeologyGroups(text ?? '')))
+  const leader = pickStartingLeader(parseRecruited(historyText), roles, groups, rulingParty)
+  return leader
+    ? [{ depth: 0, key: 'promote_character', value: leader.character, subject: leader.ideology }]
+    : []
 }
 
 /** Every value the focuses' effects give for `keys`, e.g. all the opinion modifiers they add. */
@@ -136,7 +179,7 @@ export const importCountryFocuses = async (
   country: ImportTarget,
   statOverrides: StatOverrides = {},
   ownedDlc: Record<string, boolean> = {},
-): Promise<Focus[]> => {
+): Promise<ImportedCountry> => {
   const { focusTreeFile, ideasFile } = country
   const treeText = await files.readText(focusTreeFile)
   if (treeText === null) {
@@ -146,10 +189,30 @@ export const importCountryFocuses = async (
   }
   // Pick the branch that applies to the DLCs we know about before anything is looked up, so
   // names and idea modifiers are only read for what will be shown.
-  const parsed = parseFocusTreeFile(treeText).map((f) => ({
-    ...f,
-    effects: resolveDlcConditions(f.effects, ownedDlc),
-  }))
+  const historyText = await readCountryHistoryText(files, country.tag)
+  const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
+  const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
+  if (historyText && rulingParty) {
+    startLines.push(...(await startingLeaderLine(files, country.tag, historyText, rulingParty)))
+  }
+  const startFocus: Focus = {
+    id: START_ID,
+    name: '',
+    days: 0,
+    prerequisites: [],
+    mutuallyExclusive: [],
+    x: 0,
+    y: 0,
+    effects: startLines,
+  }
+  const parsed = [
+    ...parseFocusTreeFile(treeText).map((f) => ({
+      ...f,
+      effects: resolveDlcConditions(f.effects, ownedDlc),
+    })),
+    // The starting state is carried along as one more reward, so its ideas are read and named too.
+    startFocus,
+  ]
 
   // --- The definitions the effects refer to, each read from the directory it lives in. ---
   const ideaIds = new Set(parsed.flatMap((f) => ideaIdsOf(f.effects)))
@@ -329,7 +392,7 @@ export const importCountryFocuses = async (
     return resolveStat(e.key, label, statDocs, statOverrides, fallbacks)
   }
 
-  return focuses.map((f) => ({
+  const finished = focuses.map((f) => ({
     ...f,
     name: names[f.id] ?? f.id,
     description: names[`${f.id}_desc`],
@@ -348,4 +411,8 @@ export const importCountryFocuses = async (
       })),
     ),
   }))
+  return {
+    focuses: finished.filter((f) => f.id !== START_ID),
+    start: finished.find((f) => f.id === START_ID)?.effects ?? [],
+  }
 }

@@ -147,34 +147,42 @@ export const markHidden = (effects: EffectLine[]): EffectLine[] => {
 }
 
 /**
- * The DLC an `if` at `index` tests, when its whole condition is a single `has_dlc` check for a
- * DLC whose ownership we know; undefined when it is any other condition.
+ * Settles the DLC terms of the `limit` at `limitIndex`: `has_dlc = X` and `NOT = { has_dlc = X }`
+ * for a DLC whose ownership is known. `holds` is whether those terms are satisfied, and `kept`
+ * are the limit's other terms, which are not about DLC and so stay.
  */
-const dlcCheckedBy = (
+const settleLimit = (
   effects: EffectLine[],
-  index: number,
+  limitIndex: number,
   ownedDlc: Record<string, boolean>,
-): string | undefined => {
-  const line = effects[index]
-  const limit = effects[index + 1]
-  const dlc = effects[index + 2]
-  const checksNothingElse = (effects[index + 3]?.depth ?? 0) <= (limit?.depth ?? 0)
-  return opensBlock(line, 'if') &&
-    opensBlock(limit, 'limit') &&
-    limit.depth === line.depth + 1 &&
-    dlc?.key === 'has_dlc' &&
-    dlc.value !== undefined &&
-    dlc.value in ownedDlc &&
-    checksNothingElse
-    ? dlc.value
-    : undefined
+) => {
+  const limitEnd = blockEnd(effects, limitIndex)
+  const kept: EffectLine[] = []
+  let known = false
+  let holds = true
+  for (let j = limitIndex + 1; j < limitEnd; ) {
+    const term = effects[j]
+    const termEnd = blockEnd(effects, j)
+    const negated = opensBlock(term) && term.key.toLowerCase() === 'not' && termEnd - j === 2
+    const check = negated ? effects[j + 1] : term
+    if (check.key === 'has_dlc' && check.value !== undefined && check.value in ownedDlc) {
+      known = true
+      if (ownedDlc[check.value] === negated) holds = false
+    } else {
+      kept.push(...effects.slice(j, termEnd))
+    }
+    j = termEnd
+  }
+  return { known, holds, kept }
 }
 
 /**
- * `if = { limit = { has_dlc = "X" } ... } else = { ... }` for a DLC whose ownership is known
- * (`ownedDlc`, from `src/data/dlc.ts`): keeps the branch that applies and drops the condition,
- * so a player without the DLC sees what they would get. DLCs not listed, and a `has_dlc` `if`
- * without an `else`, are left as they were.
+ * Settles `has_dlc` conditions for the DLCs whose ownership is known (`ownedDlc`, from
+ * `src/data/dlc.ts`), so a player sees what they really get:
+ * - the DLC is owned (or its `NOT` is not): the condition goes, and the `if` is replaced by its
+ *   body, or keeps just the other terms of its `limit` when there are some;
+ * - it is not: the `else` branch replaces the `if`, or nothing does when there is none.
+ * An `else` may sit inside the `if` block or follow it. DLCs not listed are left as they were.
  */
 export const resolveDlcConditions = (
   effects: EffectLine[],
@@ -183,20 +191,38 @@ export const resolveDlcConditions = (
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]
-    const dlc = dlcCheckedBy(effects, i, ownedDlc)
-    const thenEnd = blockEnd(effects, i)
-    const otherwise = effects[thenEnd]
-    if (dlc === undefined || !opensBlock(otherwise, 'else') || otherwise.depth !== line.depth) {
+    const limit = effects[i + 1]
+    const settled =
+      opensBlock(line, 'if') && opensBlock(limit, 'limit') && limit.depth === line.depth + 1
+        ? settleLimit(effects, i + 1, ownedDlc)
+        : undefined
+    if (!settled?.known) {
       result.push(line)
       continue
     }
-    const elseEnd = blockEnd(effects, thenEnd)
-    const chosen = ownedDlc[dlc]
-      ? effects.slice(i + 3, thenEnd) // the `if` body, which starts after `limit = { has_dlc }`
-      : effects.slice(thenEnd + 1, elseEnd)
-    // Handle the chosen body too, in case it holds another such condition.
-    result.push(...resolveDlcConditions(outdent(chosen), ownedDlc))
-    i = elseEnd - 1
+    const limitEnd = blockEnd(effects, i + 1)
+    const end = blockEnd(effects, i)
+    const body = effects.slice(limitEnd, end)
+    const inner = body.findIndex((l) => opensBlock(l, 'else') && l.depth === line.depth + 1)
+    const thenLines = inner === -1 ? body : body.slice(0, inner)
+    const sibling = opensBlock(effects[end], 'else') && effects[end].depth === line.depth
+    const siblingEnd = sibling ? blockEnd(effects, end) : end
+    const elseLines =
+      inner !== -1
+        ? outdent(outdent(body.slice(inner + 1, blockEnd(body, inner))))
+        : sibling
+          ? outdent(effects.slice(end + 1, siblingEnd))
+          : []
+    if (!settled.holds) {
+      result.push(...resolveDlcConditions(elseLines, ownedDlc))
+    } else if (settled.kept.length === 0) {
+      result.push(...resolveDlcConditions(outdent(thenLines), ownedDlc))
+    } else {
+      // Other terms are still to be met, and the `else` still goes with them.
+      result.push(line, limit, ...settled.kept)
+      result.push(...resolveDlcConditions(effects.slice(limitEnd, siblingEnd), ownedDlc))
+    }
+    i = siblingEnd - 1
   }
   return result
 }

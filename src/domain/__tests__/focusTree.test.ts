@@ -668,9 +668,24 @@ describe('politics and leader effects', () => {
       )
     expect(show({ AAT: false })).toEqual(['c: 3'])
     expect(show({ AAT: true })).toEqual(['a: 1', 'b: 2'])
-    // Unknown DLCs, and an `if` without an `else`, are left as they were.
+    // Unknown DLCs are left as they were.
     expect(show({})[0]).toBe('If:')
-    expect(show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 }')[0]).toBe('If:')
+    // Without an `else`: the body, or nothing.
+    const alone = 'if = { limit = { has_dlc = "AAT" } a = 1 }'
+    expect(show({ AAT: true }, alone)).toEqual(['a: 1'])
+    expect(show({ AAT: false }, alone)).toEqual([])
+    // `NOT`, and an `else` inside the `if`.
+    expect(show({ AAT: false }, 'if = { limit = { NOT = { has_dlc = "AAT" } } a = 1 }')).toEqual([
+      'a: 1',
+    ])
+    expect(
+      show({ AAT: false }, 'if = { limit = { has_dlc = "AAT" } a = 1 else = { c = 3 } }'),
+    ).toEqual(['c: 3'])
+    // With other terms in the limit: gone when the DLC is missing, otherwise only the DLC goes.
+    const mixed = 'if = { limit = { has_dlc = "AAT" has_war = yes } a = 1 }'
+    expect(show({ AAT: false }, mixed)).toEqual([])
+    // (the remaining `limit` is folded into the header later, at import)
+    expect(show({ AAT: true }, mixed)).toEqual(['If:', '  limit:', '    has war: yes', '  a: 1'])
   })
 
   it('reads create_unit, drops division templates and prunes what that empties', () => {

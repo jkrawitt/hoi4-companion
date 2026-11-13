@@ -47,6 +47,7 @@ const showOnOverview = (end: Date) => {
       Focus speed bonus (%)
       <input type="number" min="0" step="5" v-model.number="speedBonusPercent" />
     </label>
+    <button v-if="hasData" :disabled="plan.length === 0" @click="reset">Reset plan</button>
   </div>
 
   <GameDataImport v-if="!hasData" />
@@ -60,7 +61,6 @@ const showOnOverview = (end: Date) => {
 
     <section>
       <h2>Plan</h2>
-      <button v-if="plan.length > 0" @click="reset">Reset plan</button>
       <p v-if="schedule.items.length === 0">Add focuses to build a plan.</p>
       <ol v-else class="plan">
         <template v-for="({ item, banner }, i) in rows" :key="i">
@@ -95,6 +95,7 @@ const showOnOverview = (end: Date) => {
 
 <style scoped>
 .settings {
+  align-items: end;
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;

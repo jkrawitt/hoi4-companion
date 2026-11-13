@@ -167,6 +167,166 @@ describe('countryStateAt', () => {
       ],
       80,
     )
-    expect(s.leader).toBe('Ion Antonescu')
+    expect(s.leader?.name).toBe('Ion Antonescu')
+  })
+})
+
+describe('countryStateAt with a starting state', () => {
+  const startLines: EffectLine[] = [
+    { depth: 0, key: 'add_stability', value: '0.6', isModifier: true, stat: stat('add_stability') },
+    { depth: 0, key: 'set_politics', value: 'democratic', valueName: 'Democratic' },
+    { depth: 0, key: 'add_ideas', value: 'start_idea', valueName: 'Start' },
+    modifier(1, 'x', '0.1'),
+  ]
+
+  it('applies the start before any focus, with the plan adding to it', () => {
+    const plus = focus('a', [
+      {
+        depth: 0,
+        key: 'add_stability',
+        value: '0.05',
+        isModifier: true,
+        stat: stat('add_stability'),
+      },
+    ])
+    const schedule = schedulePlan(['a'], { a: plus }, { startDate: start, speedBonus: 0 })
+    const before = countryStateAt(schedule, day(0), { start: startLines, startDate: start })
+    expect(before.ideas).toMatchObject([{ id: 'start_idea', focusId: '__start__' }])
+    expect(before.rulingParty).toBe('Democratic')
+    expect(before.statChanges).toMatchObject([{ key: 'add_stability', total: 0.6 }])
+    expect(before.modifierTotals).toMatchObject([{ key: 'x', total: 0.1 }])
+    const after = countryStateAt(schedule, day(70), { start: startLines, startDate: start })
+    expect(after.statChanges).toMatchObject([{ key: 'add_stability', total: 0.65 }])
+    expect(after.completed).toHaveLength(1)
+  })
+})
+
+describe('leader traits added after the leader', () => {
+  it('lists a trait a later focus adds, with its stats, and drops it when removed', () => {
+    const leaderFocus = focus('a', [
+      { depth: 0, key: 'create_country_leader', value: 'Carol II', traits: ['hedonist'] },
+      { depth: 1, key: 'leader_trait', value: 'hedonist' },
+      modifier(2, 'stability_factor', '-0.05'),
+    ])
+    const traitFocus = focus('b', [
+      {
+        depth: 0,
+        key: 'add_country_leader_trait',
+        value: 'camarilla_leader',
+        valueName: 'Camarilla Leader',
+      },
+      modifier(1, 'economy_cost_factor', '-0.25'),
+    ])
+    const dropFocus = focus('c', [
+      { depth: 0, key: 'remove_country_leader_trait', value: 'hedonist' },
+    ])
+    const s = stateAt([leaderFocus, traitFocus], 140)
+    expect(s.leader?.traits.map((t) => t.key)).toEqual([
+      'leader_trait',
+      'stability_factor',
+      'leader_trait',
+      'economy_cost_factor',
+    ])
+    expect(s.modifierTotals.map((t) => t.key).sort()).toEqual([
+      'economy_cost_factor',
+      'stability_factor',
+    ])
+    expect(s.statChanges).toEqual([])
+    const after = stateAt([leaderFocus, traitFocus, dropFocus], 210)
+    expect(after.leader?.traits.map((t) => t.value)).toEqual(['camarilla_leader', '-0.25'])
+  })
+})
+
+describe('resources and construction', () => {
+  const f = focus('a', [
+    { depth: 0, key: 'random_owned_controlled_state', preferStates: ['46'] },
+    { depth: 1, key: 'add_resource', value: '8', subject: 'oil', subjectName: 'Oil' },
+    { depth: 1, key: 'add_stability', value: '0.01' },
+    { depth: 1, key: 'add_extra_state_shared_building_slots', value: '2' },
+    {
+      depth: 0,
+      key: 'add_building_construction',
+      value: '1',
+      subject: 'industrial_complex',
+      instant: true,
+    },
+    { depth: 0, key: '46' },
+    { depth: 1, key: 'add_resource', value: '4', subject: 'oil', subjectName: 'Oil' },
+    { depth: 1, key: 'add_resource', value: '2', subject: 'steel', subjectName: 'Steel' },
+    { depth: 0, key: 'GER' },
+    { depth: 1, key: 'random_owned_controlled_state' },
+    { depth: 2, key: 'add_resource', value: '5', subject: 'steel', subjectName: 'Steel' },
+  ])
+
+  it('sums resources by type, including own state scopes but not other countries', () => {
+    const s = stateAt([f], 70)
+    expect(s.resources).toEqual([
+      { type: 'oil', name: 'Oil', total: 12 },
+      { type: 'steel', name: 'Steel', total: 2 },
+    ])
+  })
+
+  it('sums buildings per type, and keeps other effects of a random block as conditional', () => {
+    const more = focus('b', [
+      { depth: 0, key: 'random_owned_controlled_state' },
+      { depth: 1, key: 'add_extra_state_shared_building_slots', value: '1' },
+      {
+        depth: 1,
+        key: 'add_building_construction',
+        value: '1',
+        subject: 'industrial_complex',
+        instant: true,
+      },
+    ])
+    const s = stateAt([f, more], 140)
+    expect(s.buildingSlots).toBe(3)
+    expect(s.buildings).toEqual([
+      { type: 'industrial_complex', name: 'industrial_complex', total: 2, instant: true },
+    ])
+    expect(s.conditional[0].lines.map((l) => l.key)).toEqual([
+      'random_owned_controlled_state',
+      'add_stability',
+    ])
+  })
+})
+
+describe('conditions on having an idea', () => {
+  const remove = (idea: string): EffectLine[] => [
+    { depth: 0, key: 'if', condition: `has idea: ${idea}`, hasIdea: { id: idea, negated: false } },
+    { depth: 1, key: 'remove_ideas', value: idea },
+    { depth: 1, key: 'else' },
+    {
+      depth: 2,
+      key: 'if',
+      condition: 'has idea: b',
+      hasIdea: { id: 'idea_b', negated: false },
+    },
+    { depth: 3, key: 'remove_ideas', value: 'idea_b' },
+  ]
+
+  it('removes whichever idea the country has, and nothing is left as conditional', () => {
+    const give = (id: string) => ideaFocus(`give_${id}`, id, [])
+    const s = stateAt([give('idea_b'), focus('r', remove('idea_a'))], 140)
+    expect(s.ideas).toEqual([])
+    expect(s.conditional).toEqual([])
+    const kept = stateAt([give('idea_a'), give('idea_b'), focus('r', remove('idea_a'))], 210)
+    expect(kept.ideas.map((i) => i.id)).toEqual(['idea_b'])
+  })
+
+  it('does nothing when the country has none of the ideas', () => {
+    const s = stateAt([focus('r', remove('idea_a'))], 70)
+    expect(s.ideas).toEqual([])
+    expect(s.conditional).toEqual([])
+  })
+
+  it('applies a swap guarded by NOT has idea', () => {
+    const swap = focus('s', [
+      { depth: 0, key: 'if', condition: 'not has idea', hasIdea: { id: 'new', negated: true } },
+      { depth: 1, key: 'swap_ideas' },
+      { depth: 2, key: 'remove_idea', value: 'old' },
+      { depth: 2, key: 'add_idea', value: 'new', valueName: 'New' },
+    ])
+    const s = stateAt([ideaFocus('o', 'old', []), swap], 140)
+    expect(s.ideas.map((i) => i.id)).toEqual(['new'])
   })
 })

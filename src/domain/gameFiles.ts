@@ -22,6 +22,9 @@ export const GAME_PATHS = {
   /** Static modifiers, such as the ones `add_relation_modifier` attaches. */
   staticModifiers: 'common/modifiers',
   leaderTraits: 'common/country_leader',
+  /** Characters (a country's file is named `<TAG>.txt`) and the ideology groups their roles use. */
+  characters: 'common/characters',
+  ideologies: 'common/ideologies',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',

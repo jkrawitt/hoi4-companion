@@ -31,7 +31,13 @@ const ticks = computed(() =>
   })),
 )
 
-const previous = computed(() => [...completionDays.value].reverse().find((d) => d < viewDate.value))
+// Back from the first focus goes to the campaign start.
+const previous = computed(() =>
+  viewDate.value > startDate.value
+    ? ([...completionDays.value].reverse().find((d) => d < viewDate.value && d > startDate.value) ??
+      startDate.value)
+    : undefined,
+)
 const following = computed(() => completionDays.value.find((d) => d > viewDate.value))
 </script>
 
@@ -50,7 +56,8 @@ const following = computed(() => completionDays.value.find((d) => d > viewDate.v
       </button>
     </div>
     <div class="slider">
-      <input type="range" min="0" :max="span" v-model.number="offset" />
+      <!-- Keyed on the range: a new value set before the new max is clamped to the old max. -->
+      <input :key="span" type="range" min="0" :max="span" v-model.number="offset" />
       <div class="ticks">
         <span v-for="t in ticks" :key="t.day" :style="{ left: `${t.percent}%` }" />
       </div>

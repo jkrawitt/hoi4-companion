@@ -56,6 +56,8 @@ export interface EffectLine {
   instant?: boolean
   /** For `if` headers whose `limit` was folded in: the condition, e.g. `France is in faction`. */
   condition?: string
+  /** For `if` headers whose whole `limit` is `has_idea = X` (or `NOT = { has_idea = X }`). */
+  hasIdea?: { id: string; negated: boolean }
   /** For `create_country_leader` lines: the ids of the leader's traits. */
   traits?: string[]
   /** For `diplomatic_relation` lines: whether the relation is being granted or removed. */

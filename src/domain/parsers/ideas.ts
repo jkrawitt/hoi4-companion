@@ -1,5 +1,6 @@
 import type { EffectLine } from '../focus'
 import { flattenEffects } from '../focusEffects'
+import { isAiModifier } from './statBlocks'
 import { findBlocks, getBlock, getString } from './paradoxScript'
 
 /**
@@ -11,10 +12,12 @@ export const parseIdeas = (text: string, wanted: Set<string>): Record<string, Ef
     Object.entries(findBlocks(text, wanted)).map(([id, block]) => [
       id,
       [
-        ...flattenEffects(getBlock(block, 'modifier') ?? []).map((l) => ({
-          ...l,
-          isModifier: true,
-        })),
+        ...flattenEffects(getBlock(block, 'modifier') ?? [])
+          .filter((l) => !isAiModifier(l.key))
+          .map((l) => ({
+            ...l,
+            isModifier: true,
+          })),
         ...flattenEffects(getBlock(block, 'rule') ?? []).map((l) => ({
           ...l,
           isModifier: true,
