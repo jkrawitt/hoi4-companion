@@ -14,4 +14,9 @@
  */
 export const ownedDlc: Record<string, boolean> = {
   'Arms Against Tyranny': false,
+  'Battle for the Bosporus': false,
+  'By Blood Alone': true,
+  'Death or Dishonor': true,
+  'Man the Guns': true,
+  'No Step Back': false,
 }

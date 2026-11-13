@@ -13,12 +13,13 @@ const dir = process.env.HOI4_DIR
 
 describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
   it('imports Romania', async () => {
-    const focuses = await importCountryFocuses(
+    const { focuses, start } = await importCountryFocuses(
       {
         readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
         listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
       },
       {
+        tag: 'ROM',
         name: 'Romania',
         focusTreeFile: 'common/national_focus/romania.txt',
         ideasFile: 'common/ideas/romania.txt',
@@ -27,6 +28,9 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       ownedDlc,
     )
     expect(focuses.length).toBeGreaterThan(50)
+    expect(start.map((e) => e.key)).toEqual(
+      expect.arrayContaining(['add_stability', 'set_politics', 'add_popularity', 'add_ideas']),
+    )
     const first = focuses.find((f) => f.id === 'ROM_preserve_greater_romania')
     expect(first?.name).toBe('Preserve Greater Romania')
     expect(first?.days).toBe(70)

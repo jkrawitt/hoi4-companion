@@ -1,4 +1,4 @@
-import type { Focus } from '@/domain/focus'
+import type { ImportedCountry } from '@/domain/gameImport'
 
 /**
  * Caches imported focuses in the browser (IndexedDB) so the game folder only has to be
@@ -6,12 +6,11 @@ import type { Focus } from '@/domain/focus'
  */
 const DB_NAME = 'hoi4-companion'
 const STORE = 'focuses'
-/** Bump when the shape of Focus changes; older cached data is then ignored (re-import needed). */
-const CACHE_VERSION = 17
+/** Bump when the shape of Focus or the imported country changes; older cached data is then ignored (re-import needed). */
+const CACHE_VERSION = 22
 
-interface CachedFocuses {
+interface CachedCountry extends ImportedCountry {
   version: number
-  focuses: Focus[]
 }
 
 const open = () =>
@@ -22,14 +21,18 @@ const open = () =>
     req.onerror = () => reject(req.error)
   })
 
-export const loadCachedFocuses = async (tag: string): Promise<Focus[] | null> => {
+export const loadCachedCountry = async (tag: string): Promise<ImportedCountry | null> => {
   try {
     const db = await open()
     return await new Promise((resolve, reject) => {
       const req = db.transaction(STORE).objectStore(STORE).get(tag)
       req.onsuccess = () => {
-        const cached = req.result as CachedFocuses | undefined
-        resolve(cached?.version === CACHE_VERSION ? cached.focuses : null)
+        const cached = req.result as CachedCountry | undefined
+        resolve(
+          cached?.version === CACHE_VERSION
+            ? { focuses: cached.focuses, start: cached.start }
+            : null,
+        )
       }
       req.onerror = () => reject(req.error)
     })
@@ -38,12 +41,12 @@ export const loadCachedFocuses = async (tag: string): Promise<Focus[] | null> =>
   }
 }
 
-export const saveCachedFocuses = async (tag: string, focuses: Focus[]): Promise<void> => {
+export const saveCachedCountry = async (tag: string, country: ImportedCountry): Promise<void> => {
   try {
     const db = await open()
     await new Promise<void>((resolve, reject) => {
       const tx = db.transaction(STORE, 'readwrite')
-      tx.objectStore(STORE).put({ version: CACHE_VERSION, focuses } satisfies CachedFocuses, tag)
+      tx.objectStore(STORE).put({ version: CACHE_VERSION, ...country } satisfies CachedCountry, tag)
       tx.oncomplete = () => resolve()
       tx.onerror = () => reject(tx.error)
     })

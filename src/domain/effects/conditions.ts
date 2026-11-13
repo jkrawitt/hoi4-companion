@@ -79,6 +79,24 @@ const asPhrase = (terms: string[]): string =>
  * empty limit always applies, so it is dropped and its body shown (with its `else` branches
  * removed, since they never apply).
  */
+/** The idea a limit is only asking about (`has_idea = X`, or that inside a `NOT`), if it is. */
+const hasIdeaOnly = (limit: EffectLine[]): EffectLine['hasIdea'] => {
+  const [first, second] = limit
+  if (limit.length === 1 && first.key === 'has_idea' && first.value) {
+    return { id: first.value, negated: false }
+  }
+  if (
+    limit.length === 2 &&
+    opensBlock(first) &&
+    first.key.toLowerCase() === 'not' &&
+    second.key === 'has_idea' &&
+    second.value
+  ) {
+    return { id: second.value, negated: true }
+  }
+  return undefined
+}
+
 export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
@@ -112,7 +130,8 @@ export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
       result.push(line)
       continue
     }
-    result.push({ ...line, condition: asPhrase(terms) })
+    const hasIdea = hasIdeaOnly(effects.slice(i + 2, limitEnd))
+    result.push({ ...line, condition: asPhrase(terms), ...(hasIdea && { hasIdea }) })
     i = limitEnd - 1
   }
   return result

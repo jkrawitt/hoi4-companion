@@ -1,6 +1,9 @@
 import type { EffectLine } from '../focus'
 import { findBlocks } from './paradoxScript'
 
+/** Modifiers that only steer the AI (`ai_badass_factor`); a player is not shown them. */
+export const isAiModifier = (key: string | null): boolean => key !== null && key.startsWith('ai_')
+
 /**
  * Reads definitions whose body is a plain list of stat changes (`key = number`), which is the
  * shape of both static modifiers and country leader traits.
@@ -21,6 +24,7 @@ export const parseStatBlocks = (
       block.flatMap((entry): EffectLine[] =>
         entry.key !== null &&
         !notStats.has(entry.key) &&
+        !isAiModifier(entry.key) &&
         typeof entry.value === 'string' &&
         Number.isFinite(Number(entry.value)) &&
         Number(entry.value) !== 0

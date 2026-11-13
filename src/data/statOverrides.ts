@@ -15,19 +15,29 @@ export const statOverrides: StatOverrides = {
   // Popularity changes are unclear in value, so any gain is shown as good.
   add_popularity: { kind: 'percent', goodWhen: 'positive' },
   guarantee_cost: { kind: 'percent', decimals: 0, goodWhen: 'negative' },
-  communism_drift: {
-    kind: 'number',
-    decimals: 2,
-    fixedDecimals: true,
-    showPlus: false,
-    goodWhen: 'positive',
-  },
+  // Daily drift of an ideology's popularity, shown as a plain number; any gain counts as good.
+  ...Object.fromEntries(
+    ['communism', 'fascism', 'democratic', 'neutrality'].map((ideology) => [
+      `${ideology}_drift`,
+      {
+        kind: 'number' as const,
+        decimals: 2,
+        fixedDecimals: true,
+        showPlus: false,
+        goodWhen: 'positive' as const,
+      },
+    ]),
+  ),
+  // `Division Recovery Rate`: more is better.
+  army_morale: { goodWhen: 'positive' },
+  army_morale_factor: { goodWhen: 'positive' },
   send_volunteer_divisions_required: { kind: 'percent', decimals: 0, goodWhen: 'negative' },
   send_volunteer_size: { kind: 'number', decimals: 0, goodWhen: 'positive' },
   can_send_volunteers: { label: 'Can send volunteers' },
   can_create_factions: { label: 'Can create factions' },
   // Effects of the form `key = number`, see `STAT_EFFECT_KEYS` in `focusEffects.ts`.
   add_stability: { label: 'Stability', kind: 'percent', goodWhen: 'positive' },
+  add_war_support: { label: 'War support', kind: 'percent', goodWhen: 'positive' },
   add_political_power: {
     label: 'Political power',
     kind: 'number',
