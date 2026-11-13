@@ -16,18 +16,18 @@ import {
   markHidden,
   simplifyRandomStates,
 } from '../focusEffects'
-import { parseFocusTreeFile } from '../focusTree'
-import { parseIdeas } from '../ideas'
-import { parseOpinionModifiers } from '../opinionModifiers'
-import { parseStaticModifiers } from '../staticModifiers'
-import { parseEventTitles } from '../events'
-import { parseFactionTemplates } from '../factions'
-import { resolveEventText } from '../localisation'
+import { parseFocusTreeFile } from '../parsers/focusTree'
+import { parseIdeas } from '../parsers/ideas'
+import { parseOpinionModifiers } from '../parsers/opinionModifiers'
+import { parseStaticModifiers } from '../parsers/staticModifiers'
+import { parseEventTitles } from '../parsers/events'
+import { parseFactionTemplates } from '../parsers/factions'
+import { resolveEventText } from '../parsers/localisation'
 import { formatStatValue, parseStatDocs, resolveStat, statTone } from '../stats'
-import { cleanLocalisation, parseLocalisation } from '../localisation'
-import { parseIdeaNames } from '../ideas'
-import { parseLeaderTraits } from '../leaderTraits'
-import { parseScript } from '../paradoxScript'
+import { cleanLocalisation, parseLocalisation } from '../parsers/localisation'
+import { parseIdeaNames } from '../parsers/ideas'
+import { parseLeaderTraits } from '../parsers/leaderTraits'
+import { parseScript } from '../parsers/paradoxScript'
 
 const sample = `
 ﻿focus_tree = {

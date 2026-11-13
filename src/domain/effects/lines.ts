@@ -7,7 +7,7 @@
  * deeper", which is what `blockEnd` and `childrenOf` work out.
  */
 import type { EffectLine } from '../focus'
-import type { ScriptBlock } from '../paradoxScript'
+import type { ScriptBlock } from '../parsers/paradoxScript'
 
 /** Flattens a script block into depth-annotated lines. */
 export const flattenEffects = (block: ScriptBlock, depth = 0): EffectLine[] =>

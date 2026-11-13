@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Focus } from '../focus'
-import { schedulePlan } from '../focusPlan'
+import { schedulePlan } from '../plan/focusPlan'
 
 const focus = (id: string, days: number, extra: Partial<Focus> = {}): Focus => ({
   id,

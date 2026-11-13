@@ -6,7 +6,7 @@
  * rest, and reading stops as soon as every key has been found.
  */
 import { GAME_PATHS, type GameFiles } from './gameFiles'
-import { parseLocalisation } from './localisation'
+import { parseLocalisation } from './parsers/localisation'
 
 /** Texts that are built out of other texts, written `$SOME_OTHER_KEY$`. */
 const REFERENCE = /\$([\w.]+)\$/g

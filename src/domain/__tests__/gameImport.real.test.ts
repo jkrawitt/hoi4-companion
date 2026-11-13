@@ -1,7 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { layoutFocuses } from '../focusLayout'
+import { layoutFocuses } from '../plan/focusLayout'
 import { ownedDlc } from '../../data/dlc'
 import { statOverrides } from '../../data/statOverrides'
 import { effectTone, formatEffect } from '../focusEffects'

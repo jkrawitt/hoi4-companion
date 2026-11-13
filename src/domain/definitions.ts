@@ -5,7 +5,7 @@
  * still missing.
  */
 import { GAME_PATHS, type GameFiles } from './gameFiles'
-import { getBlock, getString, parseScript } from './paradoxScript'
+import { getBlock, getString, parseScript } from './parsers/paradoxScript'
 
 /**
  * Finds definitions for the given ids. The preferred file is read first; the other files in the

@@ -1,4 +1,4 @@
-import type { EffectLine } from './focus'
+import type { EffectLine } from '../focus'
 import { findBlocks } from './paradoxScript'
 
 /**

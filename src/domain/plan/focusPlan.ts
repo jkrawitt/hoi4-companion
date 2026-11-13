@@ -1,4 +1,4 @@
-import type { Focus, FocusSchedule, PlanIssue, PlanOptions, ScheduledFocus } from './focus'
+import type { Focus, FocusSchedule, PlanIssue, PlanOptions, ScheduledFocus } from '../focus'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 

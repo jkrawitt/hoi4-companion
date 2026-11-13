@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Focus } from '@/domain/focus'
-import { layoutFocuses } from '@/domain/focusLayout'
+import { layoutFocuses } from '@/domain/plan/focusLayout'
 import EffectList from './EffectList.vue'
 
 const props = defineProps<{

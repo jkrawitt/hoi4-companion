@@ -13,7 +13,7 @@
  *    into conditions now that they can be written out in English.
  */
 import type { EffectLine, Focus } from './focus'
-import { parseFocusTreeFile } from './focusTree'
+import { parseFocusTreeFile } from './parsers/focusTree'
 import {
   defaultGoodWhen,
   foldConditions,
@@ -31,13 +31,13 @@ import {
 import { readCountryHistory, readDefinitions } from './definitions'
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
 import { loadNames } from './names'
-import { parseIdeaNames, parseIdeas } from './ideas'
-import { parseOpinionModifiers } from './opinionModifiers'
-import { parseLeaderTraits } from './leaderTraits'
-import { parseStaticModifiers } from './staticModifiers'
-import { parseEventTitles } from './events'
-import { parseFactionTemplates } from './factions'
-import { resolveEventText } from './localisation'
+import { parseIdeaNames, parseIdeas } from './parsers/ideas'
+import { parseOpinionModifiers } from './parsers/opinionModifiers'
+import { parseLeaderTraits } from './parsers/leaderTraits'
+import { parseStaticModifiers } from './parsers/staticModifiers'
+import { parseEventTitles } from './parsers/events'
+import { parseFactionTemplates } from './parsers/factions'
+import { resolveEventText } from './parsers/localisation'
 import { parseStatDocs, resolveStat, type StatDefinition, type StatOverrides } from './stats'
 
 // Re-exported so callers have one import for "reading the game folder".

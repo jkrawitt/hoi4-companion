@@ -1,4 +1,4 @@
-import type { Focus } from './focus'
+import type { Focus } from '../focus'
 
 export interface Position {
   x: number

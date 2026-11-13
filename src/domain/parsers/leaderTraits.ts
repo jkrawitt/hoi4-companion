@@ -1,4 +1,4 @@
-import type { EffectLine } from './focus'
+import type { EffectLine } from '../focus'
 import { parseStatBlocks } from './statBlocks'
 
 /** Numeric fields of a trait that are not stat changes. */
