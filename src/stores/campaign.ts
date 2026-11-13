@@ -7,16 +7,11 @@ import { computed, ref, watch } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
-import type { EffectLine, Focus, LeaderData } from '@/domain/focus'
+import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { schedulePlan } from '@/domain/plan/focusPlan'
 import { isValidPlan, pathTo, removeWithDependents } from '@/domain/plan/focusSelection'
-import {
-  GameFolderError,
-  importCountryFocuses,
-  type GameFiles,
-  type ImportedCountry,
-} from '@/domain/gameImport'
+import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
 import { loadCachedCountry, saveCachedCountry } from '@/import/cache'
 
 const STORAGE_KEY = 'hoi4-companion:campaign'

@@ -12,7 +12,14 @@
  * 5. put those names and the stat definitions onto the effect lines, and fold `limit` blocks
  *    into conditions now that they can be written out in English.
  */
-import { LEADERS_ID, START_ID, type EffectLine, type Focus, type LeaderData } from './focus'
+import {
+  LEADERS_ID,
+  START_ID,
+  type EffectLine,
+  type Focus,
+  type ImportedCountry,
+  type LeaderData,
+} from './focus'
 import { parseFocusTreeFile } from './parsers/focusTree'
 import {
   defaultGoodWhen,
@@ -58,15 +65,6 @@ export interface ImportTarget {
   name: string
   focusTreeFile: string
   ideasFile?: string
-}
-
-/** What an import produces: the focus tree, and what the country starts the game with. */
-export interface ImportedCountry {
-  focuses: Focus[]
-  /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
-  start: EffectLine[]
-  /** Who the game could pick as leader, for when the plan retires one or changes the party. */
-  leaders: LeaderData
 }
 
 const emptyFocus = (id: string): Focus => ({

@@ -135,3 +135,12 @@ export interface Focus {
   /** What completing the focus does (its `completion_reward`). */
   effects: EffectLine[]
 }
+
+/** What an import produces: the focus tree, and what the country starts the game with. */
+export interface ImportedCountry {
+  focuses: Focus[]
+  /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
+  start: EffectLine[]
+  /** Who the game could pick as leader, for when the plan retires one or changes the party. */
+  leaders: LeaderData
+}
