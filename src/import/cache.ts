@@ -1,4 +1,4 @@
-import type { ImportedCountry } from '@/domain/gameImport'
+import type { ImportedCountry } from '@/domain/focus'
 
 /**
  * Caches imported focuses in the browser (IndexedDB) so the game folder only has to be

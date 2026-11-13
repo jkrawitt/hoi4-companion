@@ -7,7 +7,7 @@ import GameDataImport from '@/components/GameDataImport.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
 import StatTotals from '@/components/overview/StatTotals.vue'
 import type { StatTotal } from '@/domain/campaign/countryState'
-import { START_ID } from '@/domain/campaign/countryState'
+import { START_ID } from '@/domain/focus'
 import { formatDate, useCampaign } from '@/stores/campaign'
 
 const { country, hasData, plan, state } = useCampaign()

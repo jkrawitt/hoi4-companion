@@ -4,33 +4,25 @@
  * The import runs in phases, each of which only looks up what the previous one turned out to
  * need, so a tree costs a handful of files rather than the whole install:
  *
- * 1. parse the focus tree and settle its DLC branches;
+ * 1. parse the focus tree and settle its DLC branches, and read how the country starts the game;
  * 2. read the definitions its effects refer to (ideas, opinion and relation modifiers, leader
  *    traits) and list each one's own stats beneath the line that applies it;
  * 3. read what the countries it mentions start the game as, and the titles of events it fires;
  * 4. load the localised text for every key those steps collected;
- * 5. put those names and the stat definitions onto the effect lines, and fold `limit` blocks
- *    into conditions now that they can be written out in English.
+ * 5. put those names and the stat definitions onto the effect lines (`nameLines.ts`), and fold
+ *    `limit` blocks into conditions now that they can be written out in English.
+ *
+ * The starting state and the leader candidates are not focuses, but they go through the same
+ * phases as one more list of effect lines each, so their ideas and names are looked up too.
  */
-import type { EffectLine, Focus, LeaderData } from './focus'
+import type { EffectLine, ImportedCountry } from './focus'
 import { parseFocusTreeFile } from './parsers/focusTree'
-import {
-  defaultGoodWhen,
-  foldConditions,
-  humanize,
-  ideaIdsOf,
-  ideaLineIndexes,
-  isBuildingSpeedModifier,
-  isCountryTag,
-  isOwnScope,
-  modifierNameKeys,
-  removedIdeaLineIndexes,
-  resolveDlcConditions,
-  reverseModifier,
-} from './focusEffects'
+import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
+import { listModifiersUnderLines } from './effects/modifierLines'
 import { readCountryHistory, readCountryHistoryText, readDefinitions } from './definitions'
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
 import { loadNames } from './names'
+import { nameKeysOf, nameLines, tagOf } from './nameLines'
 import { parseIdeaNames, parseIdeas } from './parsers/ideas'
 import { parseOpinionModifiers } from './parsers/opinionModifiers'
 import { parseLeaderTraits } from './parsers/leaderTraits'
@@ -45,8 +37,7 @@ import {
   pickStartingLeader,
 } from './parsers/leaders'
 import { parseFactionTemplates } from './parsers/factions'
-import { resolveEventText } from './parsers/localisation'
-import { parseStatDocs, resolveStat, type StatDefinition, type StatOverrides } from './stats'
+import { parseStatDocs, type StatOverrides } from './stats'
 
 // Re-exported so callers have one import for "reading the game folder".
 export { GameFolderError, type GameFiles } from './gameFiles'
@@ -59,31 +50,6 @@ export interface ImportTarget {
   focusTreeFile: string
   ideasFile?: string
 }
-
-/** What an import produces: the focus tree, and what the country starts the game with. */
-export interface ImportedCountry {
-  focuses: Focus[]
-  /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
-  start: EffectLine[]
-  /** Who the game could pick as leader, for when the plan retires one or changes the party. */
-  leaders: LeaderData
-}
-
-/** Stands in for the starting state while it goes through the same passes as the focuses. */
-const START_ID = '__start__'
-/** Likewise for the characters who could lead the country. */
-const LEADERS_ID = '__leaders__'
-
-const emptyFocus = (id: string): Focus => ({
-  id,
-  name: '',
-  days: 0,
-  prerequisites: [],
-  mutuallyExclusive: [],
-  x: 0,
-  y: 0,
-  effects: [],
-})
 
 /** The history's recruits with the leader roles of each and the ideology groups, read once. */
 const readLeaderSources = async (files: GameFiles, tag: string, historyText: string) => {
@@ -99,80 +65,120 @@ const readLeaderSources = async (files: GameFiles, tag: string, historyText: str
   return { recruited: parseRecruited(historyText), roles, groups }
 }
 
-/** Every value the focuses' effects give for `keys`, e.g. all the opinion modifiers they add. */
-const valuesOf = (focuses: Focus[], ...keys: string[]): Set<string> =>
+/** Every value the effects give for `keys`, e.g. all the opinion modifiers they add. */
+const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
   new Set(
-    focuses.flatMap((f) =>
-      f.effects.flatMap((e) =>
-        e.key !== null && keys.includes(e.key) && e.value ? [e.value] : [],
-      ),
+    lists.flatMap((lines) =>
+      lines.flatMap((e) => (e.key !== null && keys.includes(e.key) && e.value ? [e.value] : [])),
     ),
   )
 
-/** The two ideologies of `communism > party_popularity@fascism`, for looking up their names. */
-const popularityComparison = (e: EffectLine): [string, string] | undefined => {
-  const other = e.operator && e.value ? /^party_popularity@(.+)$/.exec(e.value) : null
-  return other && e.key ? [e.key, other[1]] : undefined
-}
-
-/** A `ROM_ion_antonescu = { ... }` block: effects applied to that character. */
-const isCharacterScope = (e: EffectLine): boolean =>
-  e.value === undefined && e.key !== null && /^[A-Z]{3}_\w+$/.test(e.key)
-
-/** A `46 = { ... }` block: effects applied to the state with that id. */
-const isStateScope = (e: EffectLine): boolean =>
-  e.value === undefined && e.key !== null && /^\d+$/.test(e.key)
-
-const isEventLine = (e: EffectLine): boolean => e.key === 'country_event' || e.key === 'news_event'
-
-/** The country an effect line names, as its subject or as a `SOV = { ... }` scope header. */
-const tagOf = (e: EffectLine): string | undefined => {
-  if (e.subject && isCountryTag(e.subject)) return e.subject
-  return e.value === undefined && isCountryTag(e.key) ? e.key : undefined
-}
-
-/** `Nuclear Reactor construction speed` as `Nuclear Reactor Construction Speed`. */
-const titleCaseIf = (apply: boolean, text: string | undefined) =>
-  apply && text ? text.replace(/\b[a-z]/g, (c) => c.toUpperCase()) : text
-
-/** Stat lines of the things a focus can apply, which are shown beneath the line applying them. */
-interface Definitions {
-  ideas: Record<string, EffectLine[]>
-  relations: Record<string, EffectLine[]>
-  leaderTraits: Record<string, EffectLine[]>
-}
-
 /**
- * Puts each applied idea's, relation modifier's and leader trait's own stats directly beneath
- * the line that applies it, one level deeper. A removed idea's modifiers are reversed, since the
- * change is being undone, and a leader's `traits` become a line each with their stats under them.
+ * How the country starts the game, as effect lines (with the starting leader added), and the
+ * characters who could lead it later, as `promote_character` lines in the order the game would
+ * pick them.
  */
-const listModifiersUnderLines = (effects: EffectLine[], defs: Definitions): EffectLine[] => {
-  const adds = new Set(ideaLineIndexes(effects))
-  const removes = new Set(removedIdeaLineIndexes(effects))
-  const modifiersFor = (line: EffectLine, i: number): EffectLine[] => {
-    if (adds.has(i)) return defs.ideas[line.value!] ?? []
-    if (removes.has(i)) return (defs.ideas[line.value!] ?? []).map(reverseModifier)
-    if (!line.value) return []
-    if (line.key === 'add_relation_modifier') return defs.relations[line.value] ?? []
-    if (line.key === 'add_country_leader_trait') return defs.leaderTraits[line.value] ?? []
-    return []
-  }
-  return effects.flatMap((line, i): EffectLine[] => {
-    /** Nests lines under `line`, keeping them hidden if it is hidden. */
-    const under = (lines: EffectLine[], extra = 0) =>
-      lines.map((m) => ({ ...m, depth: line.depth + 1 + extra + m.depth, hidden: line.hidden }))
-    if (line.traits) {
-      return [
-        line,
-        ...line.traits.flatMap((trait) => [
-          { depth: line.depth + 1, key: 'leader_trait', value: trait, hidden: line.hidden },
-          ...under(defs.leaderTraits[trait] ?? [], 1),
-        ]),
-      ]
+const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
+  const historyText = await readCountryHistoryText(files, tag)
+  const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
+  const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
+  const sources = historyText ? await readLeaderSources(files, tag, historyText) : undefined
+  if (sources && rulingParty) {
+    const leader = pickStartingLeader(sources.recruited, sources.roles, sources.groups, rulingParty)
+    if (leader) {
+      startLines.push({
+        depth: 0,
+        key: 'promote_character',
+        value: leader.character,
+        subject: leader.ideology,
+      })
     }
-    return [line, ...under(modifiersFor(line, i))]
-  })
+  }
+  const candidates = sources
+    ? listLeaderCandidates(sources.recruited, sources.roles, sources.groups)
+    : []
+  const candidateLines = candidates.map(
+    (c): EffectLine => ({
+      depth: 0,
+      key: 'promote_character',
+      value: c.character,
+      subject: c.ideology,
+    }),
+  )
+  return { startLines, candidates, candidateLines, groups: sources?.groups ?? {} }
+}
+
+/** The definitions the effects refer to, each read from the directory it lives in. */
+const readEffectDefinitions = async (
+  files: GameFiles,
+  lists: EffectLine[][],
+  ideasFile: string | undefined,
+) => {
+  const ideaIds = new Set(lists.flatMap((lines) => ideaIdsOf(lines)))
+  const ideas = await readDefinitions(files, GAME_PATHS.ideas, ideaIds, ideasFile, parseIdeas)
+  // Some ideas share another idea's name (`name = ROM_x`) instead of having their own.
+  const ideaAliases = await readDefinitions(
+    files,
+    GAME_PATHS.ideas,
+    ideaIds,
+    ideasFile,
+    parseIdeaNames,
+  )
+  const opinions = await readDefinitions(
+    files,
+    GAME_PATHS.opinionModifiers,
+    valuesOf(lists, 'add_opinion_modifier'),
+    undefined,
+    parseOpinionModifiers,
+  )
+  // Relation modifiers (`add_relation_modifier`) are static modifiers; their stats go under them.
+  const relations = await readDefinitions(
+    files,
+    GAME_PATHS.staticModifiers,
+    valuesOf(lists, 'add_relation_modifier'),
+    `${GAME_PATHS.staticModifiers}/00_static_modifiers.txt`,
+    parseStaticModifiers,
+  )
+  // Country leader traits (`add_country_leader_trait`, and the `traits` of a new leader) show
+  // their stats beneath, like ideas do.
+  const traitIds = new Set([
+    ...valuesOf(lists, 'add_country_leader_trait'),
+    ...lists.flatMap((lines) => lines.flatMap((e) => e.traits ?? [])),
+  ])
+  const leaderTraits = await readDefinitions(
+    files,
+    GAME_PATHS.leaderTraits,
+    traitIds,
+    `${GAME_PATHS.leaderTraits}/00_traits.txt`,
+    parseLeaderTraits,
+  )
+  return { ideas, ideaAliases, opinions, relations, leaderTraits }
+}
+
+/** What the countries the effects mention start the game as, and the events they fire. */
+const readCountryContext = async (files: GameFiles, lists: EffectLine[][]) => {
+  const tags = new Set(lists.flatMap((lines) => lines.flatMap((e) => tagOf(e) ?? [])))
+  const { parties: rulingParties, factionTemplates } = await readCountryHistory(files, tags)
+  const factionNames = await readDefinitions(
+    files,
+    GAME_PATHS.factionTemplates,
+    new Set(Object.values(factionTemplates)),
+    undefined,
+    parseFactionTemplates,
+  )
+  // Events are found by id in the events folder. Files are named like the id's prefix with
+  // different capitalisation (`DOD_romania.30` is in `DOD_Romania.txt`), so those come first.
+  const eventIds = valuesOf(lists, 'country_event', 'news_event')
+  const eventPrefixes = new Set([...eventIds].map((id) => id.split('.')[0].toLowerCase()))
+  const eventTitles = await readDefinitions(
+    files,
+    GAME_PATHS.events,
+    eventIds,
+    undefined,
+    parseEventTitles,
+    (file) => (eventPrefixes.has(file.replace(/\.txt$/, '').toLowerCase()) ? 0 : 1),
+  )
+  return { tags, rulingParties, factionTemplates, factionNames, eventTitles }
 }
 
 /**
@@ -192,256 +198,77 @@ export const importCountryFocuses = async (
       `Could not find ${focusTreeFile}. Choose the Hearts of Iron IV installation folder (the one containing "common" and "localisation").`,
     )
   }
-  // Pick the branch that applies to the DLCs we know about before anything is looked up, so
+
+  // 1. Pick the branch that applies to the DLCs we know about before anything is looked up, so
   // names and idea modifiers are only read for what will be shown.
-  const historyText = await readCountryHistoryText(files, country.tag)
-  const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
-  const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
-  const leaderSources = historyText
-    ? await readLeaderSources(files, country.tag, historyText)
-    : undefined
-  if (leaderSources && rulingParty) {
-    const { recruited, roles, groups } = leaderSources
-    const leader = pickStartingLeader(recruited, roles, groups, rulingParty)
-    if (leader) {
-      startLines.push({
-        depth: 0,
-        key: 'promote_character',
-        value: leader.character,
-        subject: leader.ideology,
-      })
-    }
-  }
-  const leaderCandidates = leaderSources
-    ? listLeaderCandidates(leaderSources.recruited, leaderSources.roles, leaderSources.groups)
-    : []
-  // The candidates ride along as one more reward too, so their names are looked up.
-  const leadersFocus: Focus = {
-    ...emptyFocus(LEADERS_ID),
-    effects: leaderCandidates.map(
-      (c): EffectLine => ({
-        depth: 0,
-        key: 'promote_character',
-        value: c.character,
-        subject: c.ideology,
-      }),
-    ),
-  }
-  const startFocus: Focus = { ...emptyFocus(START_ID), effects: startLines }
-  const parsed = [
-    ...parseFocusTreeFile(treeText).map((f) => ({
-      ...f,
-      effects: resolveDlcConditions(f.effects, ownedDlc),
-    })),
-    // The starting state is carried along as one more reward, so its ideas are read and named too.
-    startFocus,
-    leadersFocus,
-  ]
-
-  // --- The definitions the effects refer to, each read from the directory it lives in. ---
-  const ideaIds = new Set(parsed.flatMap((f) => ideaIdsOf(f.effects)))
-  const ideas = await readDefinitions(files, GAME_PATHS.ideas, ideaIds, ideasFile, parseIdeas)
-  // Some ideas share another idea's name (`name = ROM_x`) instead of having their own.
-  const ideaAliases = await readDefinitions(
-    files,
-    GAME_PATHS.ideas,
-    ideaIds,
-    ideasFile,
-    parseIdeaNames,
-  )
-  const opinions = await readDefinitions(
-    files,
-    GAME_PATHS.opinionModifiers,
-    valuesOf(parsed, 'add_opinion_modifier'),
-    undefined,
-    parseOpinionModifiers,
-  )
-  // Relation modifiers (`add_relation_modifier`) are static modifiers; their stats go under them.
-  const relations = await readDefinitions(
-    files,
-    GAME_PATHS.staticModifiers,
-    valuesOf(parsed, 'add_relation_modifier'),
-    `${GAME_PATHS.staticModifiers}/00_static_modifiers.txt`,
-    parseStaticModifiers,
-  )
-  // Country leader traits (`add_country_leader_trait`, and the `traits` of a new leader) show
-  // their stats beneath, like ideas do.
-  const traitIds = new Set([
-    ...valuesOf(parsed, 'add_country_leader_trait'),
-    ...parsed.flatMap((f) => f.effects.flatMap((e) => e.traits ?? [])),
-  ])
-  const leaderTraits = await readDefinitions(
-    files,
-    GAME_PATHS.leaderTraits,
-    traitIds,
-    `${GAME_PATHS.leaderTraits}/00_traits.txt`,
-    parseLeaderTraits,
-  )
-
-  const focuses = parsed.map((f) => ({
+  const tree = parseFocusTreeFile(treeText).map((f) => ({
     ...f,
-    effects: listModifiersUnderLines(f.effects, { ideas, relations, leaderTraits }),
+    effects: resolveDlcConditions(f.effects, ownedDlc),
   }))
-
-  // --- What the countries the tree mentions start the game as, and the events it fires. ---
-  const tags = new Set(focuses.flatMap((f) => f.effects.flatMap((e) => tagOf(e) ?? [])))
-  const { parties: rulingParties, factionTemplates } = await readCountryHistory(files, tags)
-  const factionNames = await readDefinitions(
+  const { startLines, candidates, candidateLines, groups } = await readStart(
     files,
-    GAME_PATHS.factionTemplates,
-    new Set(Object.values(factionTemplates)),
-    undefined,
-    parseFactionTemplates,
-  )
-  // Events are found by id in the events folder. Files are named like the id's prefix with
-  // different capitalisation (`DOD_romania.30` is in `DOD_Romania.txt`), so those come first.
-  const eventIds = valuesOf(focuses, 'country_event', 'news_event')
-  const eventPrefixes = new Set([...eventIds].map((id) => id.split('.')[0].toLowerCase()))
-  const eventTitles = await readDefinitions(
-    files,
-    GAME_PATHS.events,
-    eventIds,
-    undefined,
-    parseEventTitles,
-    (file) => (eventPrefixes.has(file.replace(/\.txt$/, '').toLowerCase()) ? 0 : 1),
+    country.tag,
+    ownedDlc,
   )
 
-  // --- Every localisation key the above might need a name from. ---
-  const effectNameKeys = (e: EffectLine): string[] => [
-    ...(e.value ? [e.value] : []),
-    ...(e.subject ? [e.subject] : []),
-    ...(tagOf(e) ? [tagOf(e)!] : []),
-    ...(e.key === 'add_resource' && e.subject ? [`state_resource_${e.subject}`] : []),
-    ...(e.research?.targets ?? []),
-    ...(e.preferStates ?? []).map((id) => `STATE_${id}`),
-    ...(isStateScope(e) ? [`STATE_${e.key}`] : []),
-    ...(popularityComparison(e) ?? []),
-    ...(isCharacterScope(e) ? [e.key!] : []),
-    ...(e.value && ideaAliases[e.value] ? [ideaAliases[e.value]] : []),
-    ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
-  ]
+  // 2. The definitions the effects refer to, listed beneath the lines that apply them.
+  const defs = await readEffectDefinitions(
+    files,
+    [...tree.map((f) => f.effects), startLines, candidateLines],
+    ideasFile,
+  )
+  const listed = (lines: EffectLine[]) => listModifiersUnderLines(lines, defs)
+  const focuses = tree.map((f) => ({ ...f, effects: listed(f.effects) }))
+  const start = listed(startLines)
+  const candidatesListed = listed(candidateLines)
+  const lists = [...focuses.map((f) => f.effects), start, candidatesListed]
+
+  // 3. What the countries and events they mention are.
+  const context = await readCountryContext(files, lists)
+
+  // 4. Every localisation key the above might need a name from.
   const { names, rawNames } = await loadNames(
     files,
     new Set([
       // A country goes by the name of its ruling party at game start.
-      ...Array.from(tags, (tag) => (rulingParties[tag] ? `${tag}_${rulingParties[tag]}` : tag)),
-      ...Object.values(eventTitles),
-      ...Object.values(factionNames),
-      ...focuses.flatMap((f) => [f.id, `${f.id}_desc`, ...f.effects.flatMap(effectNameKeys)]),
+      ...Array.from(context.tags, (tag) =>
+        context.rulingParties[tag] ? `${tag}_${context.rulingParties[tag]}` : tag,
+      ),
+      ...Object.values(context.eventTitles),
+      ...Object.values(context.factionNames),
+      ...focuses.flatMap((f) => [f.id, `${f.id}_desc`]),
+      ...lists.flatMap((lines) => lines.flatMap((e) => nameKeysOf(e, defs.ideaAliases))),
     ]),
   )
   const statDocs = parseStatDocs((await files.readText(GAME_PATHS.statDocs)) ?? '')
 
-  // --- Putting the names and stat definitions onto the lines. ---
-  const countryName = (tag: string) => names[`${tag}_${rulingParties[tag]}`] ?? names[tag]
-
-  /** The country whose scope a line sits in (`GER = { ... }`); undefined for our own. */
-  const scopeTagAt = (effects: EffectLine[], index: number): string | undefined => {
-    let depth = effects[index].depth
-    for (let j = index - 1; j >= 0 && depth > 0; j--) {
-      if (effects[j].depth >= depth) continue
-      depth = effects[j].depth
-      if (effects[j].value === undefined && isCountryTag(effects[j].key)) return effects[j].key!
-    }
-    return undefined
+  // 5. Putting the names and stat definitions onto the lines.
+  const nameContext = {
+    country,
+    names,
+    rawNames,
+    rulingParties: context.rulingParties,
+    factionTemplates: context.factionTemplates,
+    factionNames: context.factionNames,
+    eventTitles: context.eventTitles,
+    ideaAliases: defs.ideaAliases,
+    opinions: defs.opinions,
+    statDocs,
+    statOverrides,
   }
-
-  /**
-   * An event's title, with `From` and `Root` filled in. Events are written from the receiving
-   * country's view, so inside a `GER = { ... }` scope `Root` is Germany and `From` is us.
-   */
-  const eventTitleFor = (effects: EffectLine[], index: number): string | undefined => {
-    const titleKey = eventTitles[effects[index].value ?? '']
-    if (!titleKey) return undefined
-    const recipient = scopeTagAt(effects, index)
-    const template = recipient ? factionTemplates[recipient] : undefined
-    const faction = template ? factionNames[template] : undefined
-    return resolveEventText(rawNames[titleKey] ?? names[titleKey] ?? titleKey, {
-      from: recipient ? country.name : undefined,
-      root: recipient ? countryName(recipient) : country.name,
-      rootFaction: faction ? (names[faction] ?? faction) : undefined,
-    })
-  }
-
-  /** The localised name for what an effect's `value` refers to, when it refers to anything. */
-  const valueNameOf = (e: EffectLine): string | undefined => {
-    if (e.key === 'add_claim_by' && e.value && isOwnScope(e.value)) return country.name
-    if (e.key === 'set_cosmetic_tag' && e.value && !names[e.value]) {
-      // No localisation for it: drop the country tag from `ROM_polish_loyalists`.
-      return humanize(e.value.replace(/^[A-Z]{3}_/, ''))
-    }
-    const comparison = popularityComparison(e)
-    if (comparison) return names[comparison[1]]
-    if (e.value && !e.isModifier) return names[e.value] ?? names[ideaAliases[e.value]]
-    return undefined
-  }
-
-  /** The localised name of what an effect applies to: a state, a character, a country, ... */
-  const subjectNameOf = (e: EffectLine): string | undefined => {
-    if (e.key === 'add_resource' && e.subject) return names[`state_resource_${e.subject}`]
-    if (isStateScope(e)) return names[`STATE_${e.key}`] ?? `State ${e.key}`
-    if (isCharacterScope(e)) return names[e.key!]
-    const comparison = popularityComparison(e)
-    if (comparison) return names[comparison[0]]
-    const tag = tagOf(e)
-    if (tag) return countryName(tag)
-    if (e.subject && isOwnScope(e.subject)) return country.name
-    return e.subject ? names[e.subject] : undefined
-  }
-
-  /** Research targets' names; some localisation is only a `$key$` reference to another entry. */
-  const researchNamesOf = (e: EffectLine) =>
-    e.research && {
-      ...e.research,
-      targetNames: e.research.targets.map((target) => {
-        const name = (names[target] ?? humanize(target)).trim()
-        const ref = /^\$(.+)\$$/.exec(name)
-        return ref ? (names[ref[1]]?.trim() ?? humanize(ref[1])) : name
-      }),
-    }
-
-  /** How a modifier line is displayed: label, percent or number, and which way is good. */
-  const statOf = (e: EffectLine): StatDefinition | undefined => {
-    if (!e.isModifier || !e.key) return undefined
-    // An `add_popularity` line is about an ideology, which names the stat ("Communist popularity").
-    const label = e.subject
-      ? `${names[e.subject] ?? humanize(e.subject)} popularity`
-      : titleCaseIf(
-          isBuildingSpeedModifier(e.key),
-          modifierNameKeys(e.key)
-            .map((key) => names[key])
-            .find(Boolean),
-        )
-    const fallbacks = e.isRule ? { kind: 'flag' as const } : { goodWhen: defaultGoodWhen(e.key) }
-    return resolveStat(e.key, label, statDocs, statOverrides, fallbacks)
-  }
-
-  const finished = focuses.map((f) => ({
-    ...f,
-    name: names[f.id] ?? f.id,
-    description: names[`${f.id}_desc`],
-    // `foldConditions` writes conditions out in English, so it has to run after the names exist.
-    effects: foldConditions(
-      f.effects.map((e, i) => ({
-        ...e,
-        eventTitle: isEventLine(e) ? eventTitleFor(f.effects, i) : undefined,
-        research: researchNamesOf(e),
-        valueName: valueNameOf(e),
-        subject: e.subject ?? tagOf(e),
-        subjectName: subjectNameOf(e),
-        preferNames: e.preferStates?.map((id) => names[`STATE_${id}`] ?? `state ${id}`),
-        opinion: e.key === 'add_opinion_modifier' && e.value ? opinions[e.value] : undefined,
-        stat: statOf(e),
-      })),
-    ),
-  }))
-  const named = finished.find((f) => f.id === LEADERS_ID)?.effects ?? []
+  const named = (lines: EffectLine[]) => nameLines(lines, nameContext)
+  const namedCandidates = named(candidatesListed)
   return {
-    focuses: finished.filter((f) => f.id !== START_ID && f.id !== LEADERS_ID),
-    start: finished.find((f) => f.id === START_ID)?.effects ?? [],
+    focuses: focuses.map((f) => ({
+      ...f,
+      name: names[f.id] ?? f.id,
+      description: names[`${f.id}_desc`],
+      effects: named(f.effects),
+    })),
+    start: named(start),
     leaders: {
-      candidates: leaderCandidates.map((c, i) => ({ group: c.group, line: named[i] })),
-      groups: leaderSources?.groups ?? {},
+      candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
+      groups,
     },
   }
 }
