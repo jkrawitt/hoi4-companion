@@ -1,95 +1,25 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { ownedDlc } from '@/data/dlc'
-import { statOverrides } from '@/data/statOverrides'
-import { countries } from '@/data/countries'
-import type { Focus } from '@/domain/focus'
-import { schedulePlan } from '@/domain/plan/focusPlan'
-import { pathTo, removeWithDependents } from '@/domain/plan/focusSelection'
-import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
-import { canUseDirectoryPicker, fromFileList, pickWithDirectoryPicker } from '@/import/gameFolder'
+import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import FocusTreeGraph from './FocusTreeGraph.vue'
 import EffectList from './EffectList.vue'
-import { loadCachedFocuses, saveCachedFocuses } from '@/import/cache'
+import GameDataImport from '../GameDataImport.vue'
+import { completionDay, formatDate, useCampaign } from '@/stores/campaign'
 
-const countryTag = ref(countries[0].tag)
-const country = computed(() => countries.find((c) => c.tag === countryTag.value)!)
+const router = useRouter()
+const {
+  focuses,
+  hasData,
+  plan,
+  startDate: startDateInput,
+  speedBonusPercent,
+  viewDate,
+  schedule,
+  blockedIds,
+  toggle,
+  reset,
+} = useCampaign()
 
-const focuses = ref<Record<string, Focus>>({})
-const hasData = computed(() => Object.keys(focuses.value).length > 0)
-const status = ref('')
-const error = ref('')
-const importing = ref(false)
-const folderInput = ref<HTMLInputElement | null>(null)
-
-const plan = ref<string[]>([])
-const startDateInput = ref('1936-01-01')
-const speedBonusPercent = ref(0)
-
-const setFocuses = (list: Focus[]) => {
-  focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
-  plan.value = []
-}
-
-// Load previously imported data whenever the country changes.
-watch(
-  countryTag,
-  async (tag) => {
-    focuses.value = {}
-    plan.value = []
-    error.value = ''
-    status.value = ''
-    const cached = await loadCachedFocuses(tag)
-    if (cached && tag === countryTag.value) setFocuses(cached)
-  },
-  { immediate: true },
-)
-
-const runImport = async (files: GameFiles) => {
-  importing.value = true
-  error.value = ''
-  status.value = 'Reading game files…'
-  const target = country.value
-  try {
-    const list = await importCountryFocuses(files, target, statOverrides, ownedDlc)
-    await saveCachedFocuses(target.tag, list)
-    if (target.tag === countryTag.value) setFocuses(list)
-    status.value = `Imported ${list.length} focuses for ${target.name}.`
-  } catch (e) {
-    status.value = ''
-    error.value = e instanceof GameFolderError ? e.message : `Import failed: ${String(e)}`
-  } finally {
-    importing.value = false
-  }
-}
-
-const chooseFolder = async () => {
-  if (canUseDirectoryPicker()) {
-    try {
-      const files = await pickWithDirectoryPicker()
-      if (files) await runImport(files)
-    } catch (e) {
-      error.value = `Could not open the folder: ${String(e)}`
-    }
-  } else {
-    folderInput.value?.click()
-  }
-}
-
-const onFolderInput = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  if (input.files && input.files.length > 0) await runImport(fromFileList(input.files))
-  input.value = ''
-}
-
-const schedule = computed(() =>
-  schedulePlan(plan.value, focuses.value, {
-    startDate: new Date(`${startDateInput.value}T00:00:00Z`),
-    speedBonus: speedBonusPercent.value / 100,
-  }),
-)
-
-const formatDate = (d: Date) => d.toISOString().slice(0, 10)
 const formatDays = (days: number) => Math.round(days * 10) / 10
 
 // A focus's effects land when it completes, so rows are grouped under their completion year.
@@ -101,38 +31,17 @@ const rows = computed(() =>
   }),
 )
 
-const blockedIds = computed(
-  () =>
-    new Set(
-      Object.keys(focuses.value).filter(
-        (id) => !plan.value.includes(id) && pathTo(id, plan.value, focuses.value) === null,
-      ),
-    ),
-)
-
-// Selecting a focus queues its missing prerequisites first; deselecting also drops its dependents.
-const toggle = (id: string) => {
-  if (plan.value.includes(id)) {
-    plan.value = removeWithDependents(id, plan.value, focuses.value)
-    return
-  }
-  const path = pathTo(id, plan.value, focuses.value)
-  if (path) plan.value = [...plan.value, ...path]
+/** Opens the overview showing the country as of the day this focus completes. */
+const showOnOverview = (end: Date) => {
+  viewDate.value = completionDay(end)
+  void router.push('/')
 }
-
-const reset = () => (plan.value = [])
 </script>
 
 <template>
-  <h1>National Focus Planner</h1>
+  <h2>National Focus Planner</h2>
 
   <div class="settings">
-    <label>
-      Country
-      <select v-model="countryTag">
-        <option v-for="c in countries" :key="c.tag" :value="c.tag">{{ c.name }}</option>
-      </select>
-    </label>
     <label>Start date <input type="date" v-model="startDateInput" /></label>
     <label>
       Focus speed bonus (%)
@@ -140,25 +49,9 @@ const reset = () => (plan.value = [])
     </label>
   </div>
 
-  <div class="import">
-    <p v-if="!hasData">
-      Focus data is read from your own copy of Hearts of Iron IV, in your browser. Nothing is
-      uploaded.
-    </p>
-    <button @click="chooseFolder" :disabled="importing">
-      {{ hasData ? 'Re-import from game folder' : 'Choose game folder' }}
-    </button>
-    <input ref="folderInput" type="file" webkitdirectory hidden @change="onFolderInput" />
-    <span v-if="!hasData && !canUseDirectoryPicker()" class="hint">
-      Your browser will list every file in the folder you pick, which can take a moment. Chrome or
-      Edge avoid this.
-    </span>
-    <p v-if="status">{{ status }}</p>
-    <p v-if="error" class="issue">{{ error }}</p>
-  </div>
+  <GameDataImport v-if="!hasData" />
 
-  <template v-if="hasData">
-    <h2>Focus tree</h2>
+  <template v-else>
     <p class="hint">
       Click a focus to add it to the plan along with any prerequisites it needs. Click it again to
       remove it and anything that depends on it. Greyed-out focuses conflict with your current plan.
@@ -175,7 +68,15 @@ const reset = () => (plan.value = [])
           <li class="entry">
             <div class="when">
               <strong>{{ item.focus.name }}</strong>
-              <div>{{ formatDate(item.start) }} → {{ formatDate(item.end) }}</div>
+              <div>
+                {{ formatDate(item.start) }} →
+                <a
+                  href="#"
+                  title="See the country on this date"
+                  @click.prevent="showOnOverview(item.end)"
+                  >{{ formatDate(item.end) }}</a
+                >
+              </div>
               <div class="muted">{{ formatDays(item.durationDays) }} days</div>
             </div>
             <EffectList :effects="item.focus.effects" empty-text="No direct effects." />
@@ -187,6 +88,8 @@ const reset = () => (plan.value = [])
         ({{ formatDays(schedule.totalDays) }} days total)
       </p>
     </section>
+
+    <GameDataImport />
   </template>
 </template>
 
@@ -196,9 +99,6 @@ const reset = () => (plan.value = [])
   gap: 1.5rem;
   flex-wrap: wrap;
   margin-bottom: 1rem;
-}
-.import {
-  margin-bottom: 1.5rem;
 }
 .hint {
   margin-left: 0.5rem;
@@ -228,8 +128,5 @@ const reset = () => (plan.value = [])
 }
 button {
   margin-right: 0.25rem;
-}
-.issue {
-  color: #b45309;
 }
 </style>
