@@ -4,12 +4,12 @@ import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
 import type { Focus } from '@/domain/focus'
-import { effectTone, formatEffect } from '@/domain/focusEffects'
-import { schedulePlan } from '@/domain/focusPlan'
-import { pathTo, removeWithDependents } from '@/domain/focusSelection'
+import { schedulePlan } from '@/domain/plan/focusPlan'
+import { pathTo, removeWithDependents } from '@/domain/plan/focusSelection'
 import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
 import { canUseDirectoryPicker, fromFileList, pickWithDirectoryPicker } from '@/import/gameFolder'
 import FocusTreeGraph from './FocusTreeGraph.vue'
+import EffectList from './EffectList.vue'
 import { loadCachedFocuses, saveCachedFocuses } from '@/import/cache'
 
 const countryTag = ref(countries[0].tag)
@@ -178,17 +178,7 @@ const reset = () => (plan.value = [])
               <div>{{ formatDate(item.start) }} → {{ formatDate(item.end) }}</div>
               <div class="muted">{{ formatDays(item.durationDays) }} days</div>
             </div>
-            <ul class="effects">
-              <li
-                v-for="(effect, j) in item.focus.effects"
-                :key="j"
-                :class="[effectTone(effect), { hidden: effect.hidden }]"
-                :style="{ paddingLeft: `${effect.depth * 12}px` }"
-              >
-                {{ formatEffect(effect) }}
-              </li>
-              <li v-if="item.focus.effects.length === 0" class="muted">No direct effects.</li>
-            </ul>
+            <EffectList :effects="item.focus.effects" empty-text="No direct effects." />
           </li>
         </template>
       </ol>
@@ -233,25 +223,8 @@ const reset = () => (plan.value = [])
   background: #2f4f6f;
   border-radius: 3px;
 }
-.effects .good {
-  color: #1f7a3d;
-}
-.effects .bad {
-  color: #b3261e;
-}
-.effects .hidden {
-  color: #777;
-  font-style: italic;
-}
 .muted {
   color: #666;
-}
-.effects {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
 }
 button {
   margin-right: 0.25rem;

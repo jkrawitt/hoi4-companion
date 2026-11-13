@@ -1,18 +1,4 @@
-import type { GameFiles } from '@/domain/gameImport'
-
-/** Directory prefixes the importer reads; used to avoid holding on to every file of the install. */
-const NEEDED_PREFIXES = [
-  'common/national_focus/',
-  'common/ideas/',
-  'common/opinion_modifiers/',
-  'common/modifiers/',
-  'common/country_leader/',
-  'common/factions/templates/',
-  'events/',
-  'history/countries/',
-  'localisation/english/',
-  'documentation/modifiers_documentation.md',
-]
+import { READ_PATH_PREFIXES, type GameFiles } from '@/domain/gameFiles'
 
 interface DirHandle {
   getDirectoryHandle(name: string): Promise<DirHandle>
@@ -80,7 +66,9 @@ export const fromFileList = (list: FileList): GameFiles => {
   for (const file of Array.from(list)) {
     // webkitRelativePath is "<picked folder name>/<path inside it>".
     const path = file.webkitRelativePath.split('/').slice(1).join('/')
-    if (NEEDED_PREFIXES.some((p) => path.startsWith(p))) files.set(path, file)
+    // Only what the importer reads is kept. The list comes from `GAME_PATHS`, so a newly
+    // read directory cannot be forgotten here and silently come back empty.
+    if (READ_PATH_PREFIXES.some((p) => path.startsWith(p))) files.set(path, file)
   }
   return {
     async readText(path) {

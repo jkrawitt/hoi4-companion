@@ -1,4 +1,4 @@
-import type { Focus } from './focus'
+import type { Focus } from '../focus'
 
 type Focuses = Record<string, Focus>
 

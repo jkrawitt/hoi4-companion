@@ -1,4 +1,4 @@
-import { DAYS_PER_WEEK, type Focus } from './focus'
+import { DAYS_PER_WEEK, type Focus } from '../focus'
 import {
   collapseEffects,
   flattenEffects,
@@ -6,7 +6,7 @@ import {
   pruneEmptyBlocks,
   simplifyRandomStates,
   unwrapEventConditions,
-} from './focusEffects'
+} from '../focusEffects'
 import {
   getAll,
   getBlock,

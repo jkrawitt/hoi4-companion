@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Focus } from '../focus'
-import { isValidPlan, pathTo, removeWithDependents } from '../focusSelection'
+import { isValidPlan, pathTo, removeWithDependents } from '../plan/focusSelection'
 
 const f = (id: string, days: number, extra: Partial<Focus> = {}): Focus => ({
   id,

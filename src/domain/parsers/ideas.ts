@@ -1,5 +1,5 @@
-import type { EffectLine } from './focus'
-import { flattenEffects } from './focusEffects'
+import type { EffectLine } from '../focus'
+import { flattenEffects } from '../focusEffects'
 import { findBlocks, getBlock, getString } from './paradoxScript'
 
 /**

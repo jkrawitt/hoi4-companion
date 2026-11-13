@@ -1,4 +1,4 @@
-import type { OpinionModifier } from './focus'
+import type { OpinionModifier } from '../focus'
 import { findBlocks, getString } from './paradoxScript'
 
 /**

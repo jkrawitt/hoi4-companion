@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Focus } from '../focus'
-import { layoutFocuses } from '../focusLayout'
+import { layoutFocuses } from '../plan/focusLayout'
 
 const f = (id: string, x: number, y: number, relativeTo?: string): Focus => ({
   id,

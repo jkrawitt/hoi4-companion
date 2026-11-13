@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import type { Focus } from '@/domain/focus'
-import { effectTone, formatEffect } from '@/domain/focusEffects'
-import { layoutFocuses } from '@/domain/focusLayout'
+import { layoutFocuses } from '@/domain/plan/focusLayout'
+import EffectList from './EffectList.vue'
 
 const props = defineProps<{
   focuses: Record<string, Focus>
@@ -166,16 +166,7 @@ const orderOf = computed(() => {
     </div>
     <template v-if="hovered.focus.effects.length > 0">
       <div class="heading">Effects</div>
-      <ul class="effects">
-        <li
-          v-for="(effect, i) in hovered.focus.effects"
-          :key="i"
-          :class="[effectTone(effect), { hidden: effect.hidden }]"
-          :style="{ paddingLeft: `${effect.depth * 12}px` }"
-        >
-          {{ formatEffect(effect) }}
-        </li>
-      </ul>
+      <EffectList :effects="hovered.focus.effects" />
     </template>
   </div>
 </template>
@@ -209,22 +200,8 @@ const orderOf = computed(() => {
   margin-top: 6px;
   font-weight: 600;
 }
-.effects .good {
-  color: #1f7a3d;
-}
-.effects .bad {
-  color: #b3261e;
-}
-.effects .hidden {
-  color: #777;
-  font-style: italic;
-}
-.effects {
-  margin: 2px 0 0;
-  padding: 0;
-  list-style: none;
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
+.tooltip :deep(.effects) {
+  margin-top: 2px;
 }
 .viewport {
   overflow: auto;
