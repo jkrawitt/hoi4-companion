@@ -3,6 +3,13 @@ export const DAYS_PER_WEEK = 7
 
 import type { StatDefinition } from './stats'
 
+/**
+ * Ids of the pseudo focuses that carry the starting state and the leader candidates through the
+ * same passes as the focuses. The start is also the `focusId` of what it added (an idea, say).
+ */
+export const START_ID = '__start__'
+export const LEADERS_ID = '__leaders__'
+
 /** How an opinion modifier changes opinion between two countries. */
 export interface OpinionModifier {
   value: number

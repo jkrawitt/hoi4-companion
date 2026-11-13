@@ -7,6 +7,7 @@
  * happen, so they are only listed (`conditional`). Rewards inside another country's scope or a
  * state scope change something other than this country and are skipped.
  */
+import { START_ID } from '../focus'
 import type { EffectLine, FocusSchedule, LeaderData, ScheduledFocus } from '../focus'
 import { blockEnd, isCountryTag, opensBlock } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
@@ -100,9 +101,6 @@ export interface CountryState {
   buildingSlots: number
   conditional: ConditionalEffects[]
 }
-
-/** The id the starting state has where a focus id would be, e.g. on an idea it added. */
-export const START_ID = '__start__'
 
 export interface CountryStateOptions {
   /** The country's own tag, so scopes naming it are not mistaken for another country's. */
