@@ -1,6 +1,7 @@
 /** HoI4 focus cost is in weeks; one week is 7 days. */
 export const DAYS_PER_WEEK = 7
 
+import type { ResearchData } from './research'
 import type { StatDefinition } from './stats'
 
 /**
@@ -88,6 +89,8 @@ export interface EffectLine {
     /** Years of the ahead-of-time research penalty that are ignored. */
     ahead?: number
     targets: string[]
+    /** For a `tech_bonus`: whether each target is a technology category or a technology. */
+    targetKinds?: ('category' | 'technology')[]
     targetNames?: string[]
   }
   /** For `add_building_construction` lines: the building is built at once, not queued. */
@@ -143,4 +146,6 @@ export interface ImportedCountry {
   start: EffectLine[]
   /** Who the game could pick as leader, for when the plan retires one or changes the party. */
   leaders: LeaderData
+  /** The technologies, folders and research numbers, which are the same for every country. */
+  research: ResearchData
 }

@@ -4,13 +4,12 @@ import { computed } from 'vue'
 import { completionDay, formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
-const { schedule, startDate, viewDate, state } = useCampaign()
+const { schedule, planEnd, startDate, viewDate, state } = useCampaign()
 
 const start = computed(() => parseDate(startDate.value))
 const completionDays = computed(() => schedule.value.items.map((item) => completionDay(item.end)))
-const lastDay = computed(
-  () => completionDays.value[completionDays.value.length - 1] ?? startDate.value,
-)
+// The slider runs to the end of the plan: the last focus or the last research, whichever is later.
+const lastDay = computed(() => completionDay(planEnd.value))
 const span = computed(() =>
   Math.max(
     1,

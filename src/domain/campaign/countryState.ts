@@ -14,8 +14,9 @@ import { START_ID } from '../focus'
 import type { FocusSchedule } from '../plan/types'
 import { applyReward, newWorking } from './applyReward'
 import type { Step } from './applyReward'
-import { addTo, isNumeric } from './totals'
-import type { CountryState, CountryStateOptions, RuleValue, StatTotal } from './types'
+import { activeModifiers } from './totals'
+import { researchEnvironment } from './researchEvents'
+import type { CountryState, CountryStateOptions } from './types'
 
 export type {
   ActiveIdea,
@@ -55,22 +56,7 @@ export const countryStateAt = (
 
   const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
 
-  const modifierTotals = new Map<string, StatTotal>()
-  const rules = new Map<string, RuleValue>()
-  for (const idea of active) {
-    for (const m of idea.modifiers) {
-      if (!m.key || !m.stat || m.value === undefined) continue
-      if (m.isRule) rules.set(m.key, { key: m.key, stat: m.stat, value: m.value })
-      else if (isNumeric(m.value)) addTo(modifierTotals, m.key, m.stat, Number(m.value))
-    }
-  }
-
-  // The leader's traits change the country like a national spirit does.
-  for (const m of w.leader?.traits ?? []) {
-    if (m.isModifier && !m.isRule && m.key && m.stat && isNumeric(m.value)) {
-      addTo(modifierTotals, m.key, m.stat, Number(m.value))
-    }
-  }
+  const { totals: modifierTotals, rules } = activeModifiers(active, w.leader?.traits ?? [])
 
   return {
     date,
@@ -87,5 +73,6 @@ export const countryStateAt = (
     buildings: [...w.buildings.values()],
     buildingSlots: w.buildingSlots,
     conditional: w.conditional,
+    research: researchEnvironment(w.research),
   }
 }

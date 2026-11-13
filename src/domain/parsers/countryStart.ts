@@ -3,9 +3,10 @@
  * and written as the same effect lines a focus reward is, so ideas and stats go through the one
  * pipeline (names, modifiers, stat definitions) and `countryStateAt` applies them like a reward.
  *
- * Read: starting ideas (`add_ideas`), stability, war support and research slots, the ruling party
- * and the popularities. Skipped: technologies, characters, orders of battle, and everything inside
- * a dated block (`1939.1.1 = { ... }`), which is the later start.
+ * Read: starting ideas (`add_ideas`), stability, war support and research slots, the technologies
+ * (`set_technology`, as an unlock line like the one a focus gives), the ruling party and the
+ * popularities. Skipped: characters, orders of battle, and everything inside a dated block
+ * (`1939.1.1 = { ... }`), which is the later start.
  *
  * A top-level `if = { limit = { has_dlc = X } ... }` is kept or dropped by `ownedDlc`; a DLC
  * that is not listed there counts as not owned, and any other kind of condition is dropped.
@@ -46,6 +47,11 @@ const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLin
       result.push(...lines.slice(i, end))
     } else if (line.key !== null && line.value !== undefined && line.key in SET_STATS) {
       result.push({ depth: 0, key: SET_STATS[line.key], value: line.value, isModifier: true })
+    } else if (opensBlock(line, 'set_technology')) {
+      const targets = childrenOf(lines, i).flatMap((l) => (l.key && l.value === '1' ? [l.key] : []))
+      if (targets.length > 0) {
+        result.push({ depth: 0, key: 'set_technology', research: { kind: 'unlock', targets } })
+      }
     } else if (opensBlock(line, 'set_politics')) {
       const party = childrenOf(lines, i).find((l) => l.key === 'ruling_party')?.value
       if (party) result.push({ depth: 0, key: 'set_politics', value: party })

@@ -10,7 +10,12 @@ import type { StatTotal } from '@/domain/campaign/countryState'
 import { START_ID } from '@/domain/focus'
 import { formatDate, useCampaign } from '@/stores/campaign'
 
-const { country, hasData, plan, state } = useCampaign()
+const { country, hasData, plan, state, research, researchStatus, researchTotals } = useCampaign()
+
+const techNames = computed(
+  () => new Map((research.value?.techs ?? []).map((t) => [t.id, t.name] as const)),
+)
+const techName = (id: string) => techNames.value.get(id) ?? id
 
 const asItems = (totals: StatTotal[]) =>
   totals.map((t) => ({ key: t.key, stat: t.stat, value: String(t.total) }))
@@ -23,6 +28,7 @@ const asLevels = (totals: StatTotal[]) =>
   }))
 
 const stats = computed(() => asLevels(state.value.statChanges))
+const techModifiers = computed(() => asItems(researchTotals.value))
 const modifiers = computed(() => asItems(state.value.modifierTotals))
 const rules = computed(() => state.value.rules)
 const popularity = computed(() =>
@@ -94,9 +100,47 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
         <StatTotals :items="rules" />
       </section>
 
+      <section v-if="techModifiers.length > 0">
+        <h3>Modifiers from technology</h3>
+        <p class="muted">
+          From the technologies the country has on this date: the ones it starts with, the ones
+          focuses hand out and the research planned by then.
+        </p>
+        <StatTotals :items="techModifiers" />
+      </section>
+
       <section v-if="stats.length > 0">
         <h3>Stats</h3>
         <StatTotals :items="stats" />
+      </section>
+
+      <section v-if="research">
+        <h3>Research</h3>
+        <p>
+          {{ researchStatus.slots }} research slots; {{ researchStatus.finished.length }} planned
+          technologies done<template v-if="researchStatus.inProgress.length > 0">
+            and {{ researchStatus.inProgress.length }} in progress</template
+          >.
+          <RouterLink to="/research">Plan research</RouterLink>
+        </p>
+        <ul v-if="researchStatus.inProgress.length > 0" class="totals">
+          <li v-for="item in researchStatus.inProgress" :key="item.techId">
+            {{ techName(item.techId) }} (done {{ formatDate(item.end) }})
+          </li>
+        </ul>
+        <template v-if="researchStatus.unusedBonuses.length > 0">
+          <p class="muted">Research bonuses not used yet:</p>
+          <ul class="totals">
+            <li
+              v-for="b in researchStatus.unusedBonuses"
+              :key="`${b.bonus.ref.focusId}${b.bonus.ref.index}`"
+              class="good"
+            >
+              {{ b.bonus.name }}: +{{ Math.round(b.bonus.bonus * 100) }}% for
+              {{ (b.bonus.targetNames ?? b.bonus.targets).join(', ') }} ({{ b.left }}x left)
+            </li>
+          </ul>
+        </template>
       </section>
 
       <section v-if="state.resources.length > 0">

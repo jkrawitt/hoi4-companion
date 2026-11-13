@@ -198,6 +198,7 @@ const COLLAPSERS: Record<string, Collapser> = {
         uses: optional('uses'),
         ahead: optional('ahead_reduction'),
         targets: targets.map((f) => f.value!),
+        targetKinds: targets.map((f) => (f.key === 'category' ? 'category' : 'technology')),
       },
     }
   },

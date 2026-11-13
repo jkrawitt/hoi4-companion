@@ -10,6 +10,7 @@ import { parseLocalisation } from './parsers/localisation'
 
 /** Texts that are built out of other texts, written `$SOME_OTHER_KEY$`. */
 const REFERENCE = /\$([\w.]+)\$/g
+const MAX_REFERENCE_DEPTH = 8
 
 export interface LoadedNames {
   /** Display text by localisation key, with `$KEY$` references filled in. */
@@ -42,13 +43,32 @@ export const loadNames = async (files: GameFiles, wanted: Set<string>): Promise<
   }
 
   await load(wanted)
-  const referenced = new Set(
-    Object.values(names).flatMap((text) => [...text.matchAll(REFERENCE)].map((m) => m[1])),
-  )
-  const unread = new Set([...referenced].filter((key) => !(key in names)))
-  if (unread.size > 0) await load(unread)
-  for (const key of Object.keys(names)) {
-    names[key] = names[key].replace(REFERENCE, (whole, ref: string) => names[ref] ?? whole)
+  // A text can refer to one that refers to another (`modifier_bunker_...` -> `... $bunker$ ...`),
+  // so keep reading what the newly found texts name until nothing new turns up. Keys that do not
+  // exist stay unread, and each round only asks for keys it has not asked for before.
+  const asked = new Set(wanted)
+  for (;;) {
+    const unread = new Set(
+      Object.values(names)
+        .flatMap((text) => [...text.matchAll(REFERENCE)].map((m) => m[1]))
+        .filter((key) => !(key in names) && !asked.has(key)),
+    )
+    if (unread.size === 0) break
+    unread.forEach((key) => asked.add(key))
+    await load(unread)
+  }
+  // Fill them in round by round (a text may only be complete after the ones it names are), up to
+  // a depth that no real text reaches, so references that loop cannot go on forever.
+  for (let round = 0; round < MAX_REFERENCE_DEPTH; round++) {
+    let changed = false
+    for (const key of Object.keys(names)) {
+      const filled = names[key].replace(REFERENCE, (whole, ref: string) => names[ref] ?? whole)
+      if (filled !== names[key]) {
+        names[key] = filled
+        changed = true
+      }
+    }
+    if (!changed) break
   }
   return { names, rawNames }
 }
