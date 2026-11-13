@@ -11,7 +11,7 @@
  * reward does, `rewardScopes.ts` sorts its lines, and `types.ts` has the shapes.
  */
 import { START_ID } from '../focus'
-import type { FocusSchedule } from '../focus'
+import type { FocusSchedule } from '../plan/types'
 import { applyReward, newWorking } from './applyReward'
 import type { Step } from './applyReward'
 import { addTo, isNumeric } from './totals'

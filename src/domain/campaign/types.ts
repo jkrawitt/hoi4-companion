@@ -1,4 +1,5 @@
-import type { EffectLine, LeaderData, ScheduledFocus } from '../focus'
+import type { EffectLine, LeaderData } from '../focus'
+import type { ScheduledFocus } from '../plan/types'
 import type { StatDefinition } from '../stats'
 
 export interface ActiveIdea {
