@@ -10,6 +10,37 @@ export interface OpinionModifier {
   months?: number
 }
 
+/**
+ * A condition from a `limit` that the campaign can sometimes answer from the plan: the country's
+ * ideas, the focuses it has completed, its ruling party and popularity, and its technologies.
+ * `unknown` stands for a term we cannot answer (another country's state, a leader id, ...).
+ */
+export type Check =
+  | { type: 'idea' | 'focus' | 'tech' | 'government'; id: string }
+  /** `democratic > party_popularity@fascism` (`than` an ideology) or `democratic > 0.5`. */
+  | {
+      type: 'popularity'
+      ideology: string
+      op: '>' | '<' | '>=' | '<=' | '='
+      than: string | number
+    }
+  /** `has_country_leader = { id = 550 }` (a legacy leader) or `{ character = X }`. */
+  | { type: 'leader'; id?: string; character?: string }
+  | { type: 'not'; of: Check }
+  | { type: 'all' | 'any'; of: Check[] }
+  | { type: 'unknown' }
+
+/**
+ * Who can lead a country, for when the game picks a new leader (a retired leader, or a change of
+ * ruling party). `candidates` are the characters the history recruits that have a `country_leader`
+ * role, in the order the game would pick them, as `promote_character` lines (named like any other
+ * effect); `groups` maps each sub-ideology to its ideology group (`conservatism` to `democratic`).
+ */
+export interface LeaderData {
+  candidates: { group: string; line: EffectLine }[]
+  groups: Record<string, string>
+}
+
 /** One line of a focus's completion reward, flattened from the effect script. */
 export interface EffectLine {
   /** Nesting level, e.g. the fields of `add_popularity = { ... }` sit one deeper. */
@@ -56,8 +87,10 @@ export interface EffectLine {
   instant?: boolean
   /** For `if` headers whose `limit` was folded in: the condition, e.g. `France is in faction`. */
   condition?: string
-  /** For `if` headers whose whole `limit` is `has_idea = X` (or `NOT = { has_idea = X }`). */
-  hasIdea?: { id: string; negated: boolean }
+  /** For `if`/`else_if` headers whose `limit` was folded in: the condition as data. */
+  check?: Check
+  /** For `create_country_leader` lines: the leader's own `id`, which `has_country_leader` can ask for. */
+  leaderId?: string
   /** For `create_country_leader` lines: the ids of the leader's traits. */
   traits?: string[]
   /** For `diplomatic_relation` lines: whether the relation is being granted or removed. */

@@ -7,10 +7,10 @@
  * happen, so they are only listed (`conditional`). Rewards inside another country's scope or a
  * state scope change something other than this country and are skipped.
  */
-import type { EffectLine, FocusSchedule, ScheduledFocus } from '../focus'
+import type { EffectLine, FocusSchedule, LeaderData, ScheduledFocus } from '../focus'
 import { blockEnd, isCountryTag, opensBlock } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
-import { resolveIdeaConditions } from './ideaConditions'
+import { resolveConditions } from './conditions'
 import { addDays } from '../plan/focusPlan'
 import type { StatDefinition } from '../stats'
 
@@ -28,6 +28,10 @@ export interface ActiveIdea {
 
 export interface CountryLeader {
   name: string
+  /** The leader's own `id` when made by `create_country_leader`; characters have none. */
+  id?: string
+  /** The character leading, when the leader is one. */
+  character?: string
   /** The leader's own ideology, e.g. `Conservatism`. */
   ideology?: string
   /** `leader_trait` lines with their stats beneath, at depth 0. */
@@ -105,6 +109,11 @@ export interface CountryStateOptions {
   tag?: string
   /** What the country starts with, applied first like a reward; see `parsers/countryStart.ts`. */
   start?: EffectLine[]
+  /**
+   * Who the game picks as leader when one is retired or the ruling party changes under them. Without
+   * it the leader stays as the plan last set it.
+   */
+  leaders?: LeaderData
   /** When the starting state applies, i.e. the campaign's start date. */
   startDate?: Date
 }
@@ -242,14 +251,33 @@ export const countryStateAt = (
   let buildingSlots = 0
   const resources = new Map<string, ResourceTotal>()
   let rulingParty: string | undefined
+  /** The ruling ideology group as the scripts name it (`communism`), for conditions. */
+  let government: string | undefined
+  const doneFocuses = new Set<string>()
+  /** Who leads, for conditions: unknown again after `retire_country_leader`, as the game picks next. */
+  let identity: { id?: string; character?: string } | undefined
+  /** The ideology group the leader leads for, when known (a new leader, not a bare role). */
+  let leaderGroup: string | undefined
+  const retiredLeaders = new Set<string>()
+  const groupOf = (ideology: string | undefined) =>
+    ideology ? (options.leaders?.groups[ideology] ?? ideology) : undefined
   let leader: CountryLeader | undefined
 
   for (const item of steps) {
     const { focus } = item
-    // Conditions that only ask about an idea are settled by the ideas the country has by now.
-    const effects = resolveIdeaConditions(focus.effects, (id) => {
-      const idea = ideas.get(id)
-      return idea !== undefined && (!idea.until || idea.until > item.end)
+    // Conditions about what the country has by now (ideas, focuses, government, popularity) are
+    // settled, so the branch that applies counts like any other lines.
+    const effects = resolveConditions(focus.effects, {
+      hasIdea: (id) => {
+        const idea = ideas.get(id)
+        return idea !== undefined && (!idea.until || idea.until > item.end)
+      },
+      hasFocus: (id) => doneFocuses.has(id),
+      government: () => government,
+      leader: () => identity,
+      // Only known once the start has set the popularities; the plan alone only has changes.
+      popularity: (ideology) =>
+        options.start?.length ? (popularity.get(ideology)?.total ?? 0) : undefined,
     })
     const { applied, conditional: skipped, states } = classify(effects, options.tag)
     const built: EffectLine[] = []
@@ -270,6 +298,9 @@ export const countryStateAt = (
         .map((e) => ({ ...e, depth: e.depth - base }))
     }
 
+    const governmentBefore = government
+    let leaderChosen = false
+    let leaderRetired = false
     const added = new Set(ideaLineIndexes(effects))
     const removed = new Set(removedIdeaLineIndexes(effects))
     // The modifier lines under an idea belong to it, not to the focus's own stat changes.
@@ -319,10 +350,18 @@ export const countryStateAt = (
           subject: e.subject,
           subjectName: e.subjectName ?? e.subject,
         })
+      } else if (e.key === 'retire_country_leader') {
+        identity = undefined
+        leaderRetired = true
+        if (leader?.character) retiredLeaders.add(leader.character)
       } else if (e.key === 'set_politics' && e.value) {
         rulingParty = e.valueName ?? e.value
+        government = e.value
       } else if (e.key === 'create_country_leader' && e.value) {
-        leader = { name: e.value, ideology: ideologyName(e), traits: traitsOf(i) }
+        leader = { name: e.value, ideology: ideologyName(e), traits: traitsOf(i), id: e.leaderId }
+        identity = { id: e.leaderId }
+        leaderGroup = groupOf(e.subject)
+        leaderChosen = true
       } else if (e.key === 'add_country_leader_trait' && e.value && leader) {
         const trait: EffectLine = { depth: 0, key: 'leader_trait', value: e.value }
         if (e.valueName) trait.valueName = e.valueName
@@ -333,11 +372,26 @@ export const countryStateAt = (
       } else if (e.key === 'remove_country_leader_trait' && e.value && leader) {
         leader = { ...leader, traits: withoutTrait(leader.traits, e.value) }
       } else if (e.key === 'promote_character' && e.value) {
-        leader = { name: e.valueName ?? e.value, ideology: ideologyName(e), traits: [] }
+        leader = {
+          name: e.valueName ?? e.value,
+          ideology: ideologyName(e),
+          traits: [],
+          character: e.value,
+        }
+        identity = { character: e.value }
+        leaderGroup = groupOf(e.subject)
+        leaderChosen = true
       } else if (e.key === 'add_country_leader_role' && e.value === 'promote') {
         const scope = parentOf(effects, i)
         if (scope?.key) {
-          leader = { name: scope.subjectName ?? scope.key, traits: traitsOf(i) }
+          leader = {
+            name: scope.subjectName ?? scope.key,
+            traits: traitsOf(i),
+            character: scope.key,
+          }
+          identity = { character: scope.key }
+          leaderGroup = undefined
+          leaderChosen = true
         }
       } else if (
         e.isModifier &&
@@ -350,6 +404,31 @@ export const countryStateAt = (
         addTo(statChanges, e.key, e.stat, Number(e.value))
       }
     })
+    // The game picks the next leader of the ruling party when the leader is retired, or when the
+    // party changes to one the leader does not lead for (unless the reward made a leader itself).
+    if (
+      !leaderChosen &&
+      government &&
+      (leaderRetired ||
+        (government !== governmentBefore &&
+          leaderGroup !== undefined &&
+          leaderGroup !== government))
+    ) {
+      const next = options.leaders?.candidates.find(
+        (c) => c.group === government && !retiredLeaders.has(c.line.value ?? ''),
+      )
+      if (next?.line.value) {
+        leader = {
+          name: next.line.valueName ?? next.line.value,
+          ideology: next.line.subjectName ?? next.line.subject,
+          traits: [],
+          character: next.line.value,
+        }
+        identity = { character: next.line.value }
+        leaderGroup = government
+      }
+    }
+    doneFocuses.add(focus.id)
     for (const l of built) {
       if (l.key === 'add_extra_state_shared_building_slots' && isNumeric(l.value)) {
         buildingSlots += Number(l.value)

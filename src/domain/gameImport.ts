@@ -12,7 +12,7 @@
  * 5. put those names and the stat definitions onto the effect lines, and fold `limit` blocks
  *    into conditions now that they can be written out in English.
  */
-import type { EffectLine, Focus } from './focus'
+import type { EffectLine, Focus, LeaderData } from './focus'
 import { parseFocusTreeFile } from './parsers/focusTree'
 import {
   defaultGoodWhen,
@@ -40,6 +40,7 @@ import { parseStartingLines } from './parsers/countryStart'
 import {
   parseIdeologyGroups,
   parseLeaderRoles,
+  listLeaderCandidates,
   parseRecruited,
   pickStartingLeader,
 } from './parsers/leaders'
@@ -64,21 +65,28 @@ export interface ImportedCountry {
   focuses: Focus[]
   /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
   start: EffectLine[]
+  /** Who the game could pick as leader, for when the plan retires one or changes the party. */
+  leaders: LeaderData
 }
 
 /** Stands in for the starting state while it goes through the same passes as the focuses. */
 const START_ID = '__start__'
+/** Likewise for the characters who could lead the country. */
+const LEADERS_ID = '__leaders__'
 
-/**
- * The line making the country's starting leader its leader (`promote_character`), or nothing when
- * the history recruits nobody who leads the ruling party.
- */
-const startingLeaderLine = async (
-  files: GameFiles,
-  tag: string,
-  historyText: string,
-  rulingParty: string,
-): Promise<EffectLine[]> => {
+const emptyFocus = (id: string): Focus => ({
+  id,
+  name: '',
+  days: 0,
+  prerequisites: [],
+  mutuallyExclusive: [],
+  x: 0,
+  y: 0,
+  effects: [],
+})
+
+/** The history's recruits with the leader roles of each and the ideology groups, read once. */
+const readLeaderSources = async (files: GameFiles, tag: string, historyText: string) => {
   const roles = parseLeaderRoles(
     (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
   )
@@ -88,10 +96,7 @@ const startingLeaderLine = async (
       .map((file) => files.readText(`${GAME_PATHS.ideologies}/${file}`)),
   )
   const groups = Object.assign({}, ...ideologies.map((text) => parseIdeologyGroups(text ?? '')))
-  const leader = pickStartingLeader(parseRecruited(historyText), roles, groups, rulingParty)
-  return leader
-    ? [{ depth: 0, key: 'promote_character', value: leader.character, subject: leader.ideology }]
-    : []
+  return { recruited: parseRecruited(historyText), roles, groups }
 }
 
 /** Every value the focuses' effects give for `keys`, e.g. all the opinion modifiers they add. */
@@ -192,19 +197,37 @@ export const importCountryFocuses = async (
   const historyText = await readCountryHistoryText(files, country.tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
   const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
-  if (historyText && rulingParty) {
-    startLines.push(...(await startingLeaderLine(files, country.tag, historyText, rulingParty)))
+  const leaderSources = historyText
+    ? await readLeaderSources(files, country.tag, historyText)
+    : undefined
+  if (leaderSources && rulingParty) {
+    const { recruited, roles, groups } = leaderSources
+    const leader = pickStartingLeader(recruited, roles, groups, rulingParty)
+    if (leader) {
+      startLines.push({
+        depth: 0,
+        key: 'promote_character',
+        value: leader.character,
+        subject: leader.ideology,
+      })
+    }
   }
-  const startFocus: Focus = {
-    id: START_ID,
-    name: '',
-    days: 0,
-    prerequisites: [],
-    mutuallyExclusive: [],
-    x: 0,
-    y: 0,
-    effects: startLines,
+  const leaderCandidates = leaderSources
+    ? listLeaderCandidates(leaderSources.recruited, leaderSources.roles, leaderSources.groups)
+    : []
+  // The candidates ride along as one more reward too, so their names are looked up.
+  const leadersFocus: Focus = {
+    ...emptyFocus(LEADERS_ID),
+    effects: leaderCandidates.map(
+      (c): EffectLine => ({
+        depth: 0,
+        key: 'promote_character',
+        value: c.character,
+        subject: c.ideology,
+      }),
+    ),
   }
+  const startFocus: Focus = { ...emptyFocus(START_ID), effects: startLines }
   const parsed = [
     ...parseFocusTreeFile(treeText).map((f) => ({
       ...f,
@@ -212,6 +235,7 @@ export const importCountryFocuses = async (
     })),
     // The starting state is carried along as one more reward, so its ideas are read and named too.
     startFocus,
+    leadersFocus,
   ]
 
   // --- The definitions the effects refer to, each read from the directory it lives in. ---
@@ -411,8 +435,13 @@ export const importCountryFocuses = async (
       })),
     ),
   }))
+  const named = finished.find((f) => f.id === LEADERS_ID)?.effects ?? []
   return {
-    focuses: finished.filter((f) => f.id !== START_ID),
+    focuses: finished.filter((f) => f.id !== START_ID && f.id !== LEADERS_ID),
     start: finished.find((f) => f.id === START_ID)?.effects ?? [],
+    leaders: {
+      candidates: leaderCandidates.map((c, i) => ({ group: c.group, line: named[i] })),
+      groups: leaderSources?.groups ?? {},
+    },
   }
 }

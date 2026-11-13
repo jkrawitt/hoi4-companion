@@ -7,7 +7,7 @@ import { computed, ref, watch } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
-import type { EffectLine, Focus } from '@/domain/focus'
+import type { EffectLine, Focus, LeaderData } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { schedulePlan } from '@/domain/plan/focusPlan'
 import { isValidPlan, pathTo, removeWithDependents } from '@/domain/plan/focusSelection'
@@ -63,6 +63,8 @@ const createCampaign = () => {
   const focuses = ref<Record<string, Focus>>({})
   /** What the country starts the game with, as effect lines. */
   const start = ref<EffectLine[]>([])
+  /** Who the game could pick as leader when the plan retires one or changes the party. */
+  const leaders = ref<LeaderData | undefined>()
   const hasData = computed(() => Object.keys(focuses.value).length > 0)
   const status = ref('')
   const error = ref('')
@@ -75,8 +77,13 @@ const createCampaign = () => {
   const viewDate = ref(saved.viewDate ?? startDate.value)
 
   /** Keeps the saved plan when the focuses still support it, and drops it when they do not. */
-  const setCountry = ({ focuses: list, start: startLines }: ImportedCountry) => {
+  const setCountry = ({
+    focuses: list,
+    start: startLines,
+    leaders: leaderData,
+  }: ImportedCountry) => {
     start.value = startLines
+    leaders.value = leaderData
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
@@ -92,6 +99,7 @@ const createCampaign = () => {
   watch(countryTag, async (tag) => {
     focuses.value = {}
     start.value = []
+    leaders.value = undefined
     plan.value = []
     error.value = ''
     status.value = ''
@@ -157,6 +165,7 @@ const createCampaign = () => {
     countryStateAt(schedule.value, parseDate(viewDate.value), {
       tag: countryTag.value,
       start: start.value,
+      leaders: leaders.value,
       startDate: parseDate(startDate.value),
     }),
   )
