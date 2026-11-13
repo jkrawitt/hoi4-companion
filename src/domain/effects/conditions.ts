@@ -2,7 +2,7 @@
  * Reading a `limit = { ... }` block as the English condition it describes, and folding it into
  * the header it belongs to.
  */
-import type { EffectLine } from '../focus'
+import type { Check, EffectLine } from '../focus'
 import { formatEffect } from './format'
 import {
   blockEnd,
@@ -71,6 +71,69 @@ const asPhrase = (terms: string[]): string =>
     ? terms[0].slice(1, -1)
     : terms.join(' and ')
 
+const POPULARITY_IDEOLOGIES = new Set(['democratic', 'communism', 'fascism', 'neutrality'])
+const COMPARISONS = new Set(['>', '<', '>=', '<=', '='])
+
+const POPULARITY_OF = /^party_popularity@(.+)$/
+
+/** One term of a limit as a `Check`; anything we cannot answer is `unknown`. */
+const checkOfNode = ({ line, kids }: ConditionNode): Check => {
+  const key = line.key?.toLowerCase() ?? ''
+  if (line.value === undefined && key === 'has_country_leader') {
+    // `has_country_leader = { id = 550 }` or `{ character = X }`; `ruling_only` changes nothing for
+    // the country's own leader.
+    const field = (name: string) => kids.find((k) => k.line.key === name)?.line.value
+    const id = field('id')
+    const character = field('character')
+    const readable = kids.every((k) =>
+      ['id', 'character', 'ruling_only'].includes(k.line.key ?? ''),
+    )
+    if (readable && (id !== undefined || character !== undefined)) {
+      return {
+        type: 'leader',
+        ...(id !== undefined && { id }),
+        ...(character !== undefined && { character }),
+      }
+    }
+    return { type: 'unknown' }
+  }
+  if (line.value === undefined) {
+    const inner = kids.map(checkOfNode)
+    if (key === 'not')
+      return { type: 'not', of: inner.length === 1 ? inner[0] : { type: 'all', of: inner } }
+    if (key === 'or') return { type: 'any', of: inner }
+    if (key === 'and') return { type: 'all', of: inner }
+    return { type: 'unknown' }
+  }
+  const value = line.value
+  if (key === 'has_idea') return { type: 'idea', id: value }
+  if (key === 'has_completed_focus') return { type: 'focus', id: value }
+  if (key === 'has_tech') return { type: 'tech', id: value }
+  if (key === 'has_government') return { type: 'government', id: value }
+  const op = line.operator ?? '='
+  if (POPULARITY_IDEOLOGIES.has(key) && COMPARISONS.has(op)) {
+    const other = POPULARITY_OF.exec(value)
+    if (other) return { type: 'popularity', ideology: key, op: op as '>', than: other[1] }
+    if (value !== '' && Number.isFinite(Number(value))) {
+      return { type: 'popularity', ideology: key, op: op as '>', than: Number(value) }
+    }
+  }
+  return { type: 'unknown' }
+}
+
+/** The terms of a `limit` (which are all required) as one `Check`, or undefined if none is known. */
+const checkOf = (limit: EffectLine[]): Check | undefined => {
+  const checks = toTree(limit).map(checkOfNode)
+  const known = (c: Check): boolean =>
+    c.type === 'not'
+      ? known(c.of)
+      : c.type === 'all' || c.type === 'any'
+        ? c.of.some(known)
+        : c.type !== 'unknown'
+  if (!checks.some(known)) return undefined
+  return checks.length === 1 ? checks[0] : { type: 'all', of: checks }
+}
+
 /**
  * Folds a `limit` into the header it belongs to: `if` / `limit` / `France:` / `is in faction
  * with: Britain` becomes `If France is in faction with: Britain:`. Run after names are resolved,
@@ -79,24 +142,6 @@ const asPhrase = (terms: string[]): string =>
  * empty limit always applies, so it is dropped and its body shown (with its `else` branches
  * removed, since they never apply).
  */
-/** The idea a limit is only asking about (`has_idea = X`, or that inside a `NOT`), if it is. */
-const hasIdeaOnly = (limit: EffectLine[]): EffectLine['hasIdea'] => {
-  const [first, second] = limit
-  if (limit.length === 1 && first.key === 'has_idea' && first.value) {
-    return { id: first.value, negated: false }
-  }
-  if (
-    limit.length === 2 &&
-    opensBlock(first) &&
-    first.key.toLowerCase() === 'not' &&
-    second.key === 'has_idea' &&
-    second.value
-  ) {
-    return { id: second.value, negated: true }
-  }
-  return undefined
-}
-
 export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
@@ -130,8 +175,8 @@ export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
       result.push(line)
       continue
     }
-    const hasIdea = hasIdeaOnly(effects.slice(i + 2, limitEnd))
-    result.push({ ...line, condition: asPhrase(terms), ...(hasIdea && { hasIdea }) })
+    const check = checkOf(effects.slice(i + 2, limitEnd))
+    result.push({ ...line, condition: asPhrase(terms), ...(check && { check }) })
     i = limitEnd - 1
   }
   return result

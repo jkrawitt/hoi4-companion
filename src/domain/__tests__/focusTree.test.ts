@@ -643,6 +643,51 @@ describe('politics and leader effects', () => {
     ])
   })
 
+  it('records a limit the campaign can answer as a check', () => {
+    const checkOf = (script: string) =>
+      foldConditions(collapseEffects(flattenEffects(parseScript(script))))[0].check
+    expect(checkOf('if = { limit = { has_completed_focus = F } a = b }')).toEqual({
+      type: 'focus',
+      id: 'F',
+    })
+    expect(checkOf('if = { limit = { NOT = { has_government = fascism } } a = b }')).toEqual({
+      type: 'not',
+      of: { type: 'government', id: 'fascism' },
+    })
+    expect(checkOf('if = { limit = { democratic > party_popularity@communism } a = b }')).toEqual({
+      type: 'popularity',
+      ideology: 'democratic',
+      op: '>',
+      than: 'communism',
+    })
+    expect(checkOf('if = { limit = { fascism > 0.5 } a = b }')).toEqual({
+      type: 'popularity',
+      ideology: 'fascism',
+      op: '>',
+      than: 0.5,
+    })
+    // Terms we cannot answer stay in as unknown, beside the ones we can; all of them is nothing.
+    expect(checkOf('if = { limit = { has_idea = X has_war = yes } a = b }')).toEqual({
+      type: 'all',
+      of: [{ type: 'idea', id: 'X' }, { type: 'unknown' }],
+    })
+    expect(checkOf('if = { limit = { has_war = yes } a = b }')).toBeUndefined()
+    expect(checkOf('if = { limit = { has_country_leader = { id = 550 } } a = b }')).toEqual({
+      type: 'leader',
+      id: '550',
+    })
+    expect(
+      checkOf(
+        'if = { limit = { has_country_leader = { character = C ruling_only = yes } } a = b }',
+      ),
+    ).toEqual({ type: 'leader', character: 'C' })
+    expect(
+      checkOf('if = { limit = { has_country_leader = { unit_leader = yes } } a = b }'),
+    ).toBeUndefined()
+    // Only the four ideology groups are popularities, not any `key > number`.
+    expect(checkOf('if = { limit = { num_of_factories > 5 } a = b }')).toBeUndefined()
+  })
+
   it('writes comparisons, else branches and empty limits', () => {
     const show = (script: string) =>
       foldConditions(collapseEffects(flattenEffects(parseScript(script)))).map(

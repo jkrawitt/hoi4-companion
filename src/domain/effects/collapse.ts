@@ -269,6 +269,7 @@ const COLLAPSERS: Record<string, Collapser> = {
             key: line.key,
             value: unquote(name),
             subject: field('ideology'),
+            leaderId: field('id'),
           },
           fields,
         )

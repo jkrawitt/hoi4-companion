@@ -292,14 +292,14 @@ describe('resources and construction', () => {
 
 describe('conditions on having an idea', () => {
   const remove = (idea: string): EffectLine[] => [
-    { depth: 0, key: 'if', condition: `has idea: ${idea}`, hasIdea: { id: idea, negated: false } },
+    { depth: 0, key: 'if', condition: `has idea: ${idea}`, check: { type: 'idea', id: idea } },
     { depth: 1, key: 'remove_ideas', value: idea },
     { depth: 1, key: 'else' },
     {
       depth: 2,
       key: 'if',
       condition: 'has idea: b',
-      hasIdea: { id: 'idea_b', negated: false },
+      check: { type: 'idea', id: 'idea_b' },
     },
     { depth: 3, key: 'remove_ideas', value: 'idea_b' },
   ]
@@ -321,12 +321,97 @@ describe('conditions on having an idea', () => {
 
   it('applies a swap guarded by NOT has idea', () => {
     const swap = focus('s', [
-      { depth: 0, key: 'if', condition: 'not has idea', hasIdea: { id: 'new', negated: true } },
+      {
+        depth: 0,
+        key: 'if',
+        condition: 'not has idea',
+        check: { type: 'not', of: { type: 'idea', id: 'new' } },
+      },
       { depth: 1, key: 'swap_ideas' },
       { depth: 2, key: 'remove_idea', value: 'old' },
       { depth: 2, key: 'add_idea', value: 'new', valueName: 'New' },
     ])
     const s = stateAt([ideaFocus('o', 'old', []), swap], 140)
     expect(s.ideas.map((i) => i.id)).toEqual(['new'])
+  })
+})
+
+describe('the game picking a new leader', () => {
+  const candidate = (group: string, character: string) => ({
+    group,
+    line: {
+      depth: 0,
+      key: 'promote_character',
+      value: character,
+      valueName: character.toUpperCase(),
+    },
+  })
+  const leaders = {
+    candidates: [
+      candidate('neutrality', 'n1'),
+      candidate('democratic', 'd1'),
+      candidate('democratic', 'd2'),
+    ],
+    groups: { despotism: 'neutrality' },
+  }
+  const carol = focus('carol', [
+    {
+      depth: 0,
+      key: 'create_country_leader',
+      value: 'Carol II',
+      subject: 'despotism',
+      leaderId: '550',
+    },
+    { depth: 0, key: 'set_politics', value: 'neutrality' },
+  ])
+  const at = (focuses: Focus[]) =>
+    countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(70 * focuses.length),
+      { tag: 'ROM', leaders },
+    )
+
+  it('keeps a leader created together with the party they lead for', () => {
+    expect(at([carol]).leader).toMatchObject({ name: 'Carol II' })
+  })
+
+  it('picks the ruling party’s first candidate when the leader is retired', () => {
+    const retire = focus('retire', [
+      { depth: 0, key: 'retire_country_leader', value: 'yes' },
+      { depth: 0, key: 'set_politics', value: 'democratic' },
+    ])
+    const s = at([carol, retire])
+    expect(s.leader).toMatchObject({ name: 'D1', character: 'd1' })
+    expect(s.rulingParty).toBe('democratic')
+  })
+
+  it('switches leader when the party changes away from the one they lead for', () => {
+    const swing = focus('swing', [{ depth: 0, key: 'set_politics', value: 'democratic' }])
+    expect(at([carol, swing]).leader).toMatchObject({ character: 'd1' })
+  })
+
+  it('moves on to the next candidate when the picked one is retired in turn', () => {
+    const toDemocratic = focus('to', [{ depth: 0, key: 'set_politics', value: 'democratic' }])
+    const retire = focus('retire', [{ depth: 0, key: 'retire_country_leader', value: 'yes' }])
+    expect(at([carol, toDemocratic, retire]).leader).toMatchObject({ character: 'd2' })
+  })
+
+  it('leaves a leader the reward made itself, and everything without candidate data', () => {
+    const own = focus('own', [
+      { depth: 0, key: 'set_politics', value: 'democratic' },
+      { depth: 0, key: 'promote_character', value: 'x', subject: 'despotism' },
+    ])
+    expect(at([carol, own]).leader).toMatchObject({ character: 'x' })
+    const swing = focus('swing', [{ depth: 0, key: 'set_politics', value: 'democratic' }])
+    const bare = countryStateAt(
+      schedulePlan(['carol', 'swing'], { carol, swing }, { startDate: start, speedBonus: 0 }),
+      day(140),
+      { tag: 'ROM' },
+    )
+    expect(bare.leader).toMatchObject({ name: 'Carol II' })
   })
 })

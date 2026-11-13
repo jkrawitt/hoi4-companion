@@ -51,3 +51,17 @@ export const pickStartingLeader = (
   }
   return undefined
 }
+
+/** Every recruited character's `country_leader` roles, in recruitment order, with their group. */
+export const listLeaderCandidates = (
+  recruited: string[],
+  roles: Record<string, string[]>,
+  groups: Record<string, string>,
+): { character: string; ideology: string; group: string }[] =>
+  recruited.flatMap((character) =>
+    (roles[character] ?? []).map((ideology) => ({
+      character,
+      ideology,
+      group: groups[ideology] ?? ideology,
+    })),
+  )
