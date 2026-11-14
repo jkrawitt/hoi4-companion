@@ -32,7 +32,8 @@ const otherFactories = computed(
 
     <template v-else>
       <p class="muted">
-        The factories the country starts with, plus the ones built instantly by your focus plan.
+        The factories the country starts with, plus the ones built instantly by your focus plan,
+        placed in the states they are built in.
       </p>
       <DateScrubber />
 
@@ -80,6 +81,7 @@ const otherFactories = computed(
               <th>Mil</th>
               <th>Dock</th>
               <th>Resources</th>
+              <th>From focuses</th>
             </tr>
           </thead>
           <tbody>
@@ -92,22 +94,34 @@ const otherFactories = computed(
               <td>{{ s.mil }}</td>
               <td>{{ s.dock }}</td>
               <td>{{ resources(s.resources) }}</td>
-            </tr>
-            <tr class="focus-row">
-              <td colspan="2">Built by focuses (state chosen in game)</td>
-              <td>+{{ industry.focusSlots }} slots</td>
-              <td />
-              <td>+{{ industry.focusBuilt.civ }}</td>
-              <td>+{{ industry.focusBuilt.mil }}</td>
-              <td>+{{ industry.focusBuilt.dock }}</td>
-              <td />
+              <td>
+                <ul class="totals">
+                  <li v-for="(n, i) in s.fromFocuses" :key="i">
+                    {{ n.focusName }}: {{ n.text }}
+                    <span v-if="n.guessed" class="muted">(game picks; guessed)</span>
+                  </li>
+                </ul>
+              </td>
             </tr>
           </tbody>
         </table>
+        <template v-if="industry.unplaced.length > 0">
+          <p class="muted">Built by focuses, in no state of the country (counted above):</p>
+          <ul class="totals">
+            <li v-for="(u, i) in industry.unplaced" :key="i">{{ u.focusName }}: {{ u.text }}</li>
+          </ul>
+        </template>
         <template v-if="industry.queued.length > 0">
           <p class="muted">Queued by focuses (not counted above):</p>
           <ul class="totals">
-            <li v-for="b in industry.queued" :key="b.type">{{ b.name }}: +{{ b.total }}</li>
+            <li v-for="(b, i) in industry.queued" :key="i">
+              {{ b.name }}: +{{ b.level }}
+              <template v-if="b.stateName">
+                in {{ b.stateName }}
+                <span v-if="b.guessed" class="muted">(game picks; guessed)</span>
+              </template>
+              ({{ b.focusName }})
+            </li>
           </ul>
         </template>
       </section>
@@ -154,8 +168,5 @@ td {
   text-align: left;
   padding: 0.25rem 0.75rem 0.25rem 0;
   border-bottom: 1px solid #eee;
-}
-.focus-row td {
-  font-style: italic;
 }
 </style>

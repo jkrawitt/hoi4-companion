@@ -5,12 +5,14 @@
  * consumer goods take. Pure: the store feeds it the production data, the country state and the
  * technology totals.
  *
- * Which state a focus builds in is picked by the game (`random_owned_controlled_state`), so what
- * focuses build is counted for the whole country and listed apart from the states.
+ * Which state a focus builds in is picked by the game for `random_owned_*state` blocks. The
+ * construction batches of the plan are placed into the states in order: a numbered scope in its
+ * state, a random block in the first preferred state it fits, else a guess (`placeBatches`).
+ * What cannot be placed is listed in `unplaced` and still counted country-wide.
  */
 import { humanize } from '../focusEffects'
 import type { ProductionData, ProductionDefines } from '../production'
-import type { BuildingTotal, CountryState, StatTotal } from './types'
+import type { ConstructionBatch, CountryState, StatTotal } from './types'
 
 export interface FactoryCount {
   type: string
@@ -29,6 +31,25 @@ export interface StateRow {
   mil: number
   dock: number
   resources: Record<string, number>
+  /** What the focus plan placed here. `guessed`: the game picks the state, this is a guess. */
+  fromFocuses: { focusName: string; text: string; guessed: boolean }[]
+}
+
+/** A queued (not instant) focus build, with the state it was placed in when there is one. */
+export interface QueuedBuild {
+  type: string
+  name: string
+  level: number
+  focusName: string
+  stateId?: number
+  stateName?: string
+  guessed: boolean
+}
+
+/** A batch that fits no state; still counted country-wide. */
+export interface UnplacedBatch {
+  focusName: string
+  text: string
 }
 
 export interface ConsumerGoods {
@@ -41,14 +62,12 @@ export interface Industry {
   /** Civilian, military and naval factories first, then any other building that shares slots. */
   factories: FactoryCount[]
   /** Focus builds that are queued in the game rather than instant; not counted above. */
-  queued: BuildingTotal[]
+  queued: QueuedBuild[]
   slots: { total: number; used: number; free: number }
-  /** The slots and buildings of each state at the start; focus builds are not placed in them. */
+  /** The states with what the focus plan placed in them. */
   states: StateRow[]
-  /** What the focus plan builds instantly and the slots it adds, not placed in a state. */
-  focusSlots: number
-  /** Civilian, military and naval factories the focus plan built instantly, not placed in a state. */
-  focusBuilt: { civ: number; mil: number; dock: number }
+  /** Batches of the plan that fit no state (an unowned numbered scope, or no states at all). */
+  unplaced: UnplacedBatch[]
   consumerGoods: ConsumerGoods
   /** Civilian factories left once the consumer goods are paid. */
   availableCivs: number
@@ -88,6 +107,84 @@ export const consumerGoodsFor = (
   return { percent, factories: Math.min(wanted, civ) }
 }
 
+const noteOf = (batch: ConstructionBatch): string =>
+  [
+    ...batch.buildings.map((b) =>
+      b.instant ? `+${b.level} ${b.name}` : `${b.level} ${b.name} queued`,
+    ),
+    ...(batch.slots > 0 ? [`+${batch.slots} slots`] : []),
+    ...batch.resources.map((r) => `${r.amount > 0 ? '+' : ''}${r.amount} ${r.name}`),
+  ].join(', ')
+
+/**
+ * Puts the batches into the states, in order. A numbered scope goes to its state (unplaced when
+ * the country does not own it). A random block takes the first preferred state it fits, else the
+ * fitting state with most free slots (lowest id on ties), else the state with most free slots,
+ * the last two marked guessed. A state fits when its free shared slots, after the batch's extra
+ * slots, hold the batch's shared-slot buildings (instant and queued; infrastructure always fits).
+ * The slots are those of the viewed date; the game decides with the slots of the completion date,
+ * which can differ. Only instant builds count as built in a row; queued ones are listed.
+ */
+const placeBatches = (rows: StateRow[], batches: ConstructionBatch[], shared: Set<string>) => {
+  // Slots taken by queued builds, so later batches see them as occupied.
+  const reserved = new Map<number, number>()
+  const free = (r: StateRow) => r.slots - r.used - (reserved.get(r.id) ?? 0)
+  const queued: QueuedBuild[] = []
+  const unplaced: UnplacedBatch[] = []
+  let unplacedSlots = 0
+
+  for (const batch of batches) {
+    const need = batch.buildings.reduce((n, b) => n + (shared.has(b.type) ? b.level : 0), 0)
+    let row: StateRow | undefined
+    let guessed = false
+    if (batch.state !== undefined) {
+      row = rows.find((r) => r.id === batch.state)
+    } else if (batch.random && rows.length > 0) {
+      const fits = rows.filter((r) => free(r) + batch.slots >= need)
+      row = batch.prefer?.map((id) => fits.find((r) => r.id === id)).find((r) => r !== undefined)
+      if (!row) {
+        guessed = true
+        const pool = fits.length > 0 ? fits : rows
+        row = pool.reduce((best, r) => (free(r) > free(best) ? r : best))
+      }
+    }
+    if (!row) {
+      const text = noteOf(batch)
+      if (text) unplaced.push({ focusName: batch.focusName, text })
+      unplacedSlots += batch.slots
+      for (const b of batch.buildings) {
+        if (!b.instant) queued.push({ ...b, focusName: batch.focusName, guessed: false })
+      }
+      continue
+    }
+    row.slots += batch.slots
+    for (const b of batch.buildings) {
+      if (!b.instant) {
+        reserved.set(row.id, (reserved.get(row.id) ?? 0) + (shared.has(b.type) ? b.level : 0))
+        queued.push({
+          ...b,
+          focusName: batch.focusName,
+          stateId: row.id,
+          stateName: row.name,
+          guessed,
+        })
+        continue
+      }
+      if (shared.has(b.type)) row.used += b.level
+      if (b.type === CIVILIAN) row.civ += b.level
+      else if (b.type === MILITARY) row.mil += b.level
+      else if (b.type === NAVAL) row.dock += b.level
+      else if (b.type === 'infrastructure') row.infrastructure += b.level
+    }
+    for (const r of batch.resources) {
+      row.resources[r.type] = (row.resources[r.type] ?? 0) + r.amount
+    }
+    const text = noteOf(batch)
+    if (text) row.fromFocuses.push({ focusName: batch.focusName, text, guessed })
+  }
+  return { queued, unplaced, unplacedSlots }
+}
+
 export const industryAt = (
   production: ProductionData,
   state: CountryState,
@@ -113,9 +210,12 @@ export const industryAt = (
       civ: s.buildings[CIVILIAN] ?? 0,
       mil: s.buildings[MILITARY] ?? 0,
       dock: s.buildings[NAVAL] ?? 0,
-      resources: s.resources,
+      resources: { ...s.resources },
+      fromFocuses: [],
     }
   })
+
+  const { queued, unplaced, unplacedSlots } = placeBatches(states, state.construction, shared)
 
   const counts = new Map<string, FactoryCount>(
     [CIVILIAN, MILITARY, NAVAL].map((type) => [
@@ -135,10 +235,8 @@ export const industryAt = (
   for (const b of state.buildings) if (b.instant) add(b.type, b.total, b.name)
 
   const count = (type: string) => counts.get(type)?.count ?? 0
-  const instant = (type: string) =>
-    state.buildings.filter((b) => b.instant && b.type === type).reduce((n, b) => n + b.total, 0)
   const used = [...counts.values()].reduce((sum, f) => sum + f.count, 0)
-  const total = states.reduce((sum, s) => sum + s.slots, 0) + state.buildingSlots
+  const total = states.reduce((sum, s) => sum + s.slots, 0) + unplacedSlots
   const consumerGoods = consumerGoodsFor(
     count(CIVILIAN),
     count(MILITARY),
@@ -149,11 +247,10 @@ export const industryAt = (
   )
   return {
     factories: [...counts.values()],
-    queued: state.buildings.filter((b) => !b.instant),
+    queued,
     slots: { total, used, free: total - used },
     states,
-    focusSlots: state.buildingSlots,
-    focusBuilt: { civ: instant(CIVILIAN), mil: instant(MILITARY), dock: instant(NAVAL) },
+    unplaced,
     consumerGoods,
     availableCivs: count(CIVILIAN) - consumerGoods.factories,
   }

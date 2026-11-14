@@ -72,6 +72,7 @@ export const countryStateAt = (
     resources: [...w.resources.values()],
     buildings: [...w.buildings.values()],
     buildingSlots: w.buildingSlots,
+    construction: w.construction,
     conditional: w.conditional,
     research: researchEnvironment(w.research),
   }

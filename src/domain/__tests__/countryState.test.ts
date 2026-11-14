@@ -290,6 +290,50 @@ describe('resources and construction', () => {
   })
 })
 
+describe('construction batches', () => {
+  it('records one batch per block with its state, preferred states and buildings', () => {
+    const f = focus('a', [
+      { depth: 0, key: 'random_owned_controlled_state', preferStates: ['79', '81'] },
+      {
+        depth: 1,
+        key: 'add_building_construction',
+        value: '2',
+        subject: 'arms_factory',
+        subjectName: 'Military factory',
+        instant: true,
+      },
+      { depth: 1, key: 'add_extra_state_shared_building_slots', value: '1' },
+      { depth: 0, key: '46' },
+      { depth: 1, key: 'add_resource', value: '4', subject: 'oil', subjectName: 'Oil' },
+    ])
+    const s = stateAt([f], 70)
+    expect(s.construction).toEqual([
+      {
+        focusId: 'a',
+        focusName: 'A',
+        date: day(70),
+        state: undefined,
+        prefer: [79, 81],
+        random: true,
+        buildings: [{ type: 'arms_factory', name: 'Military factory', level: 2, instant: true }],
+        slots: 1,
+        resources: [],
+      },
+      {
+        focusId: 'a',
+        focusName: 'A',
+        date: day(70),
+        state: 46,
+        prefer: undefined,
+        random: false,
+        buildings: [],
+        slots: 0,
+        resources: [{ type: 'oil', name: 'Oil', amount: 4 }],
+      },
+    ])
+  })
+})
+
 describe('conditions on having an idea', () => {
   const remove = (idea: string): EffectLine[] => [
     { depth: 0, key: 'if', condition: `has idea: ${idea}`, check: { type: 'idea', id: idea } },

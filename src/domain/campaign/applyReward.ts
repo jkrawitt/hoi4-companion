@@ -18,6 +18,7 @@ import type {
   ActiveIdea,
   BuildingTotal,
   ConditionalEffects,
+  ConstructionBatch,
   CountryLeader,
   CountryStateOptions,
   PopularityChange,
@@ -39,6 +40,7 @@ export interface Working {
   conditional: ConditionalEffects[]
   buildings: Map<string, BuildingTotal>
   buildingSlots: number
+  construction: ConstructionBatch[]
   resources: Map<string, ResourceTotal>
   rulingParty?: string
   /** The ruling ideology group as the scripts name it (`communism`), for conditions. */
@@ -60,6 +62,7 @@ export const newWorking = (): Working => ({
   conditional: [],
   buildings: new Map(),
   buildingSlots: 0,
+  construction: [],
   resources: new Map(),
   doneFocuses: new Set(),
   retiredLeaders: new Set(),
@@ -337,6 +340,54 @@ const totalConstruction = (w: Working, built: EffectLine[]) => {
   }
 }
 
+/** Groups the construction lines of a reward into one batch per header block. */
+const recordBatches = (w: Working, step: Step, built: EffectLine[]) => {
+  let batch: ConstructionBatch | undefined
+  const start = (header?: EffectLine) => {
+    const key = header?.key ?? ''
+    const state = /^\d+$/.test(key) ? Number(key) : undefined
+    const prefer = header?.preferStates?.map(Number).filter((n) => Number.isFinite(n))
+    batch = {
+      focusId: step.focus.id,
+      focusName: step.focus.name,
+      date: step.end,
+      state,
+      prefer: prefer && prefer.length > 0 ? prefer : undefined,
+      random: key.startsWith('random_owned_'),
+      buildings: [],
+      slots: 0,
+      resources: [],
+    }
+    w.construction.push(batch)
+  }
+  for (const l of built) {
+    const isConstruction = l.key !== null && CONSTRUCTION_KEYS.has(l.key)
+    if (!isConstruction) {
+      start(l)
+      continue
+    }
+    // A loose top-level line (not under a header) gets a batch of its own.
+    if (l.depth === 0 || !batch) start()
+    if (!batch || !isNumeric(l.value)) continue
+    if (l.key === 'add_extra_state_shared_building_slots') batch.slots += Number(l.value)
+    else if (!l.subject) continue
+    else if (l.key === 'add_resource') {
+      batch.resources.push({
+        type: l.subject,
+        name: l.subjectName ?? l.subject,
+        amount: Number(l.value),
+      })
+    } else {
+      batch.buildings.push({
+        type: l.subject,
+        name: l.subjectName ?? l.subject,
+        level: Number(l.value),
+        instant: l.instant === true,
+      })
+    }
+  }
+}
+
 /** The indexes of the lines under every line that is an idea or a leader. */
 const ownedLines = (effects: EffectLine[], owners: number[]): Set<number> => {
   const owned = new Set<number>()
@@ -366,11 +417,15 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
 
   const { applied, conditional: skipped, states } = classify(effects, options.tag)
   const built: EffectLine[] = []
-  for (const block of states) built.push(...splitConstruction(block).built)
-  for (const block of skipped) {
+  // In the order they stand in the reward, which is the order the game builds in.
+  const blocks = [
+    ...states.map((block) => ({ block, state: true })),
+    ...skipped.map((block) => ({ block, state: false })),
+  ].sort((a, b) => effects.indexOf(a.block[0]) - effects.indexOf(b.block[0]))
+  for (const { block, state } of blocks) {
     const { built: moved, rest } = splitConstruction(block)
     built.push(...moved)
-    if (rest.length > 0) {
+    if (!state && rest.length > 0) {
       w.conditional.push({ focusId: focus.id, focusName: focus.name, lines: rest })
     }
   }
@@ -403,6 +458,7 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
   pickNextLeader(c, governmentBefore)
   w.doneFocuses.add(focus.id)
   totalConstruction(w, built)
+  recordBatches(w, step, built)
   recordResearchState(
     w.research,
     step.end,

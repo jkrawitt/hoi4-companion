@@ -64,6 +64,26 @@ export interface ResourceTotal {
   total: number
 }
 
+/**
+ * What one block of a reward builds: the construction lines under one header (a numbered state
+ * scope or a `random_owned_*state` block), or loose top-level ones (neither `state` nor `random`).
+ */
+export interface ConstructionBatch {
+  focusId: string
+  focusName: string
+  date: Date
+  /** The state of a numbered scope (`46 = { ... }`). */
+  state?: number
+  /** The states a random block prefers, in order. */
+  prefer?: number[]
+  /** A `random_owned_*` block: the game picks the state. */
+  random: boolean
+  buildings: { type: string; name: string; level: number; instant: boolean }[]
+  /** Extra shared building slots. */
+  slots: number
+  resources: { type: string; name: string; amount: number }[]
+}
+
 export interface CountryState {
   date: Date
   /** Focuses finished by `date`, in order. */
@@ -87,6 +107,8 @@ export interface CountryState {
   buildings: BuildingTotal[]
   /** Extra building slots added by completed focuses, summed. */
   buildingSlots: number
+  /** The same builds block by block, in order, for placing them in states. */
+  construction: ConstructionBatch[]
   conditional: ConditionalEffects[]
   /** The dated slots, speed, bonuses and techs the research planner schedules with. */
   research: ResearchEnvironment
