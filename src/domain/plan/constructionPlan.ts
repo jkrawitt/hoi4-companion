@@ -16,8 +16,9 @@
  *   slot (for buildings that share slots; a level in progress holds one) and room under
  *   `state_max`. One that has to wait does not hold up the items behind it.
  *
- * Three things are NOT VERIFIED AGAINST THE GAME and each sits in one helper to fix:
- * `infraSpeedFactor`, `isPowered` and `civCapPerProject`.
+ * Three rules sit in one helper each: `infraSpeedFactor`, `isPowered` and `civCapPerProject`.
+ * Checked in game for Romania's 1936 start (Muntenia and Bessarabia factory dates, 15 civs a
+ * project); the energy check has only been seen powered, never short of energy.
  */
 import type {
   BuiltLevel,
@@ -44,17 +45,17 @@ const INFRASTRUCTURE = 'infrastructure'
 const MAX_INFRASTRUCTURE = 5
 
 /**
- * How much faster a building goes up in a state with `infrastructure` levels. NOT VERIFIED AGAINST
- * THE GAME: the define says a state with better infrastructure cuts the cost of buildings, up to
- * `INFRA_MAX_CONSTRUCTION_COST_EFFECT` at the most; this reads that as a speed bonus growing
- * linearly with the level up to 5. Compare it with the construction tooltip.
+ * How much faster a building goes up in a state with `infrastructure` levels: a speed bonus growing
+ * linearly with the level, to `INFRA_MAX_CONSTRUCTION_COST_EFFECT` at level 5. Checked in game:
+ * +60% at infrastructure 3 (Muntenia) and +40% at 2 (Bessarabia) give the game's dates.
  */
 export const infraSpeedFactor = (infrastructure: number, defines: ProductionDefines): number =>
   1 + (defines.infraEffect * Math.min(infrastructure, MAX_INFRASTRUCTURE)) / MAX_INFRASTRUCTURE
 
 /**
- * Whether the country has the energy for its factories, and the numbers behind it. NOT VERIFIED
- * AGAINST THE GAME: produced is `BASE_COUNTRY_ENERGY_PRODUCTION` plus the coal times
+ * Whether the country has the energy for its factories, and the numbers behind it. Only checked
+ * while powered (Romania in 1936, 5 per civ a day matches the game); the shortfall side is not:
+ * produced is `BASE_COUNTRY_ENERGY_PRODUCTION` plus the coal times
  * `RESOURCE_TO_ENERGY_COEFFICIENT`, raised by `energy_gain_factor`. Used is every civilian,
  * military and naval factory at `BASE_ENERGY_COST` grown by `ENERGY_SCALING_COST_BY_FACTORY_COUNT`
  * per factory, capped at `ENERGY_COST_CAP`, lowered by `factory_energy_consumption`. Powered when
@@ -77,9 +78,8 @@ export const isPowered = (
 }
 
 /**
- * The civilian factories one project can take. NOT VERIFIED AGAINST THE GAME: this uses the
- * production line cap (`MAX_CIV_FACTORIES_PER_LINE`); construction may have a cap of its own that
- * is not in the defines.
+ * The civilian factories one project can take: the production line cap
+ * (`MAX_CIV_FACTORIES_PER_LINE`), 15, which is the game's construction cap too.
  */
 export const civCapPerProject = (defines: ProductionDefines): number => defines.maxCivsPerProject
 

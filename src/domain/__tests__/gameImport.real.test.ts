@@ -333,6 +333,33 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(industry.availableCivs).toBe(6)
   })
 
+  it('takes the research times the game shows at the 1936 start', async () => {
+    const { start, research } = await importRomania()
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const focusSchedule = { items: [], finish: startDate, totalDays: 0 }
+    const days = (techId: string) =>
+      planResearch({
+        focusSchedule,
+        options: { start, startDate, tag: 'ROM' },
+        queue: [{ techId }],
+        // The game estimates a tech's time on hover, before its prerequisites are done.
+        data: {
+          ...research,
+          techs: research.techs.map((t) => (t.id === techId ? { ...t, prerequisites: [] } : t)),
+        },
+        startDate,
+        until: new Date(Date.UTC(1942, 0, 1)),
+      }).schedule
+    // The game's estimates, each queued alone on 1 January 1936 (Export Focus gives +5% speed).
+    // The game shows the continuous time rounded (157.1, 374.0 and 872.2 days by the model),
+    // while the planner counts whole days, so allow it two days either way.
+    const game = { basic_machine_tools: 157, construction2: 374, construction3: 871 }
+    for (const [tech, expected] of Object.entries(game)) {
+      const schedule = days(tech)
+      expect(Math.abs(schedule.items[0].days - expected), tech).toBeLessThanOrEqual(2)
+    }
+  })
+
   it('schedules a civilian factory in Muntenia at the 1936 start', async () => {
     const { production, start, research } = await importRomania()
     expect(production.buildings.map((b) => b.id)).toEqual(

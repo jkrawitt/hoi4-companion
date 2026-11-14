@@ -133,9 +133,8 @@ const showOnOverview = (end: Date) => {
     <h3>Construction queue</h3>
     <p class="muted">
       Spare civilian factories build the queue in order, up to 15 on each project. Builds queued by
-      focuses join the end of the queue when their focus is done. The speed is an estimate: the
-      infrastructure bonus, the energy check and the 15-factory cap have not been checked against
-      the game.
+      focuses join the end of the queue when their focus is done. Build times match the game for the
+      1936 start; a country short of energy has not been checked.
     </p>
     <form class="add" @submit.prevent="add">
       <label>
