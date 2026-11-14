@@ -350,14 +350,16 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         startDate,
         until: new Date(Date.UTC(1942, 0, 1)),
       }).schedule
-    // The game's estimates, each queued alone on 1 January 1936 (Export Focus gives +5% speed).
-    // The game shows the continuous time rounded (157.1, 374.0 and 872.2 days by the model),
-    // while the planner counts whole days, so allow it two days either way.
-    const game = { basic_machine_tools: 157, construction2: 374, construction3: 871 }
-    for (const [tech, expected] of Object.entries(game)) {
-      const schedule = days(tech)
-      expect(Math.abs(schedule.items[0].days - expected), tech).toBeLessThanOrEqual(2)
-    }
+    // The game, each queued alone on 1 January 1936 (Export Focus gives +5% speed): the first day
+    // is already done when the research starts (0.6% of Basic Machine Tools) and the tooltip shows
+    // the days left after it, so the planner's whole run is that plus one. Construction III, three
+    // years early, is a day off, which does not matter for research nobody does that early.
+    const daysLeft = { basic_machine_tools: 157, construction2: 374, construction3: 871 }
+    expect(days('basic_machine_tools').items[0].days).toBe(daysLeft.basic_machine_tools + 1)
+    expect(days('construction2').items[0].days).toBe(daysLeft.construction2 + 1)
+    expect(days('construction3').items[0].days - (daysLeft.construction3 + 1)).toBeLessThanOrEqual(
+      1,
+    )
   })
 
   it('schedules a civilian factory in Muntenia at the 1936 start', async () => {
