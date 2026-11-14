@@ -56,8 +56,13 @@ const signature = (schedule: ResearchSchedule): string =>
  */
 export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   const { focusSchedule, options, queue, data, startDate, until } = input
+  // The environment is read once everything is done: the last focus, or a later purchase.
+  const finish = (options.extraSteps ?? []).reduce(
+    (latest, step) => (step.end > latest ? step.end : latest),
+    focusSchedule.finish,
+  )
   if (!data) {
-    const environment = countryStateAt(focusSchedule, focusSchedule.finish, options).research
+    const environment = countryStateAt(focusSchedule, finish, options).research
     return {
       schedule: scheduleResearch([], {}, emptyEnvironment(), {
         startDate,
@@ -76,7 +81,7 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   let hasTech: PlannedResearch['hasTech']
   let planned: PlannedResearch | undefined
   for (let pass = 0; pass < MAX_PASSES; pass++) {
-    const environment = countryStateAt(focusSchedule, focusSchedule.finish, {
+    const environment = countryStateAt(focusSchedule, finish, {
       ...options,
       hasTech,
     }).research

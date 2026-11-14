@@ -488,3 +488,120 @@ describe('the game picking a new leader', () => {
     expect(bare.leader).toMatchObject({ name: 'Carol II' })
   })
 })
+
+describe('countryStateAt with purchases', () => {
+  const law = (id: string, slot: string, depth = 0): EffectLine[] => [
+    { depth, key: 'add_ideas', value: id, valueName: id, slot },
+    modifier(depth + 1, `${id}_stat`, '0.1'),
+  ]
+  const buy = (id: string, when: number, effects: EffectLine[]) => ({
+    focus: { id: `politics:${id}`, name: id, effects },
+    end: day(when),
+  })
+  const stateWith = (
+    focuses: Focus[],
+    steps: ReturnType<typeof buy>[],
+    days: number,
+    extra: Partial<Parameters<typeof countryStateAt>[2]> = {},
+  ) =>
+    countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(days),
+      { tag: 'ROM', extraSteps: steps, ...extra },
+    )
+
+  it('applies purchases by date, a focus first on the same day', () => {
+    const a = ideaFocus('a', 'idea_a', [])
+    const steps = [
+      buy('law_b', 70, law('law_b', 'economy')),
+      buy('law_c', 30, law('law_c', 'trade')),
+    ]
+    expect(stateWith([a], steps, 69).ideas.map((i) => i.id)).toEqual(['law_c'])
+    expect(stateWith([a], steps, 70).ideas.map((i) => i.id)).toEqual(['law_c', 'idea_a', 'law_b'])
+  })
+
+  it('does not apply a purchase before its date', () => {
+    expect(stateWith([], [buy('l', 40, law('l', 'economy'))], 39).ideas).toEqual([])
+  })
+
+  it('replaces the idea in a slot that is full, and keeps the modifier totals in step', () => {
+    const steps = [buy('old', 10, law('old', 'economy')), buy('new', 20, law('new', 'economy'))]
+    const s = stateWith([], steps, 30)
+    expect(s.ideas.map((i) => i.id)).toEqual(['new'])
+    expect(s.modifierTotals.map((m) => m.key)).toEqual(['new_stat'])
+    expect(s.politics.held.economy.map((i) => i.id)).toEqual(['new'])
+  })
+
+  it('lets a slot with room hold several, and drops the oldest when full', () => {
+    const adv = (id: string, when: number) => buy(id, when, law(id, 'political_advisor'))
+    const politics = {
+      options: [],
+      slots: { political_advisor: 2 },
+      categoryNames: {},
+      defines: { baseGain: 2, cap: 2000 },
+    }
+    const s = stateWith([], [adv('a1', 1), adv('a2', 2), adv('a3', 3)], 10, { politics })
+    expect(s.politics.held.political_advisor.map((i) => i.id)).toEqual(['a2', 'a3'])
+  })
+
+  it('removes a dismissed idea and records research bonuses and recruits', () => {
+    const designer: EffectLine[] = [
+      { depth: 0, key: 'add_ideas', value: 'works', slot: 'tank', researchBonus: { armor: 0.15 } },
+    ]
+    const steps = [
+      buy('works', 10, designer),
+      buy('recruit', 15, [{ depth: 0, key: 'recruit_character', value: 'ROM_x' }]),
+      buy('drop', 50, [{ depth: 0, key: 'remove_ideas', value: 'works' }]),
+    ]
+    const s = stateWith([], steps, 30)
+    expect(s.research.categorySpeed?.pop()?.bonuses).toEqual({ armor: 0.15 })
+    expect(s.politics.recruited).toEqual(['ROM_x'])
+    const later = stateWith([], steps, 60)
+    expect(later.ideas).toEqual([])
+    expect(later.research.categorySpeed?.pop()?.bonuses).toEqual({})
+  })
+
+  it('answers a focus has_idea on a bought law', () => {
+    const check = { type: 'idea' as const, id: 'law_x' }
+    const reward: EffectLine[] = [
+      { depth: 0, key: 'if', check, condition: 'x' },
+      { depth: 1, key: 'add_ideas', value: 'yes_idea', valueName: 'yes_idea' },
+      { depth: 0, key: 'else' },
+      { depth: 1, key: 'add_ideas', value: 'no_idea', valueName: 'no_idea' },
+    ]
+    const f = focus('f', reward)
+    // The law is bought on day 10, before the focus ends on day 70.
+    const after = stateWith([f], [buy('law_x', 10, law('law_x', 'economy'))], 70)
+    expect(after.ideas.map((i) => i.id)).toEqual(['law_x', 'yes_idea'])
+    expect(stateWith([f], [], 70).ideas.map((i) => i.id)).toEqual(['no_idea'])
+  })
+
+  it('answers tag, DLC and stat conditions', () => {
+    const f = focus('f', [
+      { depth: 0, key: 'if', check: { type: 'tag', id: 'ROM' }, condition: 'x' },
+      { depth: 1, key: 'add_ideas', value: 'rom', valueName: 'rom' },
+      { depth: 0, key: 'if', check: { type: 'dlc', id: 'Owned' }, condition: 'x' },
+      { depth: 1, key: 'add_ideas', value: 'dlc', valueName: 'dlc' },
+      {
+        depth: 0,
+        key: 'if',
+        check: { type: 'stat', key: 'war_support', op: '>', than: 0.3 },
+        condition: 'x',
+      },
+      { depth: 1, key: 'add_ideas', value: 'war', valueName: 'war' },
+    ])
+    const s = stateWith([f], [], 70, {
+      ownedDlc: { Owned: true },
+      start: [modifier(0, 'add_war_support', '0.5')],
+      startDate: start,
+    })
+    expect(s.ideas.map((i) => i.id)).toEqual(['rom', 'dlc', 'war'])
+    const bare = stateWith([f], [], 70, { ownedDlc: { Owned: false } })
+    // No start yet, so war support is unknown and the branch stays conditional.
+    expect(bare.ideas.map((i) => i.id)).toEqual(['rom'])
+  })
+})

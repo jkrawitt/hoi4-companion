@@ -21,6 +21,7 @@ const SET_STATS: Record<string, string> = {
   set_stability: 'add_stability',
   set_war_support: 'add_war_support',
   set_research_slots: 'add_research_slot',
+  add_political_power: 'add_political_power',
 }
 
 /** The DLC a block's `limit` asks for, when that is all it asks for. */

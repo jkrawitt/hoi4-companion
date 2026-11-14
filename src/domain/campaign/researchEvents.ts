@@ -39,11 +39,8 @@ export const recordResearchState = (
   r.snapshots.push({ date, ...snapshot })
 }
 
-/**
- * The research speed factor over time. It changes when a reward does, and when a timed idea runs
- * out, which is why every `until` is a date of its own.
- */
-const speedOverTime = (snapshots: ResearchWorking['snapshots']): ResearchEnvironment['speed'] => {
+/** Each date the country's ideas change (a reward, or a timed idea running out), with what is active. */
+const changePoints = (snapshots: ResearchWorking['snapshots']) => {
   const times = new Set<number>()
   for (const s of snapshots) {
     times.add(s.date.getTime())
@@ -55,16 +52,40 @@ const speedOverTime = (snapshots: ResearchWorking['snapshots']): ResearchEnviron
       const date = new Date(time)
       const latest = snapshots.filter((s) => s.date <= date).pop()
       if (!latest) return []
-      const active = latest.ideas.filter((idea) => !idea.until || idea.until > date)
-      const factor = activeModifiers(active, latest.traits).totals.get(SPEED_KEY)?.total ?? 0
-      return [{ date, factor }]
+      const ideas = latest.ideas.filter((idea) => !idea.until || idea.until > date)
+      return [{ date, ideas, traits: latest.traits }]
     })
 }
+
+/**
+ * The research speed factor over time. It changes when a reward does, and when a timed idea runs
+ * out, which is why every `until` is a date of its own.
+ */
+const speedOverTime = (snapshots: ResearchWorking['snapshots']): ResearchEnvironment['speed'] =>
+  changePoints(snapshots).map(({ date, ideas, traits }) => ({
+    date,
+    factor: activeModifiers(ideas, traits).totals.get(SPEED_KEY)?.total ?? 0,
+  }))
+
+/** The research bonus per category over time, from the designers' `research_bonus`. */
+const categorySpeedOverTime = (
+  snapshots: ResearchWorking['snapshots'],
+): NonNullable<ResearchEnvironment['categorySpeed']> =>
+  changePoints(snapshots).map(({ date, ideas }) => {
+    const bonuses: Record<string, number> = {}
+    for (const idea of ideas) {
+      for (const [category, bonus] of Object.entries(idea.researchBonus ?? {})) {
+        bonuses[category] = Number(((bonuses[category] ?? 0) + bonus).toFixed(6))
+      }
+    }
+    return { date, bonuses }
+  })
 
 export const researchEnvironment = (r: ResearchWorking): ResearchEnvironment => ({
   startTechs: r.startTechs,
   slots: r.slots,
   speed: speedOverTime(r.snapshots),
+  categorySpeed: categorySpeedOverTime(r.snapshots),
   grants: r.grants,
   bonuses: r.bonuses,
 })

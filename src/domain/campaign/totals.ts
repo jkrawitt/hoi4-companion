@@ -16,7 +16,30 @@ export const addTo = (
   else totals.set(key, { key, stat, total: round(amount) })
 }
 
-export const isNumeric = (value: string | undefined): value is string =>
+/** `DEFAULT_STABILITY` and `DEFAULT_WAR_SUPPORT`: what a country has when its history sets none. */
+const DEFAULT_STAT = 0.5
+
+/**
+ * The country's actual stability or war support (0 to 1), as the game works it out: the scripted
+ * value (the start's `set_*`, or 50% when it has none, plus the changes since) plus `<key>_factor`
+ * modifiers, and for stability the ruling party's popularity times `partyStability`. War
+ * (`BASE_STABILITY_WAR_FACTOR`) is not modelled.
+ */
+export const countryStat = (
+  key: 'stability' | 'war_support',
+  start: EffectLine[],
+  changes: number,
+  modifiers: (key: string) => number,
+  rulingPopularity: number,
+  partyStability: number,
+): number => {
+  const set = start.some((l) => l.depth === 0 && l.key === `add_${key}`)
+  const party = key === 'stability' ? rulingPopularity * partyStability : 0
+  const value = (set ? 0 : DEFAULT_STAT) + changes + modifiers(`${key}_factor`) + party
+  return Math.min(1, Math.max(0, round(value)))
+}
+
+export const isNumeric =(value: string | undefined): value is string =>
   value !== undefined && value !== '' && Number.isFinite(Number(value))
 
 /**

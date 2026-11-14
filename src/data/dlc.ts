@@ -6,14 +6,13 @@
  * `resolveDlcConditions` in `focusEffects.ts`), so the plan shows what the player really gets.
  * A DLC not listed here is not resolved, and its condition is shown as written.
  *
- * TODO: "Arms Against Tyranny" (military industrial organizations, MIOs) is NOT owned for now,
- * so the `else` branch is shown, e.g. a designer idea in place of an MIO. This is meant to
- * change: flip it to `true` (or make it a user setting) and the MIO branch is shown instead.
- * MIO effects (`mio:<id> = { add_mio_funds ... }`, `show_mio_tooltip`) are not formatted yet,
- * so that branch needs its own display work when it is switched on.
+ * "Arms Against Tyranny" is owned, so focus rewards show their military industrial organisation
+ * (MIO) branch. MIO effects (`mio:<id> = { add_mio_funds ... }`, `show_mio_tooltip`) are not
+ * formatted yet and show as raw lines, and the political power planner leaves out the equipment
+ * designers, which this DLC turns into MIOs (MIOs themselves are not planned yet).
  */
 export const ownedDlc: Record<string, boolean> = {
-  'Arms Against Tyranny': false,
+  'Arms Against Tyranny': true,
   'Battle for the Bosporus': false,
   'By Blood Alone': true,
   'Death or Dishonor': true,

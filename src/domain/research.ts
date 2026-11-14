@@ -92,6 +92,11 @@ export interface ResearchEnvironment {
   /** Technologies handed out (`set_technology`) on a date. */
   grants: { date: Date; techIds: string[] }[]
   bonuses: ResearchBonus[]
+  /**
+   * Extra research speed per technology category from each date on, from the designers the country
+   * has (`research_bonus`); a tech takes the sum of the entries for its categories.
+   */
+  categorySpeed?: { date: Date; bonuses: Record<string, number> }[]
 }
 
 export const emptyEnvironment = (): ResearchEnvironment => ({
@@ -100,6 +105,7 @@ export const emptyEnvironment = (): ResearchEnvironment => ({
   speed: [],
   grants: [],
   bonuses: [],
+  categorySpeed: [],
 })
 
 /** A technology in the queue, and the focus bonus chosen for it. */

@@ -8,9 +8,22 @@ import DateScrubber from '@/components/overview/DateScrubber.vue'
 import StatTotals from '@/components/overview/StatTotals.vue'
 import type { StatTotal } from '@/domain/campaign/countryState'
 import { START_ID } from '@/domain/focus'
-import { formatDate, useCampaign } from '@/stores/campaign'
+import { capitalize, humanize } from '@/domain/effects/lines'
+import { POLITICS_GROUPS } from '@/domain/politics'
+import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
-const { country, hasData, plan, state, research, researchStatus, researchTotals } = useCampaign()
+const {
+  country,
+  hasData,
+  plan,
+  state,
+  research,
+  researchStatus,
+  researchTotals,
+  politics,
+  politicsSchedule,
+  viewDate,
+} = useCampaign()
 
 const techNames = computed(
   () => new Map((research.value?.techs ?? []).map((t) => [t.id, t.name] as const)),
@@ -37,6 +50,27 @@ const popularity = computed(() =>
     key: state.value.popularity[i].subject,
   })),
 )
+/** The national spirits: ideas that do not fill a politics slot (laws, advisors, designers). */
+const spirits = computed(() => state.value.ideas.filter((idea) => !idea.slot))
+
+/** What fills each politics slot on the date, grouped like the politics screen. */
+const staff = computed(() => {
+  const groupOf = new Map((politics.value?.options ?? []).map((o) => [o.slot, o.group] as const))
+  return POLITICS_GROUPS.map((group) => ({
+    ...group,
+    slots: Object.entries(state.value.politics.held)
+      .filter(([slot]) => groupOf.get(slot) === group.id)
+      .map(([slot, ideas]) => ({ slot, title: capitalize(humanize(slot)), ideas })),
+  })).filter((group) => group.slots.length > 0)
+})
+const viewed = computed(() => parseDate(viewDate.value))
+const power = computed(() => ({
+  balance: politicsSchedule.value.balanceAt(viewed.value),
+  gain: politicsSchedule.value.gainAt(viewed.value),
+  next: politicsSchedule.value.items.find((item) => item.date > viewed.value),
+}))
+const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
+const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 const hasGovernment = computed(() => state.value.rulingParty || popularity.value.length > 0)
 </script>
 
@@ -74,11 +108,39 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
         <EffectList :effects="state.leader.traits" />
       </section>
 
+      <section v-if="politics">
+        <h3>Political power</h3>
+        <p>
+          {{ round(power.balance) }} political power, +{{ round(power.gain, 2) }} a day.
+          <template v-if="power.next">
+            Next purchase: {{ optionName(power.next.optionId) }} on
+            {{ formatDate(power.next.date) }}.
+          </template>
+          <RouterLink to="/politics">Plan political power</RouterLink>
+        </p>
+        <div v-for="group in staff" :key="group.id" class="group">
+          <h4>{{ group.name }}</h4>
+          <ul class="ideas">
+            <li v-for="slot in group.slots" :key="slot.slot" class="idea">
+              <div class="muted">{{ slot.title }}</div>
+              <div v-for="idea in slot.ideas" :key="idea.id">
+                <strong>{{ idea.name }}</strong>
+                <div class="muted">
+                  <template v-if="idea.focusId === START_ID">at game start</template>
+                  <template v-else>since {{ formatDate(idea.since) }}</template>
+                </div>
+                <EffectList :effects="idea.modifiers" />
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+
       <section>
         <h3>National spirits</h3>
-        <p v-if="state.ideas.length === 0" class="muted">None.</p>
+        <p v-if="spirits.length === 0" class="muted">None.</p>
         <ul class="ideas">
-          <li v-for="idea in state.ideas" :key="idea.id" class="idea">
+          <li v-for="idea in spirits" :key="idea.id" class="idea">
             <strong>{{ idea.name }}</strong>
             <div class="muted">
               <template v-if="idea.focusId === START_ID">at game start</template>
@@ -202,6 +264,9 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
 }
 .good {
   color: #1f7a3d;
+}
+.group h4 {
+  margin: 0.5rem 0 0.25rem;
 }
 .conditional {
   margin: 0.5rem 0;

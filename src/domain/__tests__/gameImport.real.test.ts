@@ -1,6 +1,8 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { planCampaign } from '../campaign/plan'
+import { schedulePlan } from '../plan/focusPlan'
 import { layoutFocuses } from '../plan/focusLayout'
 import { ownedDlc } from '../../data/dlc'
 import { statOverrides } from '../../data/statOverrides'
@@ -173,11 +175,14 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(
       focuses.flatMap((f) => f.effects.filter((e) => e.key === 'free_building_slots')),
     ).toEqual([])
-    // Without Arms Against Tyranny the `else` branch is shown in place of the MIO.
+    // With Arms Against Tyranny the MIO branch is shown. MIO effects are not formatted yet, so they
+    // read as raw lines; this changes when MIOs get their own display.
     expect(lines('ROM_invest_in_the_iar')).toEqual(
-      expect.arrayContaining(['Available as Design Company:', 'Idea: IAR']),
+      expect.arrayContaining([
+        'Available as Military Industrial Organization:',
+        'add mio funds: 2500',
+      ]),
     )
-    expect(everything.filter((l) => /\bmio\b/i.test(l))).toEqual([])
     const ploiesti = focuses.find((f) => f.id === 'ROM_expand_ploiesti_oil_production')
     expect(ploiesti?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual(
       expect.arrayContaining(['Muntenia:', '  Add production of 24 Oil']),
@@ -436,5 +441,132 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const slots = (id: number) =>
       production.categorySlots[production.states.find((s) => s.id === id)!.category]
     expect([slots(46), slots(81)]).toEqual([6, 2])
+  })
+
+  it('imports what political power buys', async () => {
+    const { politics, start } = await importRomania()
+    const option = (id: string) => politics.options.find((o) => o.id === id)
+    expect(politics.defines).toEqual({
+      baseGain: 2,
+      cap: 2000,
+      partyStability: 0.15,
+      stabilityGood: 0.1,
+      stabilityBad: -0.2,
+      focusCost: 1,
+    })
+    expect(politics.slots).toMatchObject({ political_advisor: 3, high_command: 3, theorist: 1 })
+    // The law of each empty slot is a start idea.
+    expect(option('civilian_economy')).toMatchObject({
+      kind: 'law',
+      slot: 'economy',
+      default: true,
+    })
+    expect(
+      start.find((l) => l.key === 'add_ideas' && l.value === 'civilian_economy'),
+    ).toMatchObject({
+      slot: 'economy',
+    })
+    expect(option('civilian_economy')?.name).toBe('Civilian Economy')
+    expect(option('ROM_armand_calinescu')).toMatchObject({
+      kind: 'advisor',
+      slot: 'political_advisor',
+      group: 'government',
+      cost: 150,
+      recruited: true,
+    })
+    expect(option('ROM_armand_calinescu')?.modifiers[0]).toMatchObject({ key: 'leader_trait' })
+    expect(option('ROM_gheorghe_potopeanu')).toMatchObject({ cost: 100, ledger: 'army' })
+    // With Arms Against Tyranny the equipment designers are MIOs, so only the concerns are left:
+    // Romania's own industrial concern, and the generic electronics concern beside it (checked in
+    // game: both 150), while the generic industrial concern steps aside for ROMLOC.
+    expect(option('ROM_leonidas_works')).toBeUndefined()
+    expect(option('pzinz_rom')).toBeUndefined()
+    expect(option('ROM_ROMLOC')).toMatchObject({ kind: 'designer', cost: 150 })
+    expect(option('generic_electronics_concern')).toMatchObject({ cost: 150 })
+    expect(option('generic_industrial_concern')).toBeUndefined()
+    // Mobilization laws cost 150 a rank (checked in game).
+    expect(option('volunteer_only')?.level).toBe(6)
+    expect(option('extensive_conscription')?.level).toBe(4)
+    // Laws the country can never have are left out.
+    expect(option('undisturbed_isolation')).toBeUndefined()
+    console.log(`${politics.options.length} political options`)
+  })
+
+  it('plans political power purchases on the real data', async () => {
+    const { focuses, start, politics, leaders } = await importRomania()
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const byId = Object.fromEntries(focuses.map((f) => [f.id, f]))
+    const plan = planCampaign({
+      focusSchedule: schedulePlan(
+        ['ROM_mobile_tank_destroyers'].filter((id) => id in byId),
+        byId,
+        {
+          startDate,
+          speedBonus: 0,
+        },
+      ),
+      options: { tag: 'ROM', start, leaders, startDate, ownedDlc },
+      researchQueue: [],
+      politicsQueue: [
+        { optionId: 'ROM_armand_calinescu' },
+        { optionId: 'partial_economic_mobilisation' },
+        { optionId: 'ROM_leonidas_works' },
+      ],
+      politicsData: politics,
+      startDate,
+      until: new Date(Date.UTC(1960, 0, 1)),
+    })
+    expect(plan.politics.items.length + plan.politics.unscheduled.length).toBe(3)
+    expect(plan.politics.items[0].optionId).toBe('ROM_armand_calinescu')
+    // Checked in game: 60% stability + 60% democratic popularity x 0.15 = 69%, which gives +3.8%
+    // political power (+3% in the tooltip), less the running focus's 1 a day.
+    expect(plan.politics.gainAt(startDate)).toBeCloseTo(2 * 1.038 - 1)
+  })
+
+  it('answers day-one availability as checked in game', async () => {
+    const { start, politics, leaders } = await importRomania()
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const outcome = (optionId: string) => {
+      const plan = planCampaign({
+        focusSchedule: schedulePlan([], {}, { startDate, speedBonus: 0 }),
+        options: { tag: 'ROM', start, leaders, startDate, ownedDlc },
+        researchQueue: [],
+        politicsQueue: [{ optionId }],
+        politicsData: politics,
+        startDate,
+        until: new Date(Date.UTC(1940, 0, 1)),
+      })
+      const unscheduled = plan.politics.unscheduled[0]
+      if (unscheduled) return unscheduled.reason
+      return plan.politics.items[0].issues.some((i) => i.kind === 'availability-unknown')
+        ? 'unknown'
+        : 'bought'
+    }
+    // Greyed out in game: a democracy at peace with 60% war support.
+    expect(outcome('war_economy')).toBe('unavailable')
+    expect(outcome('limited_exports')).toBe('unavailable')
+    // Available in game (Iuliu Maniu asks about autonomy states, which the plan cannot answer).
+    expect(outcome('limited_conscription')).toBe('bought')
+    expect(outcome('partial_economic_mobilisation')).toBe('bought')
+    expect(['bought', 'unknown']).toContain(outcome('ROM_iuliu_maniu'))
+  })
+
+  it('buys partial mobilisation the day the game did', async () => {
+    const { start, politics, leaders } = await importRomania()
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const plan = planCampaign({
+      focusSchedule: schedulePlan([], {}, { startDate, speedBonus: 0 }),
+      options: { tag: 'ROM', start, leaders, startDate, ownedDlc },
+      researchQueue: [],
+      politicsQueue: [{ optionId: 'partial_economic_mobilisation' }],
+      politicsData: politics,
+      startDate,
+      until: new Date(Date.UTC(1937, 0, 1)),
+    })
+    // Checked in game: a focus always running, nothing else bought, it could be bought on 20 May
+    // 1936 (not 19 May) with about 1 political power left. The game has no 29 February.
+    expect(plan.politics.items[0].date.toISOString().slice(0, 10)).toBe('1936-05-20')
+    expect(plan.politics.items[0].balanceAfter).toBeGreaterThanOrEqual(0)
+    expect(plan.politics.items[0].balanceAfter).toBeLessThan(2)
   })
 })

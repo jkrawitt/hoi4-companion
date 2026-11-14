@@ -18,6 +18,10 @@ export class GameFolderError extends Error {}
 export const GAME_PATHS = {
   nationalFocus: 'common/national_focus',
   ideas: 'common/ideas',
+  /** Named conditions (`PHI_SEA`) that the politics options' conditions use. */
+  scriptedTriggers: 'common/scripted_triggers',
+  /** The idea categories: which slots the politics screen has and how many ideas each holds. */
+  ideaTags: 'common/idea_tags',
   opinionModifiers: 'common/opinion_modifiers',
   /** Static modifiers, such as the ones `add_relation_modifier` attaches. */
   staticModifiers: 'common/modifiers',
