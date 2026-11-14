@@ -29,6 +29,12 @@ export const parseLawCategories = (text: string): Record<string, LawCategory> =>
   return result
 }
 
+/** The law category of every law idea, e.g. `war_economy` -> `economy`. */
+export const lawCategoryOf = (categories: Record<string, LawCategory>): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(categories).flatMap(([name, law]) => law.ideas.map((id) => [id, name])),
+  )
+
 /** Merges the categories read from several files. */
 export const mergeLawCategories = (
   list: Record<string, LawCategory>[],
@@ -47,8 +53,7 @@ export const mergeLawCategories = (
 /**
  * `add_ideas` lines for the laws the start does not set. History files leave the laws alone, so
  * the `default = yes` idea of each category applies; a category counts as set when the start
- * already adds one of its ideas. (A later law of the same category does not remove the default;
- * that is not modelled.)
+ * already adds one of its ideas.
  */
 export const defaultLawLines = (
   categories: Record<string, LawCategory>,

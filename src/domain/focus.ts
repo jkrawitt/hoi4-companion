@@ -151,4 +151,6 @@ export interface ImportedCountry {
   research: ResearchData
   /** The states the country owns at the start and what decides their slots; see `production.ts`. */
   production: ProductionData
+  /** The law category of every law idea, so adding a law replaces the one it competes with. */
+  laws?: Record<string, string>
 }

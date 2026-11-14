@@ -41,6 +41,34 @@ const ideaFocus = (id: string, idea: string, mods: EffectLine[]) =>
   focus(id, [{ depth: 0, key: 'add_ideas', value: idea, valueName: idea }, ...mods])
 
 describe('countryStateAt', () => {
+  it('replaces the active law of a category when a new law is added', () => {
+    const focuses = [
+      ideaFocus('a', 'civilian_economy', [modifier(1, 'consumer_goods_expected_value', '0.35')]),
+      ideaFocus('b', 'other_idea', []),
+      ideaFocus('c', 'war_economy', [modifier(1, 'consumer_goods_expected_value', '0.2')]),
+    ]
+    const s = countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(210),
+      {
+        tag: 'ROM',
+        laws: {
+          civilian_economy: 'economy',
+          war_economy: 'economy',
+          volunteer_only: 'mobilization',
+        },
+      },
+    )
+    expect(s.ideas.map((i) => i.id)).toEqual(['other_idea', 'war_economy'])
+    expect(s.modifierTotals.map((t) => [t.key, t.total])).toEqual([
+      ['consumer_goods_expected_value', 0.2],
+    ])
+  })
+
   it('is empty before the first focus completes', () => {
     const s = stateAt([ideaFocus('a', 'idea_a', [modifier(1, 'x', '0.1')])], 69)
     expect(s.completed).toHaveLength(0)

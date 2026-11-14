@@ -131,4 +131,6 @@ export interface CountryStateOptions {
    * conditions. Without it they are listed as conditional.
    */
   hasTech?: (id: string, date: Date) => boolean | undefined
+  /** The law category of every law idea; a law added replaces the active law of its category. */
+  laws?: Record<string, string>
 }

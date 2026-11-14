@@ -73,6 +73,8 @@ const createCampaign = () => {
   const start = ref<EffectLine[]>([])
   /** Who the game could pick as leader when the plan retires one or changes the party. */
   const leaders = ref<LeaderData | undefined>()
+  /** The law category of every law idea. */
+  const laws = shallowRef<Record<string, string>>({})
   /** The technologies, folders and research numbers from the game. */
   const research = shallowRef<ResearchData | undefined>()
   /** The states the country owns at the start and what decides their building slots. */
@@ -107,11 +109,13 @@ const createCampaign = () => {
     focuses: list,
     start: startLines,
     leaders: leaderData,
+    laws: lawData,
     research: researchData,
     production: productionData,
   }: ImportedCountry) => {
     start.value = startLines
     leaders.value = leaderData
+    laws.value = lawData ?? {}
     research.value = researchData
     production.value = productionData
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
@@ -133,6 +137,7 @@ const createCampaign = () => {
     focuses.value = {}
     start.value = []
     leaders.value = undefined
+    laws.value = {}
     research.value = undefined
     production.value = undefined
     plan.value = []
@@ -193,6 +198,7 @@ const createCampaign = () => {
     tag: countryTag.value,
     start: start.value,
     leaders: leaders.value,
+    laws: laws.value,
     startDate: parseDate(startDate.value),
   }))
 

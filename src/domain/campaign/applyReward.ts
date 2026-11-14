@@ -128,6 +128,13 @@ const LEADER_KEYS = new Set([
 
 const ideas: Handler = (c, e, i) => {
   if (c.added.has(i) && e.value) {
+    // A country has one law per category: a new one replaces the old.
+    const law = c.options.laws?.[e.value]
+    if (law) {
+      for (const id of c.w.ideas.keys()) {
+        if (id !== e.value && c.options.laws?.[id] === law) c.w.ideas.delete(id)
+      }
+    }
     c.w.ideas.set(e.value, {
       id: e.value,
       name: e.valueName ?? e.value,

@@ -36,7 +36,12 @@ import { parseEventTitles } from './parsers/events'
 import { parseStartingLines } from './parsers/countryStart'
 import { readTechnologies } from './parsers/technologies'
 import { readProduction } from './parsers/states'
-import { defaultLawLines, mergeLawCategories, parseLawCategories } from './parsers/laws'
+import {
+  defaultLawLines,
+  lawCategoryOf,
+  mergeLawCategories,
+  parseLawCategories,
+} from './parsers/laws'
 import {
   parseIdeologyGroups,
   parseLeaderRoles,
@@ -81,7 +86,10 @@ const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
     ),
   )
 
-/** The start's `add_ideas` for the laws the history does not set; see `defaultLawLines`. */
+/**
+ * The start's `add_ideas` for the laws the history does not set (see `defaultLawLines`), and the
+ * law category of every law idea, so a new law replaces the old one.
+ */
 const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
   const texts = await Promise.all(
     (await files.listFiles(GAME_PATHS.ideas))
@@ -91,7 +99,7 @@ const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
   const categories = mergeLawCategories(
     texts.flatMap((text) => (text?.includes('law = yes') ? [parseLawCategories(text)] : [])),
   )
-  return defaultLawLines(categories, startLines)
+  return { lines: defaultLawLines(categories, startLines), laws: lawCategoryOf(categories) }
 }
 
 /**
@@ -102,7 +110,8 @@ const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
 const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
   const historyText = await readCountryHistoryText(files, tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
-  if (historyText) startLines.push(...(await readDefaultLaws(files, startLines)))
+  const defaults = historyText ? await readDefaultLaws(files, startLines) : undefined
+  if (defaults) startLines.push(...defaults.lines)
   const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
   const sources = historyText ? await readLeaderSources(files, tag, historyText) : undefined
   if (sources && rulingParty) {
@@ -127,7 +136,13 @@ const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string,
       subject: c.ideology,
     }),
   )
-  return { startLines, candidates, candidateLines, groups: sources?.groups ?? {} }
+  return {
+    startLines,
+    candidates,
+    candidateLines,
+    groups: sources?.groups ?? {},
+    laws: defaults?.laws ?? {},
+  }
 }
 
 /** The definitions the effects refer to, each read from the directory it lives in. */
@@ -227,7 +242,7 @@ export const importCountryFocuses = async (
     ...f,
     effects: resolveDlcConditions(f.effects, ownedDlc),
   }))
-  const { startLines, candidates, candidateLines, groups } = await readStart(
+  const { startLines, candidates, candidateLines, groups, laws } = await readStart(
     files,
     country.tag,
     ownedDlc,
@@ -298,6 +313,7 @@ export const importCountryFocuses = async (
     return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
   }
   return {
+    laws,
     focuses: focuses.map((f) => ({
       ...f,
       name: names[f.id] ?? f.id,
