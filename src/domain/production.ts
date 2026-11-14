@@ -223,22 +223,20 @@ export interface ConsumerGoods {
 }
 
 /**
- * The civilian factories the consumer goods take. NOT VERIFIED AGAINST THE GAME: this is the
- * share wanted (`consumer_goods_expected_value`, raised by `consumer_goods_factor`) of all the
- * civilian and military factories, rounded up, but at least the defines' minimum (a number and a
- * share of the civilian factories), and never more than the civilian factories there are. This is
- * the one place to fix once it is compared with the production screen.
+ * The civilian factories the consumer goods take: the share wanted (`consumer_goods_expected_value`,
+ * raised by `consumer_goods_factor`) of the civilian factories, so 35% leaves 65% of them for
+ * construction. Rounded up (NOT VERIFIED AGAINST THE GAME), at least the defines' minimum (a
+ * number and a share of the civilian factories) and never more than the civilian factories.
  */
 export const consumerGoodsFor = (
   civ: number,
-  mil: number,
   expectedValue: number,
   factor: number,
   defines: ProductionDefines,
 ): ConsumerGoods => {
   const percent = expectedValue * (1 + factor)
   const wanted = Math.max(
-    Math.ceil(percent * (civ + mil)),
+    Math.ceil(percent * civ),
     defines.minConsumerFactories,
     Math.ceil(defines.minConsumerPercent * civ),
   )

@@ -237,13 +237,7 @@ export const scheduleConstruction = (
 
     const factors = factorsOn(day)
     const civ = totals[CIVILIAN] ?? 0
-    const goods = consumerGoodsFor(
-      civ,
-      totals[MILITARY] ?? 0,
-      factors.consumerExpected,
-      factors.consumerFactor,
-      defines,
-    )
+    const goods = consumerGoodsFor(civ, factors.consumerExpected, factors.consumerFactor, defines)
     let spare = Math.max(0, civ - goods.factories)
     const { powered } = isPowered(
       civ + (totals[MILITARY] ?? 0) + (totals[NAVAL] ?? 0),

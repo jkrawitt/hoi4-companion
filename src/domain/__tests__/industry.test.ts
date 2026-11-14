@@ -123,10 +123,10 @@ describe('industryAt', () => {
       }),
       [],
     )
-    // 0.35 * 1.4 = 0.49 of 5 + 3 factories -> ceil(3.92) = 4
-    expect(industry.consumerGoods.factories).toBe(4)
+    // 0.35 * 1.4 = 0.49 of the 5 civilian factories -> ceil(2.45) = 3
+    expect(industry.consumerGoods.factories).toBe(3)
     expect(industry.consumerGoods.percent).toBeCloseTo(0.49)
-    expect(industry.availableCivs).toBe(1)
+    expect(industry.availableCivs).toBe(2)
   })
 })
 
@@ -209,12 +209,12 @@ describe('consumerGoodsFor', () => {
   const defines = { minConsumerFactories: 1, minConsumerPercent: 0.1 }
 
   it('keeps the minimum number and share of civilian factories', () => {
-    expect(consumerGoodsFor(5, 5, 0, 0, defines).factories).toBe(1)
-    expect(consumerGoodsFor(30, 0, 0, 0, defines).factories).toBe(3)
+    expect(consumerGoodsFor(5, 0, 0, defines).factories).toBe(1)
+    expect(consumerGoodsFor(30, 0, 0, defines).factories).toBe(3)
   })
 
   it('never takes more than the civilian factories', () => {
-    expect(consumerGoodsFor(2, 20, 0.5, 0, defines).factories).toBe(2)
-    expect(consumerGoodsFor(0, 3, 0.5, 0, defines).factories).toBe(0)
+    expect(consumerGoodsFor(2, 1.5, 0, defines).factories).toBe(2)
+    expect(consumerGoodsFor(0, 0.5, 0, defines).factories).toBe(0)
   })
 })

@@ -247,7 +247,6 @@ export const industryAt = (
   const total = states.reduce((sum, s) => sum + s.slots, 0) + unplacedSlots
   const consumerGoods = consumerGoodsFor(
     count(CIVILIAN),
-    count(MILITARY),
     totalOf(state.modifierTotals, 'consumer_goods_expected_value'),
     totalOf(state.modifierTotals, 'consumer_goods_factor') +
       totalOf(techTotals, 'consumer_goods_factor'),
