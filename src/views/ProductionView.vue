@@ -62,6 +62,13 @@ const otherFactories = computed(
           <span>Consumer goods</span>
           <strong>{{ percent(industry.consumerGoods.percent) }}</strong>
           <small>{{ industry.consumerGoods.factories }} factories</small>
+          <small>
+            {{ percent(industry.consumerGoods.expected) }} from the economy law<template
+              v-if="industry.consumerGoods.stabilityFactor !== 0"
+              >, {{ percent(industry.consumerGoods.stabilityFactor) }} from
+              {{ percent(industry.consumerGoods.stability) }} stability</template
+            >
+          </small>
         </div>
         <div class="tile">
           <span>Available civilian factories</span><strong>{{ industry.availableCivs }}</strong>
@@ -72,9 +79,6 @@ const otherFactories = computed(
           <small>{{ industry.slots.free }} free</small>
         </div>
       </section>
-      <p class="muted">
-        Consumer goods are an estimate: the formula has not been checked against the game.
-      </p>
       <ul v-if="otherFactories.length > 0" class="totals">
         <li v-for="f in otherFactories" :key="f.type">{{ f.name }}: {{ f.count }}</li>
       </ul>

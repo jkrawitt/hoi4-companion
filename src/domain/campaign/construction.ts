@@ -13,7 +13,9 @@ import type {
   ConstructionSchedule,
   FocusConstruction,
   ProductionData,
+  ProductionDefines,
 } from '../production'
+import { stabilityOf } from '../production'
 import { scheduleConstruction } from '../plan/constructionPlan'
 import { techModifierTotals } from './research'
 import { placeBatches, sharedBuildings, startingRows } from './industry'
@@ -33,6 +35,7 @@ export const constructionFactors = (
   techs: Technology[],
   startDate: Date,
   researchEnds: Date[],
+  defines: ProductionDefines,
 ): ConstructionFactors[] => {
   const times = new Set<number>([startDate.getTime()])
   for (const s of finalState.snapshots) {
@@ -67,6 +70,12 @@ export const constructionFactors = (
         slotFactor: totals.get('global_building_slots_factor') ?? 0,
         consumerExpected: own.get('consumer_goods_expected_value')?.total ?? 0,
         consumerFactor: totals.get('consumer_goods_factor') ?? 0,
+        stability: stabilityOf(
+          latest?.stabilityBase ?? 0,
+          totals.get('stability_factor') ?? 0,
+          latest?.rulingPopularity ?? 0,
+          defines,
+        ),
         energyGain: totals.get('energy_gain_factor') ?? 0,
         energyConsumption: totals.get('factory_energy_consumption') ?? 0,
       }
@@ -93,7 +102,14 @@ export interface PlannedConstruction {
 export const planConstruction = (input: ConstructionPlanInput): PlannedConstruction => {
   const { production, finalState, research, techs, queue, startDate, until } = input
   const researchEnds = research.items.filter((i) => i.slot >= 0).map((i) => i.end)
-  const factors = constructionFactors(finalState, research, techs, startDate, researchEnds)
+  const factors = constructionFactors(
+    finalState,
+    research,
+    techs,
+    startDate,
+    researchEnds,
+    production.defines,
+  )
 
   // Place every build of the plan, with the slots of the day the focus plan is done.
   const shared = sharedBuildings(production)

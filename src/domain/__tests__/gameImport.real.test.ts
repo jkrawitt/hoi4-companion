@@ -326,8 +326,11 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       `states ${production.states.length}, slots ${JSON.stringify(industry.slots)}, consumer ${JSON.stringify(industry.consumerGoods)}, available civs ${industry.availableCivs}, laws ${laws.join(',')}`,
     )
     // No consumer goods factor at the 1936 start: the king's penalty idea needs a DLC.
-    expect(industry.consumerGoods).toEqual({ percent: 0.35, factories: 4 })
-    expect(industry.availableCivs).toBe(7)
+    // Checked in game: 69% stability scales the 35% down by 7.6%, and 5.8 factories become 5.
+    expect(industry.consumerGoods.stability).toBeCloseTo(0.69)
+    expect(industry.consumerGoods.percent).toBeCloseTo(0.3234)
+    expect(industry.consumerGoods.factories).toBe(5)
+    expect(industry.availableCivs).toBe(6)
   })
 
   it('schedules a civilian factory in Muntenia at the 1936 start', async () => {
@@ -381,8 +384,8 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
         `days for one civilian factory in ${muntenia.name} ${level.days}`,
     )
     expect(power.powered).toBe(true)
-    // 11 civs, 35% consumer goods takes 4 of them: 7 spare civs.
-    expect(level.civs).toBe(7)
+    // 11 civs + 7 mils, consumer goods take 5 civs: 6 spare.
+    expect(level.civs).toBe(6)
     expect(level.days).toBeGreaterThan(100)
     expect(level.days).toBeLessThan(1000)
   })

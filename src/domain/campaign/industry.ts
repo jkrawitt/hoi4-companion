@@ -11,7 +11,7 @@
  * What cannot be placed is listed in `unplaced` and still counted country-wide.
  */
 import { humanize } from '../focusEffects'
-import { consumerGoodsFor, type ConsumerGoods } from '../production'
+import { consumerGoodsFor, stabilityOf, type ConsumerGoods } from '../production'
 import type { BuiltLevel, ProductionData } from '../production'
 import type { ConstructionBatch, CountryState, StatTotal } from './types'
 
@@ -247,9 +247,16 @@ export const industryAt = (
   const total = states.reduce((sum, s) => sum + s.slots, 0) + unplacedSlots
   const consumerGoods = consumerGoodsFor(
     count(CIVILIAN),
+    count(MILITARY),
     totalOf(state.modifierTotals, 'consumer_goods_expected_value'),
     totalOf(state.modifierTotals, 'consumer_goods_factor') +
       totalOf(techTotals, 'consumer_goods_factor'),
+    stabilityOf(
+      totalOf(state.statChanges, 'add_stability'),
+      totalOf(state.modifierTotals, 'stability_factor') + totalOf(techTotals, 'stability_factor'),
+      state.popularity.find((p) => p.subject === state.government)?.total ?? 0,
+      production.defines,
+    ),
     production.defines,
   )
   return {

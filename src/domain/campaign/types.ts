@@ -84,6 +84,17 @@ export interface ConstructionBatch {
   resources: { type: string; name: string; amount: number }[]
 }
 
+/** What the country is like after a reward, for the planners that change over time. */
+export interface StateSnapshot {
+  date: Date
+  ideas: ActiveIdea[]
+  traits: EffectLine[]
+  /** The `add_stability` total so far (the start's `set_stability` plus changes). */
+  stabilityBase: number
+  /** The ruling party's popularity, as a fraction of 1. */
+  rulingPopularity: number
+}
+
 export interface CountryState {
   date: Date
   /** Focuses finished by `date`, in order. */
@@ -100,6 +111,8 @@ export interface CountryState {
   /** Popularity per ideology (the start plus changes), as a fraction of 1 like the game scripts. */
   popularity: PopularityChange[]
   rulingParty?: string
+  /** The ruling party's ideology id (`democratic`), which `popularity` entries are keyed by. */
+  government?: string
   leader?: CountryLeader
   /** The production of each resource added by completed focuses, summed. */
   resources: ResourceTotal[]
@@ -111,7 +124,7 @@ export interface CountryState {
   construction: ConstructionBatch[]
   conditional: ConditionalEffects[]
   /** The ideas and leader traits in force after each reward, to work out the modifiers on any date. */
-  snapshots: { date: Date; ideas: ActiveIdea[]; traits: EffectLine[] }[]
+  snapshots: StateSnapshot[]
   /** The dated slots, speed, bonuses and techs the research planner schedules with. */
   research: ResearchEnvironment
 }

@@ -60,6 +60,13 @@ export interface ProductionDefines {
   baseEnergyCost: number
   energyCostScaling: number
   energyCostCap: number
+  /** `BASE_STABILITY_PARTY_POPULARITY_FACTOR`: stability from the ruling party's popularity. */
+  partyPopularityStability: number
+  /**
+   * The `consumer_goods_factor` of `stability_good_modifier` (`common/modifiers`), which applies in
+   * full at 100% stability and scales down to nothing at 50%.
+   */
+  stabilityConsumerGoods: number
 }
 
 export const DEFAULT_DEFINES: ProductionDefines = {
@@ -75,6 +82,8 @@ export const DEFAULT_DEFINES: ProductionDefines = {
   baseEnergyCost: 0.25,
   energyCostScaling: 0.0225,
   energyCostCap: 6.6,
+  partyPopularityStability: 0.15,
+  stabilityConsumerGoods: -0.2,
 }
 
 /** A building queued in a state: it builds its levels one after another. */
@@ -98,6 +107,8 @@ export interface ConstructionFactors {
   /** `consumer_goods_expected_value` and `consumer_goods_factor` */
   consumerExpected: number
   consumerFactor: number
+  /** The country's stability (see `stabilityOf`), which lowers consumer goods above 50%. */
+  stability: number
   /** `energy_gain_factor` and `factory_energy_consumption` */
   energyGain: number
   energyConsumption: number
@@ -219,26 +230,67 @@ export const isValidConstructionPlan = (
 export interface ConsumerGoods {
   /** The share of the factories the country wants on consumer goods, 0.35 for 35%. */
   percent: number
+  /** The law's share before any modifier (`consumer_goods_expected_value`). */
+  expected: number
+  /** The stability the country has, 0.69 for 69%. */
+  stability: number
+  /** The `consumer_goods_factor` that stability gives, e.g. -0.076 at 69%. */
+  stabilityFactor: number
   factories: number
 }
 
 /**
- * The civilian factories the consumer goods take: the share wanted (`consumer_goods_expected_value`,
- * raised by `consumer_goods_factor`) of the civilian factories, so 35% leaves 65% of them for
- * construction. Rounded up (NOT VERIFIED AGAINST THE GAME), at least the defines' minimum (a
- * number and a share of the civilian factories) and never more than the civilian factories.
+ * A country's stability: what history and effects set (`add_stability` total), its ideas' and
+ * technologies' `stability_factor`, and a share of the ruling party's popularity. Romania in 1936:
+ * 60% + 15% x 60% democratic = 69% (checked in game). Between 0 and 1.
+ */
+export const stabilityOf = (
+  base: number,
+  stabilityFactor: number,
+  rulingPopularity: number,
+  defines: ProductionDefines,
+): number =>
+  Math.min(
+    1,
+    Math.max(0, base + stabilityFactor + rulingPopularity * defines.partyPopularityStability),
+  )
+
+/**
+ * The `consumer_goods_factor` from stability: `stability_good_modifier` scaled from nothing at 50%
+ * stability to all of it at 100%, so -20% x 0.38 = -7.6% at 69% (checked in game). Below 50% it
+ * has none.
+ */
+export const stabilityConsumerFactor = (stability: number, defines: ProductionDefines): number =>
+  stability > 0.5 ? (defines.stabilityConsumerGoods * (stability - 0.5)) / 0.5 : 0
+
+/**
+ * The civilian factories the consumer goods take: the share wanted (`consumer_goods_expected_value`)
+ * scaled by every `consumer_goods_factor` (ideas, technologies and stability) of the civilian and
+ * military factories together, rounded down: Romania in 1936 has 35% x (1 - 7.6%) = 32.3% of 18 =
+ * 5.8, and the game takes 5 (checked in game). At least the defines' minimum (a number and a share
+ * of the civilian factories, rounded up: not checked) and never more than the civilian factories.
  */
 export const consumerGoodsFor = (
   civ: number,
+  mil: number,
   expectedValue: number,
   factor: number,
+  stability: number,
   defines: ProductionDefines,
 ): ConsumerGoods => {
-  const percent = expectedValue * (1 + factor)
+  const stabilityFactor = stabilityConsumerFactor(stability, defines)
+  const percent = expectedValue * (1 + factor + stabilityFactor)
   const wanted = Math.max(
-    Math.ceil(percent * civ),
+    // The small allowance keeps a product like 0.35 x 20 = 7 from landing on 6.9999.
+    Math.floor(percent * (civ + mil) + 1e-9),
     defines.minConsumerFactories,
     Math.ceil(defines.minConsumerPercent * civ),
   )
-  return { percent, factories: Math.min(wanted, civ) }
+  return {
+    percent,
+    expected: expectedValue,
+    stability,
+    stabilityFactor,
+    factories: Math.min(wanted, civ),
+  }
 }

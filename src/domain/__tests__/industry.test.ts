@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { consumerGoodsFor, industryAt } from '../campaign/industry'
 import type { BuildingTotal, ConstructionBatch, CountryState, StatTotal } from '../campaign/types'
-import { DEFAULT_DEFINES, type ProductionData } from '../production'
+import {
+  DEFAULT_DEFINES,
+  stabilityConsumerFactor,
+  stabilityOf,
+  type ProductionData,
+} from '../production'
 
 const total = (key: string, value: number): StatTotal => ({
   key,
@@ -62,6 +67,8 @@ const batch = (extra: Partial<ConstructionBatch>): ConstructionBatch => ({
 const country = (extra: Partial<CountryState> = {}): CountryState =>
   ({
     modifierTotals: [],
+    statChanges: [],
+    popularity: [],
     buildings: [],
     buildingSlots: 0,
     construction: [],
@@ -123,7 +130,7 @@ describe('industryAt', () => {
       }),
       [],
     )
-    // 0.35 * 1.4 = 0.49 of the 5 civilian factories -> ceil(2.45) = 3
+    // 0.35 * 1.4 = 0.49 of 5 + 3 factories -> 3.92, rounded down to 3
     expect(industry.consumerGoods.factories).toBe(3)
     expect(industry.consumerGoods.percent).toBeCloseTo(0.49)
     expect(industry.availableCivs).toBe(2)
@@ -206,15 +213,31 @@ describe('placing focus builds in states', () => {
 })
 
 describe('consumerGoodsFor', () => {
+  it('matches Romania in 1936: 35% scaled down by 69% stability, of 11 civs + 7 mils', () => {
+    const stability = stabilityOf(0.6, 0, 0.6, DEFAULT_DEFINES)
+    expect(stability).toBeCloseTo(0.69)
+    expect(stabilityConsumerFactor(stability, DEFAULT_DEFINES)).toBeCloseTo(-0.076)
+    const goods = consumerGoodsFor(11, 7, 0.35, 0, stability, DEFAULT_DEFINES)
+    // 0.35 x 0.924 = 32.3% of 18 = 5.8, and the game takes 5.
+    expect(goods.percent).toBeCloseTo(0.3234)
+    expect(goods.factories).toBe(5)
+  })
+
+  it('gives no stability effect at or below 50%', () => {
+    expect(stabilityConsumerFactor(0.5, DEFAULT_DEFINES)).toBe(0)
+    expect(stabilityConsumerFactor(0.2, DEFAULT_DEFINES)).toBe(0)
+    expect(stabilityConsumerFactor(1, DEFAULT_DEFINES)).toBeCloseTo(-0.2)
+  })
+
   const defines = { minConsumerFactories: 1, minConsumerPercent: 0.1 }
 
   it('keeps the minimum number and share of civilian factories', () => {
-    expect(consumerGoodsFor(5, 0, 0, defines).factories).toBe(1)
-    expect(consumerGoodsFor(30, 0, 0, defines).factories).toBe(3)
+    expect(consumerGoodsFor(5, 5, 0, 0, 0.5, defines).factories).toBe(1)
+    expect(consumerGoodsFor(30, 0, 0, 0, 0.5, defines).factories).toBe(3)
   })
 
   it('never takes more than the civilian factories', () => {
-    expect(consumerGoodsFor(2, 1.5, 0, defines).factories).toBe(2)
-    expect(consumerGoodsFor(0, 0.5, 0, defines).factories).toBe(0)
+    expect(consumerGoodsFor(2, 20, 0.5, 0, 0.5, defines).factories).toBe(2)
+    expect(consumerGoodsFor(0, 3, 0.5, 0, 0.5, defines).factories).toBe(0)
   })
 })

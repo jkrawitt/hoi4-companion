@@ -466,11 +466,10 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
   w.doneFocuses.add(focus.id)
   totalConstruction(w, built)
   recordBatches(w, step, built)
-  recordResearchState(
-    w.research,
-    step.end,
-    w.statChanges.get('add_research_slot')?.total ?? 0,
-    [...w.ideas.values()],
-    w.leader?.traits ?? [],
-  )
+  recordResearchState(w.research, step.end, w.statChanges.get('add_research_slot')?.total ?? 0, {
+    ideas: [...w.ideas.values()],
+    traits: w.leader?.traits ?? [],
+    stabilityBase: w.statChanges.get('add_stability')?.total ?? 0,
+    rulingPopularity: (w.government && w.popularity.get(w.government)?.total) || 0,
+  })
 }

@@ -64,6 +64,7 @@ const factors = (extra: Partial<ConstructionFactors> = {}): ConstructionFactors 
   slotFactor: 0,
   consumerExpected: 0,
   consumerFactor: 0,
+  stability: 0.5,
   energyGain: 0,
   energyConsumption: 0,
   ...extra,
@@ -117,10 +118,11 @@ describe('scheduleConstruction', () => {
       ).items[0].levels
     // 10 civs, none on consumer goods: 50 a day -> 20 days, then 11 civs: 55 a day -> 19 days.
     expect(levels(0).map((l) => l.days)).toEqual([20, 19])
-    // 35%: 4 goods of 10 civs, 6 spare -> 30 a day -> 34 days; then 4 of 11, 7 spare -> 29 days.
-    expect(levels(0.35).map((l) => l.days)).toEqual([34, 29])
-    // 50%: 5 of 10 and 6 of 11, so the new civ only pays for itself: 40 days each.
-    expect(levels(0.5).map((l) => l.days)).toEqual([40, 40])
+    // 35%, rounded down: 3 goods of 10 civs, 7 spare -> 35 a day -> 29 days; then 3 of 11
+    // (3.85), 8 spare -> 25 days.
+    expect(levels(0.35).map((l) => l.days)).toEqual([29, 25])
+    // 50%: 5 of 10 and 5 of 11 (5.5): 5 spare -> 40 days, then 6 spare -> 34 days.
+    expect(levels(0.5).map((l) => l.days)).toEqual([40, 34])
   })
 
   it('waits for a free slot without holding up the items behind it', () => {

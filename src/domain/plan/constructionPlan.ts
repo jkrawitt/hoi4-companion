@@ -93,6 +93,7 @@ const noFactors = (date: Date): ConstructionFactors => ({
   slotFactor: 0,
   consumerExpected: 0,
   consumerFactor: 0,
+  stability: 0,
   energyGain: 0,
   energyConsumption: 0,
 })
@@ -237,7 +238,14 @@ export const scheduleConstruction = (
 
     const factors = factorsOn(day)
     const civ = totals[CIVILIAN] ?? 0
-    const goods = consumerGoodsFor(civ, factors.consumerExpected, factors.consumerFactor, defines)
+    const goods = consumerGoodsFor(
+      civ,
+      totals[MILITARY] ?? 0,
+      factors.consumerExpected,
+      factors.consumerFactor,
+      factors.stability,
+      defines,
+    )
     let spare = Math.max(0, civ - goods.factories)
     const { powered } = isPowered(
       civ + (totals[MILITARY] ?? 0) + (totals[NAVAL] ?? 0),

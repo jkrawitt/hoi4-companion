@@ -120,7 +120,19 @@ export const parseProductionDefines = (text: string): ProductionDefines => {
     baseEnergyCost: read('BASE_ENERGY_COST', d.baseEnergyCost),
     energyCostScaling: read('ENERGY_SCALING_COST_BY_FACTORY_COUNT', d.energyCostScaling),
     energyCostCap: read('ENERGY_COST_CAP', d.energyCostCap),
+    partyPopularityStability: read(
+      'BASE_STABILITY_PARTY_POPULARITY_FACTOR',
+      d.partyPopularityStability,
+    ),
+    stabilityConsumerGoods: d.stabilityConsumerGoods,
   }
+}
+
+/** The `consumer_goods_factor` of `stability_good_modifier` in a `common/modifiers` file. */
+export const parseStabilityConsumerGoods = (text: string): number | undefined => {
+  const block = getBlock(parseScript(text), 'stability_good_modifier')
+  const value = block ? getString(block, 'consumer_goods_factor') : undefined
+  return value !== undefined && Number.isFinite(Number(value)) ? Number(value) : undefined
 }
 
 const readAll = async (files: GameFiles, dir: string): Promise<string[]> => {
@@ -145,6 +157,7 @@ export const readProduction = async (files: GameFiles, tag: string): Promise<Pro
       return [parsed]
     })
     .sort((a, b) => a.id - b.id)
+  const defines = parseProductionDefines((await files.readText(GAME_PATHS.defines)) ?? '')
   const buildingTexts = await readAll(files, GAME_PATHS.buildings)
   return {
     states,
@@ -154,6 +167,12 @@ export const readProduction = async (files: GameFiles, tag: string): Promise<Pro
     ),
     sharedSlotBuildings: buildingTexts.flatMap(parseSharedSlotBuildings),
     buildings: buildingTexts.flatMap(parseBuildings),
-    defines: parseProductionDefines((await files.readText(GAME_PATHS.defines)) ?? ''),
+    defines: {
+      ...defines,
+      stabilityConsumerGoods:
+        parseStabilityConsumerGoods(
+          (await files.readText(`${GAME_PATHS.staticModifiers}/00_static_modifiers.txt`)) ?? '',
+        ) ?? defines.stabilityConsumerGoods,
+    },
   }
 }

@@ -103,6 +103,8 @@ const finalState = (
   ({
     date,
     modifierTotals: [],
+    statChanges: [],
+    popularity: [],
     buildings: [],
     buildingSlots: 0,
     construction,
@@ -116,11 +118,13 @@ describe('constructionFactors', () => {
       until: day(40),
     }
     const snapshots = [
-      { date: begin, ideas: [timed], traits: [] },
+      { date: begin, ideas: [timed], traits: [], stabilityBase: 0.6, rulingPopularity: 0.6 },
       {
         date: day(20),
         ideas: [timed, idea('slots', [line('global_building_slots_factor', 0.1)])],
         traits: [],
+        stabilityBase: 0.6,
+        rulingPopularity: 0.6,
       },
     ]
     const techs = [
@@ -135,11 +139,14 @@ describe('constructionFactors', () => {
       techs,
       begin,
       [day(30)],
+      DEFAULT_DEFINES,
     )
     expect(result.map((f) => f.date)).toEqual([begin, day(20), day(30), day(40)])
     expect(result.map((f) => f.buildingsSpeed)).toEqual([0.2, 0.2, 0.2 + 0.1, 0.1])
     expect(result.map((f) => f.slotFactor)).toEqual([0, 0.1, 0.1, 0.1])
     expect(result[2].buildingSpeed).toEqual({ arms_factory: 0.05 })
+    // 60% stability plus 15% of the ruling party's 60%: 69%.
+    expect(result[0].stability).toBeCloseTo(0.69)
   })
 })
 
@@ -151,7 +158,10 @@ describe('planConstruction', () => {
   const planned = (queue = [{ building: 'arms_factory', state: 1, levels: 1 }]) =>
     planConstruction({
       production,
-      finalState: finalState([{ date: begin, ideas: [], traits: [] }], batches),
+      finalState: finalState(
+        [{ date: begin, ideas: [], traits: [], stabilityBase: 0, rulingPopularity: 0 }],
+        batches,
+      ),
       research: researchDone({}),
       techs: [],
       queue,
