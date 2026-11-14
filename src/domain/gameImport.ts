@@ -35,6 +35,8 @@ import { parseStaticModifiers } from './parsers/staticModifiers'
 import { parseEventTitles } from './parsers/events'
 import { parseStartingLines } from './parsers/countryStart'
 import { readTechnologies } from './parsers/technologies'
+import { readProduction } from './parsers/states'
+import { defaultLawLines, mergeLawCategories, parseLawCategories } from './parsers/laws'
 import {
   parseIdeologyGroups,
   parseLeaderRoles,
@@ -79,6 +81,19 @@ const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
     ),
   )
 
+/** The start's `add_ideas` for the laws the history does not set; see `defaultLawLines`. */
+const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
+  const texts = await Promise.all(
+    (await files.listFiles(GAME_PATHS.ideas))
+      .filter((file) => file.endsWith('.txt'))
+      .map((file) => files.readText(`${GAME_PATHS.ideas}/${file}`)),
+  )
+  const categories = mergeLawCategories(
+    texts.flatMap((text) => (text?.includes('law = yes') ? [parseLawCategories(text)] : [])),
+  )
+  return defaultLawLines(categories, startLines)
+}
+
 /**
  * How the country starts the game, as effect lines (with the starting leader added), and the
  * characters who could lead it later, as `promote_character` lines in the order the game would
@@ -87,6 +102,7 @@ const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
 const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
   const historyText = await readCountryHistoryText(files, tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
+  if (historyText) startLines.push(...(await readDefaultLaws(files, startLines)))
   const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
   const sources = historyText ? await readLeaderSources(files, tag, historyText) : undefined
   if (sources && rulingParty) {
@@ -229,6 +245,7 @@ export const importCountryFocuses = async (
   const candidatesListed = listed(candidateLines)
   // The tech tree: its folders, and the stats of each tech, which are named like any other line.
   const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
+  const production = await readProduction(files, country.tag)
   const lists = [
     ...focuses.map((f) => f.effects),
     start,
@@ -250,6 +267,7 @@ export const importCountryFocuses = async (
       ...Object.values(context.eventTitles),
       ...Object.values(context.factionNames),
       ...focuses.flatMap((f) => [f.id, `${f.id}_desc`]),
+      ...production.states.map((s) => s.name),
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
       ...Object.values(fallbackNames).flat(),
@@ -290,6 +308,10 @@ export const importCountryFocuses = async (
     leaders: {
       candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
       groups,
+    },
+    production: {
+      ...production,
+      states: production.states.map((s) => ({ ...s, name: names[s.name] ?? humanize(s.name) })),
     },
     research: {
       ...research,

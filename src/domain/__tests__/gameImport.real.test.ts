@@ -6,6 +6,8 @@ import { ownedDlc } from '../../data/dlc'
 import { statOverrides } from '../../data/statOverrides'
 import { effectTone, formatEffect } from '../focusEffects'
 import { importCountryFocuses } from '../gameImport'
+import { countryStateAt } from '../campaign/countryState'
+import { industryAt } from '../campaign/industry'
 
 // Runs against a real install only when HOI4_DIR is set, e.g.
 //   HOI4_DIR="/path/to/Hearts of Iron IV" npm run test
@@ -283,5 +285,45 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     console.log(`grid ${Math.max(...pos.map((p) => p.x))} x ${Math.max(...pos.map((p) => p.y))}`)
     const named = focuses.filter((f) => f.name !== f.id).length
     console.log(`${focuses.length} focuses, ${named} with names`)
+  })
+
+  it('imports the production data', async () => {
+    const { production, start } = await importRomania()
+    const sum = (type: string) =>
+      production.states.reduce((n, s) => n + (s.buildings[type] ?? 0), 0)
+    expect(production.states).toHaveLength(12)
+    expect([sum('industrial_complex'), sum('arms_factory'), sum('dockyard')]).toEqual([11, 7, 2])
+    expect(production.states.find((s) => s.id === 46)?.name).toBe('Muntenia')
+    expect(production.categorySlots.city).toBe(6)
+    expect(production.sharedSlotBuildings).toEqual(
+      expect.arrayContaining(['arms_factory', 'industrial_complex', 'dockyard']),
+    )
+    // The default laws are added to the start, with their modifiers listed.
+    const laws = start.filter((l) => l.key === 'add_ideas' && l.value).map((l) => l.value)
+    expect(laws).toEqual(
+      expect.arrayContaining(['civilian_economy', 'export_focus', 'volunteer_only']),
+    )
+    const economy = start.findIndex((l) => l.value === 'civilian_economy')
+    expect(start[economy + 1].key).toBe('consumer_goods_expected_value')
+
+    const industry = industryAt(
+      production,
+      countryStateAt(
+        { items: [], finish: new Date(Date.UTC(1936, 0, 1)) } as never,
+        new Date(Date.UTC(1936, 0, 1)),
+        {
+          start,
+          startDate: new Date(Date.UTC(1936, 0, 1)),
+          tag: 'ROM',
+        },
+      ),
+      [],
+    )
+    console.log(
+      `states ${production.states.length}, slots ${JSON.stringify(industry.slots)}, consumer ${JSON.stringify(industry.consumerGoods)}, available civs ${industry.availableCivs}, laws ${laws.join(',')}`,
+    )
+    // No consumer goods factor at the 1936 start: the king's penalty idea needs a DLC.
+    expect(industry.consumerGoods).toEqual({ percent: 0.35, factories: 7 })
+    expect(industry.availableCivs).toBe(4)
   })
 })

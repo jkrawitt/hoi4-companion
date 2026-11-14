@@ -31,6 +31,10 @@ export const GAME_PATHS = {
   defines: 'common/defines/00_defines.lua',
   /** The research screen, which places each folder's sub-trees (`<root tech>_tree` grid boxes). */
   techTreeLayout: 'interface/countrytechtreeview.gui',
+  /** The states of the 1936 map, their categories (building slots) and the buildings sharing slots. */
+  states: 'history/states',
+  stateCategories: 'common/state_category',
+  buildings: 'common/buildings',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',

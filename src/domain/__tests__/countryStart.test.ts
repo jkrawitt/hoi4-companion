@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseStartingLines } from '../parsers/countryStart'
+import { defaultLawLines } from '../parsers/laws'
 
 const text = `
 capital = 46
@@ -50,5 +51,25 @@ describe('parseStartingLines', () => {
       { kind: 'unlock', targets: ['infantry_weapons', 'tech_support'] },
       { kind: 'unlock', targets: ['air_new'] },
     ])
+  })
+})
+
+describe('defaultLawLines', () => {
+  const categories = {
+    economy: { ideas: ['civilian_economy', 'war_economy'], default: 'civilian_economy' },
+    trade_laws: { ideas: ['export_focus', 'free_trade'], default: 'export_focus' },
+  }
+
+  it('adds the default idea of each law category the start does not set', () => {
+    const lines = defaultLawLines(categories, parseStartingLines('set_stability = 0.5'))
+    expect(lines.map((l) => [l.key, l.value])).toEqual([
+      ['add_ideas', 'civilian_economy'],
+      ['add_ideas', 'export_focus'],
+    ])
+  })
+
+  it('leaves a category alone when the history adds one of its ideas', () => {
+    const start = parseStartingLines('add_ideas = war_economy\nadd_ideas = { other free_trade }')
+    expect(defaultLawLines(categories, start)).toEqual([])
   })
 })

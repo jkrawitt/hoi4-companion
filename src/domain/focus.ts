@@ -1,6 +1,7 @@
 /** HoI4 focus cost is in weeks; one week is 7 days. */
 export const DAYS_PER_WEEK = 7
 
+import type { ProductionData } from './production'
 import type { ResearchData } from './research'
 import type { StatDefinition } from './stats'
 
@@ -148,4 +149,6 @@ export interface ImportedCountry {
   leaders: LeaderData
   /** The technologies, folders and research numbers, which are the same for every country. */
   research: ResearchData
+  /** The states the country owns at the start and what decides their slots; see `production.ts`. */
+  production: ProductionData
 }

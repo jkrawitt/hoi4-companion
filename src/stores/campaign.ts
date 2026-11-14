@@ -10,6 +10,8 @@ import { countries } from '@/data/countries'
 import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { planResearch, researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
+import { industryAt } from '@/domain/campaign/industry'
+import type { ProductionData } from '@/domain/production'
 import type { BonusRef, ResearchData, ResearchItem } from '@/domain/research'
 import { addDays } from '@/domain/plan/focusPlan'
 import {
@@ -73,6 +75,8 @@ const createCampaign = () => {
   const leaders = ref<LeaderData | undefined>()
   /** The technologies, folders and research numbers from the game. */
   const research = shallowRef<ResearchData | undefined>()
+  /** The states the country owns at the start and what decides their building slots. */
+  const production = shallowRef<ProductionData | undefined>()
   const techs = computed(() =>
     Object.fromEntries((research.value?.techs ?? []).map((t) => [t.id, t])),
   )
@@ -104,10 +108,12 @@ const createCampaign = () => {
     start: startLines,
     leaders: leaderData,
     research: researchData,
+    production: productionData,
   }: ImportedCountry) => {
     start.value = startLines
     leaders.value = leaderData
     research.value = researchData
+    production.value = productionData
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
@@ -128,6 +134,7 @@ const createCampaign = () => {
     start.value = []
     leaders.value = undefined
     research.value = undefined
+    production.value = undefined
     plan.value = []
     researchPlan.value = []
     error.value = ''
@@ -289,6 +296,11 @@ const createCampaign = () => {
     }),
   )
 
+  /** The factories, slots and consumer goods on the viewed date. */
+  const industry = computed(() =>
+    production.value ? industryAt(production.value, state.value, researchTotals.value) : undefined,
+  )
+
   watch([countryTag, plan, researchPlan, startDate, speedBonusPercent, viewDate], () =>
     save({
       version: STORAGE_VERSION,
@@ -307,6 +319,8 @@ const createCampaign = () => {
     focuses,
     hasData,
     research,
+    production,
+    industry,
     startTechs,
     status,
     error,
