@@ -17,6 +17,7 @@ const draft = defineModel<ConstructionDraft>('draft', { required: true })
 const router = useRouter()
 const {
   production,
+  industry,
   viewDate,
   constructionPlan,
   constructionSchedule,
@@ -32,6 +33,37 @@ const ISSUES: Record<ConstructionIssue, string> = {
   'unknown-building': 'Not found in the game data.',
   'unknown-state': 'The country does not own this state.',
 }
+
+/**
+ * The states for the add row: best infrastructure first (it builds faster there), then by name,
+ * with the states whose building slots are all taken or promised moved to the bottom and greyed.
+ * Full is judged on the viewed date: the slots there, minus what is built and what the queue
+ * still has to build in the state. A full state can still take buildings that use no slot.
+ */
+const stateOptions = computed(() => {
+  const shared = new Set(production.value?.buildings.filter((b) => b.sharesSlots).map((b) => b.id))
+  const viewed = new Date(viewDate.value).getTime()
+  const pending = new Map<number, number>()
+  for (const item of constructionSchedule.value?.items ?? []) {
+    if (!shared.has(item.item.building)) continue
+    const done = item.levels.filter((l) => l.end.getTime() <= viewed).length
+    pending.set(item.item.state, (pending.get(item.item.state) ?? 0) + item.item.levels - done)
+  }
+  return (industry.value?.states ?? [])
+    .map((s) => ({
+      id: s.id,
+      name: s.name,
+      infrastructure: s.infrastructure,
+      free: s.slots - s.used - (pending.get(s.id) ?? 0),
+    }))
+    .map((s) => ({ ...s, full: s.free <= 0 }))
+    .sort(
+      (a, b) =>
+        Number(a.full) - Number(b.full) ||
+        b.infrastructure - a.infrastructure ||
+        a.name.localeCompare(b.name),
+    )
+})
 
 /** The buildings with room left in the chosen state. */
 const buildingOptions = computed(() =>
@@ -108,7 +140,16 @@ const showOnOverview = (end: Date) => {
       <label>
         State
         <select v-model.number="draft.state">
-          <option v-for="s in production.states" :key="s.id" :value="s.id">{{ s.name }}</option>
+          <option
+            v-for="s in stateOptions"
+            :key="s.id"
+            :value="s.id"
+            :class="{ full: s.full }"
+            :title="s.full ? 'No free building slots; only buildings that use none' : undefined"
+          >
+            {{ s.name }} (infra {{ s.infrastructure }},
+            {{ s.full ? 'full' : `${s.free} free slot${s.free === 1 ? '' : 's'}` }})
+          </option>
         </select>
       </label>
       <label>
@@ -239,5 +280,8 @@ td {
 }
 button {
   margin-right: 0.25rem;
+}
+option.full {
+  color: #999;
 }
 </style>
