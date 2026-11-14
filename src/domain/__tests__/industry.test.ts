@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { consumerGoodsFor, industryAt } from '../campaign/industry'
 import type { BuildingTotal, ConstructionBatch, CountryState, StatTotal } from '../campaign/types'
-import type { ProductionData } from '../production'
+import { DEFAULT_DEFINES, type ProductionData } from '../production'
 
 const total = (key: string, value: number): StatTotal => ({
   key,
@@ -30,7 +30,8 @@ const production: ProductionData = {
   ],
   categorySlots: { city: 6, rural: 3 },
   sharedSlotBuildings: ['arms_factory', 'industrial_complex', 'dockyard'],
-  defines: { minConsumerFactories: 1, minConsumerPercent: 0.1 },
+  buildings: [],
+  defines: { ...DEFAULT_DEFINES, minConsumerFactories: 1, minConsumerPercent: 0.1 },
 }
 
 const building = (type: string, n: number, instant: boolean): BuildingTotal => ({

@@ -110,6 +110,8 @@ export interface CountryState {
   /** The same builds block by block, in order, for placing them in states. */
   construction: ConstructionBatch[]
   conditional: ConditionalEffects[]
+  /** The ideas and leader traits in force after each reward, to work out the modifiers on any date. */
+  snapshots: { date: Date; ideas: ActiveIdea[]; traits: EffectLine[] }[]
   /** The dated slots, speed, bonuses and techs the research planner schedules with. */
   research: ResearchEnvironment
 }

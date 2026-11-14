@@ -4,10 +4,14 @@
  * slots (`common/buildings`) and the consumer goods defines.
  */
 import { GAME_PATHS, type GameFiles } from '../gameFiles'
-import type { ProductionData, ProductionDefines, StateData } from '../production'
+import {
+  DEFAULT_DEFINES,
+  type BuildingData,
+  type ProductionData,
+  type ProductionDefines,
+  type StateData,
+} from '../production'
 import { getBlock, getString, parseScript, type ScriptBlock } from './paradoxScript'
-
-const DEFAULT_DEFINES: ProductionDefines = { minConsumerFactories: 1, minConsumerPercent: 0.1 }
 
 const numbersOf = (block: ScriptBlock | undefined): Record<string, number> =>
   Object.fromEntries(
@@ -66,21 +70,56 @@ export const parseSharedSlotBuildings = (text: string): string[] => {
   return found
 }
 
-/** The consumer goods minimums from `NProduction`, by regex like the research defines. */
+/**
+ * The buildings of a `common/buildings` file that sit in a state (a `state_max` and no
+ * `province_max`), with their cost and caps. The name is the id until the importer names it.
+ */
+export const parseBuildings = (text: string): BuildingData[] =>
+  (getBlock(parseScript(text), 'buildings') ?? []).flatMap((e) => {
+    if (typeof e.value !== 'object' || e.key === null) return []
+    const cap = getBlock(e.value, 'level_cap') ?? []
+    const stateMax = Number(getString(cap, 'state_max'))
+    const cost = Number(getString(e.value, 'base_cost'))
+    if (getString(cap, 'province_max') != null || !Number.isFinite(stateMax)) return []
+    if (!Number.isFinite(cost)) return []
+    return [
+      {
+        id: e.key,
+        name: e.key,
+        cost,
+        stateMax,
+        sharesSlots: getString(cap, 'shares_slots') === 'yes',
+        infraEffect: getString(e.value, 'infrastructure_construction_effect') === 'yes',
+      },
+    ]
+  })
+
+/** The `NProduction` numbers production needs, by regex like the research defines. */
 export const parseProductionDefines = (text: string): ProductionDefines => {
+  const d = DEFAULT_DEFINES
   const read = (name: string, fallback: number) => {
-    const found = new RegExp(`${name}\\s*=\\s*(-?[\\d.]+)`).exec(text)
+    const found = new RegExp(`\\b${name}\\s*=\\s*(-?[\\d.]+)`).exec(text)
     return found && Number.isFinite(Number(found[1])) ? Number(found[1]) : fallback
   }
   return {
     minConsumerFactories: read(
       'MINIMUM_NUMBER_OF_FACTORIES_TAKEN_BY_CONSUMER_GOODS_VALUE',
-      DEFAULT_DEFINES.minConsumerFactories,
+      d.minConsumerFactories,
     ),
     minConsumerPercent: read(
       'MINIMUM_NUMBER_OF_FACTORIES_TAKEN_BY_CONSUMER_GOODS_PERCENT',
-      DEFAULT_DEFINES.minConsumerPercent,
+      d.minConsumerPercent,
     ),
+    maxCivsPerProject: read('MAX_CIV_FACTORIES_PER_LINE', d.maxCivsPerProject),
+    baseFactorySpeed: read('BASE_FACTORY_SPEED', d.baseFactorySpeed),
+    poweredFactorySpeed: read('POWERED_FACTORY_SPEED', d.poweredFactorySpeed),
+    infraEffect: read('INFRA_MAX_CONSTRUCTION_COST_EFFECT', d.infraEffect),
+    energyResource: /\bENERGY_RESOURCE\s*=\s*"([^"]+)"/.exec(text)?.[1] ?? d.energyResource,
+    baseEnergy: read('BASE_COUNTRY_ENERGY_PRODUCTION', d.baseEnergy),
+    energyPerResource: read('RESOURCE_TO_ENERGY_COEFFICIENT', d.energyPerResource),
+    baseEnergyCost: read('BASE_ENERGY_COST', d.baseEnergyCost),
+    energyCostScaling: read('ENERGY_SCALING_COST_BY_FACTORY_COUNT', d.energyCostScaling),
+    energyCostCap: read('ENERGY_COST_CAP', d.energyCostCap),
   }
 }
 
@@ -106,15 +145,15 @@ export const readProduction = async (files: GameFiles, tag: string): Promise<Pro
       return [parsed]
     })
     .sort((a, b) => a.id - b.id)
+  const buildingTexts = await readAll(files, GAME_PATHS.buildings)
   return {
     states,
     categorySlots: Object.assign(
       {},
       ...(await readAll(files, GAME_PATHS.stateCategories)).map(parseStateCategories),
     ),
-    sharedSlotBuildings: (await readAll(files, GAME_PATHS.buildings)).flatMap(
-      parseSharedSlotBuildings,
-    ),
+    sharedSlotBuildings: buildingTexts.flatMap(parseSharedSlotBuildings),
+    buildings: buildingTexts.flatMap(parseBuildings),
     defines: parseProductionDefines((await files.readText(GAME_PATHS.defines)) ?? ''),
   }
 }

@@ -8,6 +8,9 @@ import { effectTone, formatEffect } from '../focusEffects'
 import { importCountryFocuses } from '../gameImport'
 import { countryStateAt } from '../campaign/countryState'
 import { industryAt } from '../campaign/industry'
+import { planConstruction } from '../campaign/construction'
+import { planResearch } from '../campaign/research'
+import { isPowered } from '../plan/constructionPlan'
 
 // Runs against a real install only when HOI4_DIR is set, e.g.
 //   HOI4_DIR="/path/to/Hearts of Iron IV" npm run test
@@ -325,5 +328,62 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     // No consumer goods factor at the 1936 start: the king's penalty idea needs a DLC.
     expect(industry.consumerGoods).toEqual({ percent: 0.35, factories: 7 })
     expect(industry.availableCivs).toBe(4)
+  })
+
+  it('schedules a civilian factory in Muntenia at the 1936 start', async () => {
+    const { production, start, research } = await importRomania()
+    expect(production.buildings.map((b) => b.id)).toEqual(
+      expect.arrayContaining(['industrial_complex', 'arms_factory', 'infrastructure']),
+    )
+    const civ = production.buildings.find((b) => b.id === 'industrial_complex')
+    expect(civ).toMatchObject({ cost: 10800, stateMax: 20, sharesSlots: true, infraEffect: true })
+    expect(production.defines).toMatchObject({
+      maxCivsPerProject: 15,
+      baseFactorySpeed: 4,
+      poweredFactorySpeed: 5,
+      energyResource: 'coal',
+    })
+
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const focusSchedule = { items: [], finish: startDate, totalDays: 0 }
+    const options = { start, startDate, tag: 'ROM' }
+    const finalState = countryStateAt(focusSchedule, startDate, options)
+    const planned = planResearch({
+      focusSchedule,
+      options,
+      queue: [],
+      data: research,
+      startDate,
+      until: new Date(Date.UTC(1937, 0, 1)),
+    })
+    const muntenia = production.states.find((s) => s.id === 46)!
+    const { schedule, environment } = planConstruction({
+      production,
+      finalState,
+      research: planned.schedule,
+      techs: research.techs,
+      queue: [{ building: 'industrial_complex', state: muntenia.id, levels: 1 }],
+      startDate,
+      until: new Date(Date.UTC(1940, 0, 1)),
+    })
+
+    const factors = environment.factors[0]
+    const civs = production.states.reduce((n, s) => n + (s.buildings.industrial_complex ?? 0), 0)
+    const mils = production.states.reduce((n, s) => n + (s.buildings.arms_factory ?? 0), 0)
+    const docks = production.states.reduce((n, s) => n + (s.buildings.dockyard ?? 0), 0)
+    const coal = production.states.reduce((n, s) => n + (s.resources.coal ?? 0), 0)
+    const power = isPowered(civs + mils + docks, coal, factors, production.defines)
+    const level = schedule.items[0].levels[0]
+    const perCiv = power.powered ? 5 : 4
+    console.log(
+      `civ output/day ${level.civs * perCiv} (${level.civs} civs x ${perCiv}), powered ${power.powered}, ` +
+        `energy produced ${power.produced} used ${power.used.toFixed(2)}, coal ${coal}, factors ${JSON.stringify(factors)}, ` +
+        `days for one civilian factory in ${muntenia.name} ${level.days}`,
+    )
+    expect(power.powered).toBe(true)
+    // 11 civs, 35% consumer goods takes 7: 4 spare civs.
+    expect(level.civs).toBe(4)
+    expect(level.days).toBeGreaterThan(100)
+    expect(level.days).toBeLessThan(1000)
   })
 })

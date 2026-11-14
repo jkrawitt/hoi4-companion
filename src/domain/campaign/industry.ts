@@ -11,8 +11,12 @@
  * What cannot be placed is listed in `unplaced` and still counted country-wide.
  */
 import { humanize } from '../focusEffects'
-import type { ProductionData, ProductionDefines } from '../production'
+import { consumerGoodsFor, type ConsumerGoods } from '../production'
+import type { BuiltLevel, ProductionData } from '../production'
 import type { ConstructionBatch, CountryState, StatTotal } from './types'
+
+export { consumerGoodsFor }
+export type { ConsumerGoods }
 
 export interface FactoryCount {
   type: string
@@ -52,12 +56,6 @@ export interface UnplacedBatch {
   text: string
 }
 
-export interface ConsumerGoods {
-  /** The share of the factories the country wants on consumer goods, 0.35 for 35%. */
-  percent: number
-  factories: number
-}
-
 export interface Industry {
   /** Civilian, military and naval factories first, then any other building that shares slots. */
   factories: FactoryCount[]
@@ -84,29 +82,6 @@ const FACTORY_NAMES: Record<string, string> = {
 
 const totalOf = (totals: StatTotal[], key: string) => totals.find((t) => t.key === key)?.total ?? 0
 
-/**
- * The civilian factories the consumer goods take. NOT VERIFIED AGAINST THE GAME: this is the
- * share wanted (`consumer_goods_expected_value`, raised by `consumer_goods_factor`) of all the
- * civilian and military factories, rounded up, but at least the defines' minimum (a number and a
- * share of the civilian factories), and never more than the civilian factories there are. This is
- * the one place to fix once it is compared with the production screen.
- */
-export const consumerGoodsFor = (
-  civ: number,
-  mil: number,
-  expectedValue: number,
-  factor: number,
-  defines: ProductionDefines,
-): ConsumerGoods => {
-  const percent = expectedValue * (1 + factor)
-  const wanted = Math.max(
-    Math.ceil(percent * (civ + mil)),
-    defines.minConsumerFactories,
-    Math.ceil(defines.minConsumerPercent * civ),
-  )
-  return { percent, factories: Math.min(wanted, civ) }
-}
-
 const noteOf = (batch: ConstructionBatch): string =>
   [
     ...batch.buildings.map((b) =>
@@ -125,12 +100,18 @@ const noteOf = (batch: ConstructionBatch): string =>
  * The slots are those of the viewed date; the game decides with the slots of the completion date,
  * which can differ. Only instant builds count as built in a row; queued ones are listed.
  */
-const placeBatches = (rows: StateRow[], batches: ConstructionBatch[], shared: Set<string>) => {
+export const placeBatches = (
+  rows: StateRow[],
+  batches: ConstructionBatch[],
+  shared: Set<string>,
+) => {
   // Slots taken by queued builds, so later batches see them as occupied.
   const reserved = new Map<number, number>()
   const free = (r: StateRow) => r.slots - r.used - (reserved.get(r.id) ?? 0)
   const queued: QueuedBuild[] = []
   const unplaced: UnplacedBatch[] = []
+  /** The state each batch went to (none when it fits no state), in the order of `batches`. */
+  const placements: { batch: ConstructionBatch; stateId?: number; guessed: boolean }[] = []
   let unplacedSlots = 0
 
   for (const batch of batches) {
@@ -148,6 +129,7 @@ const placeBatches = (rows: StateRow[], batches: ConstructionBatch[], shared: Se
         row = pool.reduce((best, r) => (free(r) > free(best) ? r : best))
       }
     }
+    placements.push({ batch, stateId: row?.id, guessed })
     if (!row) {
       const text = noteOf(batch)
       if (text) unplaced.push({ focusName: batch.focusName, text })
@@ -182,20 +164,16 @@ const placeBatches = (rows: StateRow[], batches: ConstructionBatch[], shared: Se
     const text = noteOf(batch)
     if (text) row.fromFocuses.push({ focusName: batch.focusName, text, guessed })
   }
-  return { queued, unplaced, unplacedSlots }
+  return { queued, unplaced, unplacedSlots, placements }
 }
 
-export const industryAt = (
+/** The states as they start the game, with the slots the slot factor gives them. */
+export const startingRows = (
   production: ProductionData,
-  state: CountryState,
-  techTotals: StatTotal[],
-): Industry => {
-  const shared = new Set([CIVILIAN, MILITARY, NAVAL, ...production.sharedSlotBuildings])
-  const slotFactor =
-    totalOf(state.modifierTotals, 'global_building_slots_factor') +
-    totalOf(techTotals, 'global_building_slots_factor')
-
-  const states = production.states.map((s): StateRow => {
+  shared: Set<string>,
+  slotFactor: number,
+): StateRow[] =>
+  production.states.map((s): StateRow => {
     const used = Object.entries(s.buildings).reduce(
       (sum, [type, n]) => sum + (shared.has(type) ? n : 0),
       0,
@@ -215,7 +193,34 @@ export const industryAt = (
     }
   })
 
+export const sharedBuildings = (production: ProductionData) =>
+  new Set([CIVILIAN, MILITARY, NAVAL, ...production.sharedSlotBuildings])
+
+export const industryAt = (
+  production: ProductionData,
+  state: CountryState,
+  techTotals: StatTotal[],
+  /** The levels the construction queue finished; those by the state's date count as built. */
+  built: BuiltLevel[] = [],
+): Industry => {
+  const shared = sharedBuildings(production)
+  const slotFactor =
+    totalOf(state.modifierTotals, 'global_building_slots_factor') +
+    totalOf(techTotals, 'global_building_slots_factor')
+
+  const states = startingRows(production, shared, slotFactor)
+
   const { queued, unplaced, unplacedSlots } = placeBatches(states, state.construction, shared)
+  const done = built.filter((b) => b.date <= state.date)
+  for (const b of done) {
+    const row = states.find((r) => r.id === b.state)
+    if (!row) continue
+    if (shared.has(b.building)) row.used++
+    if (b.building === CIVILIAN) row.civ++
+    else if (b.building === MILITARY) row.mil++
+    else if (b.building === NAVAL) row.dock++
+    else if (b.building === 'infrastructure') row.infrastructure++
+  }
 
   const counts = new Map<string, FactoryCount>(
     [CIVILIAN, MILITARY, NAVAL].map((type) => [
@@ -233,6 +238,9 @@ export const industryAt = (
     for (const [type, n] of Object.entries(s.buildings)) add(type, n)
   }
   for (const b of state.buildings) if (b.instant) add(b.type, b.total, b.name)
+  for (const b of done) {
+    add(b.building, 1, production.buildings.find((d) => d.id === b.building)?.name)
+  }
 
   const count = (type: string) => counts.get(type)?.count ?? 0
   const used = [...counts.values()].reduce((sum, f) => sum + f.count, 0)

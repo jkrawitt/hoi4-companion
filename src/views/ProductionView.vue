@@ -1,11 +1,22 @@
 <script setup lang="ts">
 /** The factories of the country at the chosen date: summary tiles and the states they sit in. */
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import ConstructionQueue, {
+  type ConstructionDraft,
+} from '@/components/production/ConstructionQueue.vue'
 import GameDataImport from '@/components/GameDataImport.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
 import { useCampaign } from '@/stores/campaign'
 
 const { country, hasData, production, industry } = useCampaign()
+
+/** The queue's add row; a state row's `+` fills in its state. */
+const draft = ref<ConstructionDraft>({
+  state: production.value?.states[0]?.id ?? 0,
+  building: 'industrial_complex',
+  levels: 1,
+})
+const queueFor = (state: number) => (draft.value = { ...draft.value, state })
 
 const count = (type: string) => industry.value?.factories.find((f) => f.type === type)?.count ?? 0
 const percent = (n: number) => `${Math.round(n * 1000) / 10}%`
@@ -32,8 +43,8 @@ const otherFactories = computed(
 
     <template v-else>
       <p class="muted">
-        The factories the country starts with, plus the ones built instantly by your focus plan,
-        placed in the states they are built in.
+        The factories the country starts with, plus the ones built by your focus plan and the
+        construction queue below, placed in the states they are built in.
       </p>
       <DateScrubber />
 
@@ -82,6 +93,7 @@ const otherFactories = computed(
               <th>Dock</th>
               <th>Resources</th>
               <th>From focuses</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -102,6 +114,9 @@ const otherFactories = computed(
                   </li>
                 </ul>
               </td>
+              <td>
+                <button title="Queue a building in this state" @click="queueFor(s.id)">+</button>
+              </td>
             </tr>
           </tbody>
         </table>
@@ -111,20 +126,8 @@ const otherFactories = computed(
             <li v-for="(u, i) in industry.unplaced" :key="i">{{ u.focusName }}: {{ u.text }}</li>
           </ul>
         </template>
-        <template v-if="industry.queued.length > 0">
-          <p class="muted">Queued by focuses (not counted above):</p>
-          <ul class="totals">
-            <li v-for="(b, i) in industry.queued" :key="i">
-              {{ b.name }}: +{{ b.level }}
-              <template v-if="b.stateName">
-                in {{ b.stateName }}
-                <span v-if="b.guessed" class="muted">(game picks; guessed)</span>
-              </template>
-              ({{ b.focusName }})
-            </li>
-          </ul>
-        </template>
       </section>
+      <ConstructionQueue v-model:draft="draft" />
     </template>
   </div>
 </template>

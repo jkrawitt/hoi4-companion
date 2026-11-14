@@ -74,6 +74,7 @@ export const countryStateAt = (
     buildingSlots: w.buildingSlots,
     construction: w.construction,
     conditional: w.conditional,
+    snapshots: w.research.snapshots,
     research: researchEnvironment(w.research),
   }
 }

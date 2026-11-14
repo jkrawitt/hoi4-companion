@@ -283,6 +283,7 @@ export const importCountryFocuses = async (
       ...Object.values(context.factionNames),
       ...focuses.flatMap((f) => [f.id, `${f.id}_desc`]),
       ...production.states.map((s) => s.name),
+      ...production.buildings.map((b) => b.id),
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
       ...Object.values(fallbackNames).flat(),
@@ -328,6 +329,7 @@ export const importCountryFocuses = async (
     production: {
       ...production,
       states: production.states.map((s) => ({ ...s, name: names[s.name] ?? humanize(s.name) })),
+      buildings: production.buildings.map((b) => ({ ...b, name: names[b.id] ?? humanize(b.id) })),
     },
     research: {
       ...research,
