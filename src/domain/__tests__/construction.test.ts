@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import { constructionFactors, planConstruction } from '../campaign/construction'
 import { industryAt } from '../campaign/industry'
 import type { ActiveIdea, ConstructionBatch, CountryState } from '../campaign/types'
@@ -7,7 +8,7 @@ import { DEFAULT_DEFINES, type ProductionData } from '../production'
 import type { ResearchSchedule, ScheduledResearch, Technology } from '../research'
 
 const begin = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(begin.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(begin, n)
 
 const line = (key: string, value: number): EffectLine =>
   ({

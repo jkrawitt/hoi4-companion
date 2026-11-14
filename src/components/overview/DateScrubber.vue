@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /** Chooses the date the overview shows: a date field, a slider with a tick per completed focus. */
 import { computed } from 'vue'
+import { addDays, daysBetween } from '@/domain/calendar'
 import { completionDay, formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 const { schedule, planEnd, startDate, viewDate, state } = useCampaign()
 
 const start = computed(() => parseDate(startDate.value))
@@ -11,22 +11,18 @@ const completionDays = computed(() => schedule.value.items.map((item) => complet
 // The slider runs to the end of the plan: the last focus or the last research, whichever is later.
 const lastDay = computed(() => completionDay(planEnd.value))
 const span = computed(() =>
-  Math.max(
-    1,
-    Math.round((parseDate(lastDay.value).getTime() - start.value.getTime()) / MS_PER_DAY),
-  ),
+  Math.max(1, Math.round(daysBetween(start.value, parseDate(lastDay.value)))),
 )
 
 const offset = computed({
-  get: () => Math.round((parseDate(viewDate.value).getTime() - start.value.getTime()) / MS_PER_DAY),
-  set: (days: number) =>
-    (viewDate.value = formatDate(new Date(start.value.getTime() + days * MS_PER_DAY))),
+  get: () => Math.round(daysBetween(start.value, parseDate(viewDate.value))),
+  set: (days: number) => (viewDate.value = formatDate(addDays(start.value, days))),
 })
 
 const ticks = computed(() =>
   [...new Set(completionDays.value)].map((day) => ({
     day,
-    percent: ((parseDate(day).getTime() - start.value.getTime()) / MS_PER_DAY / span.value) * 100,
+    percent: (daysBetween(start.value, parseDate(day)) / span.value) * 100,
   })),
 )
 

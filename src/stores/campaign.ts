@@ -20,6 +20,7 @@ import {
 } from '@/domain/production'
 import type { BonusRef, ResearchData, ResearchItem } from '@/domain/research'
 import { addDays } from '@/domain/plan/focusPlan'
+import { fromGameDay, gameDay } from '@/domain/calendar'
 import {
   isValidResearchPlan,
   pathToTech,
@@ -61,7 +62,6 @@ const save = (campaign: SavedCampaign) => {
   }
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 /** How long after the focus plan ends research is followed, for techs that take years. */
 const RESEARCH_YEARS = 25
 /** How long after the focus plan ends construction is followed. */
@@ -446,7 +446,6 @@ let campaign: ReturnType<typeof createCampaign> | undefined
 export const useCampaign = () => (campaign ??= createCampaign())
 
 /** The first whole day on which a focus ending at `end` counts as complete. */
-const completionDay = (end: Date): string =>
-  formatDate(new Date(Math.ceil(end.getTime() / MS_PER_DAY) * MS_PER_DAY))
+const completionDay = (end: Date): string => formatDate(fromGameDay(Math.ceil(gameDay(end) - 1e-9)))
 
 export { completionDay, formatDate, parseDate }

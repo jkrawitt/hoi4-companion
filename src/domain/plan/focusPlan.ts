@@ -1,10 +1,10 @@
 import type { Focus } from '../focus'
 import type { FocusSchedule, PlanIssue, PlanOptions, ScheduledFocus } from './types'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
+import { addDays, daysBetween } from '../calendar'
 
-export const addDays = (date: Date, days: number): Date =>
-  new Date(date.getTime() + days * MS_PER_DAY)
+/** Kept here too, since the store and the planners import it from the focus planner. */
+export { addDays }
 
 /** Real duration of a focus after the speed bonus is applied (HoI4 divides by 1 + bonus). */
 export const focusDurationDays = (focus: Focus, speedBonus: number): number =>
@@ -50,6 +50,6 @@ export const schedulePlan = (
     cursor = end
   }
 
-  const totalDays = (cursor.getTime() - options.startDate.getTime()) / MS_PER_DAY
+  const totalDays = daysBetween(options.startDate, cursor)
   return { items, finish: cursor, totalDays }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
 import { planResearch, researchStatusAt, techModifierTotals } from '../campaign/research'
@@ -6,7 +7,7 @@ import { schedulePlan } from '../plan/focusPlan'
 import type { ResearchData, ResearchItem, Technology } from '../research'
 
 const begin = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(begin.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(begin, n)
 
 const focus = (id: string, effects: EffectLine[]): Focus => ({
   id,

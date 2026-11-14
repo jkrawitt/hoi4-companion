@@ -386,7 +386,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(power.powered).toBe(true)
     // 11 civs + 7 mils, consumer goods take 5 civs: 6 spare.
     expect(level.civs).toBe(6)
-    expect(level.days).toBeGreaterThan(100)
-    expect(level.days).toBeLessThan(1000)
+    // Checked in game: queued on 1 January 1936, the factory is done on 10 October 1936.
+    expect(level.end.toISOString().slice(0, 10)).toBe('1936-10-10')
   })
 })

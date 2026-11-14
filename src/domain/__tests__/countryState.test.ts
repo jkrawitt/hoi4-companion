@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
 import { schedulePlan } from '../plan/focusPlan'
@@ -24,7 +25,7 @@ const modifier = (depth: number, key: string, value: string): EffectLine => ({
 })
 
 const start = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(start.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(start, n)
 
 const stateAt = (focuses: Focus[], days: number) =>
   countryStateAt(

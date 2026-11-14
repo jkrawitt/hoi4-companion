@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import type { Check, EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
 import { evaluateCheck, resolveConditions } from '../campaign/conditions'
@@ -24,7 +25,7 @@ const stateOf = (focuses: Focus[], start: EffectLine[] = []) =>
       Object.fromEntries(focuses.map((f) => [f.id, f])),
       { startDate: begin, speedBonus: 0 },
     ),
-    new Date(begin.getTime() + 70 * focuses.length * 86_400_000),
+    addDays(begin, 70 * focuses.length),
     { tag: 'ROM', start, startDate: begin },
   )
 

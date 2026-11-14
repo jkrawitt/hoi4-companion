@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import {
   civCapPerProject,
   infraSpeedFactor,
@@ -15,7 +16,7 @@ import {
 } from '../production'
 
 const begin = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(begin.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(begin, n)
 
 const stateOf = (
   id: number,

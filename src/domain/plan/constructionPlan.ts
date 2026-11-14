@@ -33,8 +33,8 @@ import type {
   ScheduledLevel,
 } from '../production'
 import { consumerGoodsFor } from '../production'
+import { addDays, daysBetween } from '../calendar'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 const EPSILON = 1e-9
 const CIVILIAN = 'industrial_complex'
 const MILITARY = 'arms_factory'
@@ -42,8 +42,6 @@ const NAVAL = 'dockyard'
 const INFRASTRUCTURE = 'infrastructure'
 /** The infrastructure level that counts as full for the construction bonus. */
 const MAX_INFRASTRUCTURE = 5
-
-const addDays = (date: Date, days: number) => new Date(date.getTime() + days * MS_PER_DAY)
 
 /**
  * How much faster a building goes up in a state with `infrastructure` levels. NOT VERIFIED AGAINST
@@ -131,8 +129,7 @@ export const scheduleConstruction = (
 ): ConstructionSchedule => {
   const { startDate } = options
   const { defines } = production
-  const dayOf = (date: Date) =>
-    Math.max(0, Math.ceil((date.getTime() - startDate.getTime()) / MS_PER_DAY - EPSILON))
+  const dayOf = (date: Date) => Math.max(0, Math.ceil(daysBetween(startDate, date) - EPSILON))
   const horizon = dayOf(options.until)
   const buildings = new Map(production.buildings.map((b) => [b.id, b]))
   const shared = new Set([CIVILIAN, MILITARY, NAVAL, ...production.sharedSlotBuildings])

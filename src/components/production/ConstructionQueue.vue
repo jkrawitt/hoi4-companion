@@ -3,6 +3,7 @@
 import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { levelsLeft, type ConstructionIssue, type ScheduledConstruction } from '@/domain/production'
+import { daysBetween } from '@/domain/calendar'
 import { completionDay, formatDate, useCampaign } from '@/stores/campaign'
 
 /** What the add row holds; the state rows' `+` fills it in. */
@@ -115,7 +116,7 @@ const rows = computed(() =>
       item,
       first,
       last,
-      days: first && last ? Math.round((last.end.getTime() - first.start.getTime()) / 86400000) : 0,
+      days: first && last ? Math.round(daysBetween(first.start, last.end)) : 0,
     }
   }),
 )

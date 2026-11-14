@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays, daysBetween } from '../calendar'
 import {
   emptyEnvironment,
   type ResearchBonus,
@@ -15,7 +16,7 @@ import {
 } from '../plan/researchPlan'
 
 const start = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(start.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(start, n)
 const defines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 }
 
 const tech = (id: string, extra: Partial<Technology> = {}): Technology => ({
@@ -54,7 +55,7 @@ const run = (
   })
 
 const span = (s: ReturnType<typeof run>) =>
-  s.items.map((i) => [i.techId, i.slot, (i.start.getTime() - start.getTime()) / 86_400_000, i.days])
+  s.items.map((i) => [i.techId, i.slot, daysBetween(start, i.start), i.days])
 
 const bonus = (extra: Partial<ResearchBonus> = {}): ResearchBonus => ({
   ref: { focusId: 'focus', index: 0 },
