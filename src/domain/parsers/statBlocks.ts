@@ -1,8 +1,15 @@
 import type { EffectLine } from '../focus'
 import { findBlocks, type ScriptBlock } from './paradoxScript'
 
+/**
+ * `ai_` modifiers the game does show the player, because they change how the AI treats them
+ * (how readily it sells a licence).
+ */
+const SHOWN_AI_MODIFIERS = new Set(['ai_license_acceptance'])
+
 /** Modifiers that only steer the AI (`ai_badass_factor`); a player is not shown them. */
-export const isAiModifier = (key: string | null): boolean => key !== null && key.startsWith('ai_')
+export const isAiModifier = (key: string | null): boolean =>
+  key !== null && key.startsWith('ai_') && !SHOWN_AI_MODIFIERS.has(key)
 
 /**
  * The stat changes in a block that is a plain list of them (`key = number`).

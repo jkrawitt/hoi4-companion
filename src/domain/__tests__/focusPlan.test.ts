@@ -27,7 +27,8 @@ describe('schedulePlan', () => {
     const s = schedulePlan(['a', 'b'], focuses, options)
     expect(s.totalDays).toBe(105)
     expect(s.items[1].start).toEqual(s.items[0].end)
-    expect(s.finish.toISOString().slice(0, 10)).toBe('1936-04-15')
+    // The game has no 29 February: 105 days from 1 January 1936 is 16 April.
+    expect(s.finish.toISOString().slice(0, 10)).toBe('1936-04-16')
   })
 
   it('applies the speed bonus as a divisor', () => {

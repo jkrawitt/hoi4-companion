@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
 import { schedulePlan } from '../plan/focusPlan'
@@ -24,7 +25,7 @@ const modifier = (depth: number, key: string, value: string): EffectLine => ({
 })
 
 const start = new Date(Date.UTC(1936, 0, 1))
-const day = (n: number) => new Date(start.getTime() + n * 86_400_000)
+const day = (n: number) => addDays(start, n)
 
 const stateAt = (focuses: Focus[], days: number) =>
   countryStateAt(
@@ -41,6 +42,34 @@ const ideaFocus = (id: string, idea: string, mods: EffectLine[]) =>
   focus(id, [{ depth: 0, key: 'add_ideas', value: idea, valueName: idea }, ...mods])
 
 describe('countryStateAt', () => {
+  it('replaces the active law of a category when a new law is added', () => {
+    const focuses = [
+      ideaFocus('a', 'civilian_economy', [modifier(1, 'consumer_goods_expected_value', '0.35')]),
+      ideaFocus('b', 'other_idea', []),
+      ideaFocus('c', 'war_economy', [modifier(1, 'consumer_goods_expected_value', '0.2')]),
+    ]
+    const s = countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(210),
+      {
+        tag: 'ROM',
+        laws: {
+          civilian_economy: 'economy',
+          war_economy: 'economy',
+          volunteer_only: 'mobilization',
+        },
+      },
+    )
+    expect(s.ideas.map((i) => i.id)).toEqual(['other_idea', 'war_economy'])
+    expect(s.modifierTotals.map((t) => [t.key, t.total])).toEqual([
+      ['consumer_goods_expected_value', 0.2],
+    ])
+  })
+
   it('is empty before the first focus completes', () => {
     const s = stateAt([ideaFocus('a', 'idea_a', [modifier(1, 'x', '0.1')])], 69)
     expect(s.completed).toHaveLength(0)
@@ -286,6 +315,50 @@ describe('resources and construction', () => {
     expect(s.conditional[0].lines.map((l) => l.key)).toEqual([
       'random_owned_controlled_state',
       'add_stability',
+    ])
+  })
+})
+
+describe('construction batches', () => {
+  it('records one batch per block with its state, preferred states and buildings', () => {
+    const f = focus('a', [
+      { depth: 0, key: 'random_owned_controlled_state', preferStates: ['79', '81'] },
+      {
+        depth: 1,
+        key: 'add_building_construction',
+        value: '2',
+        subject: 'arms_factory',
+        subjectName: 'Military factory',
+        instant: true,
+      },
+      { depth: 1, key: 'add_extra_state_shared_building_slots', value: '1' },
+      { depth: 0, key: '46' },
+      { depth: 1, key: 'add_resource', value: '4', subject: 'oil', subjectName: 'Oil' },
+    ])
+    const s = stateAt([f], 70)
+    expect(s.construction).toEqual([
+      {
+        focusId: 'a',
+        focusName: 'A',
+        date: day(70),
+        state: undefined,
+        prefer: [79, 81],
+        random: true,
+        buildings: [{ type: 'arms_factory', name: 'Military factory', level: 2, instant: true }],
+        slots: 1,
+        resources: [],
+      },
+      {
+        focusId: 'a',
+        focusName: 'A',
+        date: day(70),
+        state: 46,
+        prefer: undefined,
+        random: false,
+        buildings: [],
+        slots: 0,
+        resources: [{ type: 'oil', name: 'Oil', amount: 4 }],
+      },
     ])
   })
 })

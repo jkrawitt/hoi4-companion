@@ -2,6 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import OverviewView from '@/views/OverviewView.vue'
 import FocusPlanView from '@/views/FocusPlanView.vue'
 import ResearchPlanView from '@/views/ResearchPlanView.vue'
+import ProductionView from '@/views/ProductionView.vue'
 
 const router = createRouter({
   // Hash history keeps reloads and deep links working on GitHub Pages without a 404 fallback.
@@ -10,6 +11,7 @@ const router = createRouter({
     { path: '/', name: 'overview', component: OverviewView },
     { path: '/focus', name: 'focus', component: FocusPlanView },
     { path: '/research', name: 'research', component: ResearchPlanView },
+    { path: '/production', name: 'production', component: ProductionView },
   ],
   // Pages are kept alive, so going back finds them where they were left.
   scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },

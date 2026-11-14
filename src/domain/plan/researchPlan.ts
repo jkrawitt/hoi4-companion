@@ -27,10 +27,8 @@ import type {
   UnscheduledResearch,
 } from '../research'
 import { sameBonus } from '../research'
-import { addDays } from './focusPlan'
+import { addDays, daysBetween, DAYS_PER_YEAR } from '../calendar'
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
-const DAYS_PER_YEAR = 365.25
 /** Progress is a sum of fractions, so allow for rounding when asking whether a tech is done. */
 const EPSILON = 1e-9
 
@@ -66,8 +64,7 @@ export const aheadOfTime = (
   ignored: number,
   defines: ResearchDefines,
 ): AheadOfTime => {
-  const time = typeof date === 'number' ? date : date.getTime()
-  const years = Math.max(0, (Date.UTC(tech.startYear, 0, 1) - time) / MS_PER_DAY) / DAYS_PER_YEAR
+  const years = Math.max(0, daysBetween(date, Date.UTC(tech.startYear, 0, 1))) / DAYS_PER_YEAR
   return { years, ignored, penalty: 1 + defines.aheadPenalty * Math.max(0, years - ignored) }
 }
 
@@ -95,8 +92,7 @@ export const scheduleResearch = (
 ): ResearchSchedule => {
   const { startDate, defines } = options
   /** The first whole day on which something dated `date` counts. */
-  const dayOf = (date: Date) =>
-    Math.max(0, Math.ceil((date.getTime() - startDate.getTime()) / MS_PER_DAY - EPSILON))
+  const dayOf = (date: Date) => Math.max(0, Math.ceil(daysBetween(startDate, date) - EPSILON))
   const horizon = dayOf(options.until)
 
   const slotsByDay = env.slots
@@ -177,12 +173,7 @@ export const scheduleResearch = (
       }
     }
     started.add(entry.tech.id)
-    const ahead = aheadOfTime(
-      entry.tech,
-      startDate.getTime() + day * MS_PER_DAY,
-      bonus?.ahead ?? 0,
-      defines,
-    )
+    const ahead = aheadOfTime(entry.tech, addDays(startDate, day), bonus?.ahead ?? 0, defines)
     return { entry, start: day, progress: 0, bonus, ahead, issues }
   }
 
@@ -195,7 +186,7 @@ export const scheduleResearch = (
     }
 
     const speed = valueAt(speedByDay, day, 0)
-    const today = startDate.getTime() + day * MS_PER_DAY
+    const today = addDays(startDate, day)
     running.forEach((r, slot) => {
       if (!r) return
       const { tech } = r.entry

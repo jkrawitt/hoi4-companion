@@ -68,11 +68,14 @@ export const countryStateAt = (
     rules: [...rules.values()],
     popularity: [...w.popularity.values()],
     rulingParty: w.rulingParty,
+    government: w.government,
     leader: w.leader,
     resources: [...w.resources.values()],
     buildings: [...w.buildings.values()],
     buildingSlots: w.buildingSlots,
+    construction: w.construction,
     conditional: w.conditional,
+    snapshots: w.research.snapshots,
     research: researchEnvironment(w.research),
   }
 }

@@ -41,12 +41,17 @@ describe('relation modifiers', () => {
   it('reads only non-zero numeric stats from a static modifier', () => {
     const defs = parseStaticModifiers(
       `M = { valid_relation_trigger = { FROM = { NOT = { has_war_with = ROOT } } }
-             license_purchase_cost = 0 license_production_speed = 0.25 }
+             license_purchase_cost = 0 ai_license_acceptance = 20 ai_badass_factor = 1
+             license_production_speed = 0.25 }
        OTHER = { x = 1 }`,
       new Set(['M']),
     )
+    // AI-only modifiers are dropped, but the game shows the licence acceptance to the player.
     expect(defs).toEqual({
-      M: [{ depth: 0, key: 'license_production_speed', value: '0.25', isModifier: true }],
+      M: [
+        { depth: 0, key: 'ai_license_acceptance', value: '20', isModifier: true },
+        { depth: 0, key: 'license_production_speed', value: '0.25', isModifier: true },
+      ],
     })
   })
 })

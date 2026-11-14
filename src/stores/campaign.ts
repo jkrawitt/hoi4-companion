@@ -10,8 +10,17 @@ import { countries } from '@/data/countries'
 import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { planResearch, researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
+import { industryAt } from '@/domain/campaign/industry'
+import { planConstruction } from '@/domain/campaign/construction'
+import {
+  isValidConstructionPlan,
+  levelsLeft,
+  type ConstructionItem,
+  type ProductionData,
+} from '@/domain/production'
 import type { BonusRef, ResearchData, ResearchItem } from '@/domain/research'
 import { addDays } from '@/domain/plan/focusPlan'
+import { fromGameDay, gameDay } from '@/domain/calendar'
 import {
   isValidResearchPlan,
   pathToTech,
@@ -32,6 +41,7 @@ interface SavedCampaign {
   speedBonusPercent: number
   plan: string[]
   researchPlan?: ResearchItem[]
+  constructionPlan?: ConstructionItem[]
   viewDate: string
 }
 
@@ -52,9 +62,10 @@ const save = (campaign: SavedCampaign) => {
   }
 }
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000
 /** How long after the focus plan ends research is followed, for techs that take years. */
 const RESEARCH_YEARS = 25
+/** How long after the focus plan ends construction is followed. */
+const CONSTRUCTION_YEARS = 10
 const parseDate = (text: string) => new Date(`${text}T00:00:00Z`)
 const formatDate = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -71,8 +82,12 @@ const createCampaign = () => {
   const start = ref<EffectLine[]>([])
   /** Who the game could pick as leader when the plan retires one or changes the party. */
   const leaders = ref<LeaderData | undefined>()
+  /** The law category of every law idea. */
+  const laws = shallowRef<Record<string, string>>({})
   /** The technologies, folders and research numbers from the game. */
   const research = shallowRef<ResearchData | undefined>()
+  /** The states the country owns at the start and what decides their building slots. */
+  const production = shallowRef<ProductionData | undefined>()
   const techs = computed(() =>
     Object.fromEntries((research.value?.techs ?? []).map((t) => [t.id, t])),
   )
@@ -93,6 +108,10 @@ const createCampaign = () => {
   const researchPlan = ref<ResearchItem[]>(
     Array.isArray(saved.researchPlan) ? saved.researchPlan : [],
   )
+  /** The construction queue: buildings the spare civilian factories build, in order. */
+  const constructionPlan = ref<ConstructionItem[]>(
+    Array.isArray(saved.constructionPlan) ? saved.constructionPlan : [],
+  )
   const startDate = ref(saved.startDate ?? '1936-01-01')
   const speedBonusPercent = ref(saved.speedBonusPercent ?? 0)
   /** The date the overview shows the country at. */
@@ -103,16 +122,23 @@ const createCampaign = () => {
     focuses: list,
     start: startLines,
     leaders: leaderData,
+    laws: lawData,
     research: researchData,
+    production: productionData,
   }: ImportedCountry) => {
     start.value = startLines
     leaders.value = leaderData
+    laws.value = lawData ?? {}
     research.value = researchData
+    production.value = productionData
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
     researchPlan.value = isValidResearchPlan(researchPlan.value, techs.value, startTechs.value)
       ? researchPlan.value
+      : []
+    constructionPlan.value = isValidConstructionPlan(constructionPlan.value, productionData)
+      ? constructionPlan.value
       : []
   }
 
@@ -127,9 +153,12 @@ const createCampaign = () => {
     focuses.value = {}
     start.value = []
     leaders.value = undefined
+    laws.value = {}
     research.value = undefined
+    production.value = undefined
     plan.value = []
     researchPlan.value = []
+    constructionPlan.value = []
     error.value = ''
     status.value = ''
     await loadCached(tag)
@@ -186,6 +215,7 @@ const createCampaign = () => {
     tag: countryTag.value,
     start: start.value,
     leaders: leaders.value,
+    laws: laws.value,
     startDate: parseDate(startDate.value),
   }))
 
@@ -207,13 +237,42 @@ const createCampaign = () => {
   )
   const researchSchedule = computed(() => planned.value.schedule)
 
-  /** The end of the whole plan: the last focus or the last research, whichever is later. */
-  const planEnd = computed(() =>
-    researchSchedule.value.items.reduce(
+  /** The country when the focus plan is done: every build of the plan, for the construction. */
+  const finalState = computed(() =>
+    countryStateAt(schedule.value, schedule.value.finish, {
+      ...stateOptions.value,
+      hasTech: planned.value.hasTech,
+    }),
+  )
+  const plannedConstruction = computed(() =>
+    production.value
+      ? planConstruction({
+          production: production.value,
+          finalState: finalState.value,
+          research: researchSchedule.value,
+          techs: research.value?.techs ?? [],
+          queue: constructionPlan.value,
+          startDate: parseDate(startDate.value),
+          until: addDays(
+            schedule.value.finish > parseDate(startDate.value)
+              ? schedule.value.finish
+              : parseDate(startDate.value),
+            CONSTRUCTION_YEARS * 366,
+          ),
+        })
+      : undefined,
+  )
+  const constructionSchedule = computed(() => plannedConstruction.value?.schedule)
+
+  /** The end of the whole plan: the last focus, research or construction, whichever is latest. */
+  const planEnd = computed(() => {
+    const latest = researchSchedule.value.items.reduce(
       (latest, item) => (item.slot >= 0 && item.end > latest ? item.end : latest),
       schedule.value.finish,
-    ),
-  )
+    )
+    const built = constructionSchedule.value?.finish
+    return built && built > latest ? built : latest
+  })
 
   // A view that sits at the end of the plan stays there as the plan changes, so new focuses and
   // techs show up; one scrubbed to an earlier date is left where the user put it.
@@ -282,6 +341,30 @@ const createCampaign = () => {
 
   const resetResearch = () => (researchPlan.value = [])
 
+  const addConstruction = (item: ConstructionItem) => {
+    if (
+      production.value &&
+      levelsLeft(production.value, item.building, item.state, constructionPlan.value) >= item.levels
+    ) {
+      constructionPlan.value = [...constructionPlan.value, item]
+    }
+  }
+
+  /** Moves a queued building up (-1) or down (1). */
+  const moveConstruction = (index: number, by: -1 | 1) => {
+    const queue = [...constructionPlan.value]
+    const target = index + by
+    if (target < 0 || target >= queue.length) return
+    ;[queue[index], queue[target]] = [queue[target], queue[index]]
+    constructionPlan.value = queue
+  }
+
+  const removeConstruction = (index: number) => {
+    constructionPlan.value = constructionPlan.value.filter((_, i) => i !== index)
+  }
+
+  const resetConstruction = () => (constructionPlan.value = [])
+
   const state = computed(() =>
     countryStateAt(schedule.value, parseDate(viewDate.value), {
       ...stateOptions.value,
@@ -289,16 +372,31 @@ const createCampaign = () => {
     }),
   )
 
-  watch([countryTag, plan, researchPlan, startDate, speedBonusPercent, viewDate], () =>
-    save({
-      version: STORAGE_VERSION,
-      countryTag: countryTag.value,
-      startDate: startDate.value,
-      speedBonusPercent: speedBonusPercent.value,
-      plan: plan.value,
-      researchPlan: researchPlan.value,
-      viewDate: viewDate.value,
-    }),
+  /** The factories, slots and consumer goods on the viewed date. */
+  const industry = computed(() =>
+    production.value
+      ? industryAt(
+          production.value,
+          state.value,
+          researchTotals.value,
+          constructionSchedule.value?.built,
+        )
+      : undefined,
+  )
+
+  watch(
+    [countryTag, plan, researchPlan, constructionPlan, startDate, speedBonusPercent, viewDate],
+    () =>
+      save({
+        version: STORAGE_VERSION,
+        countryTag: countryTag.value,
+        startDate: startDate.value,
+        speedBonusPercent: speedBonusPercent.value,
+        plan: plan.value,
+        researchPlan: researchPlan.value,
+        constructionPlan: constructionPlan.value,
+        viewDate: viewDate.value,
+      }),
   )
 
   return {
@@ -307,6 +405,8 @@ const createCampaign = () => {
     focuses,
     hasData,
     research,
+    production,
+    industry,
     startTechs,
     status,
     error,
@@ -324,6 +424,12 @@ const createCampaign = () => {
     researchEnvironment,
     researchStatus,
     researchTotals,
+    constructionPlan,
+    constructionSchedule,
+    addConstruction,
+    moveConstruction,
+    removeConstruction,
+    resetConstruction,
     blockedTechIds,
     toggleTech,
     moveTech,
@@ -340,7 +446,6 @@ let campaign: ReturnType<typeof createCampaign> | undefined
 export const useCampaign = () => (campaign ??= createCampaign())
 
 /** The first whole day on which a focus ending at `end` counts as complete. */
-const completionDay = (end: Date): string =>
-  formatDate(new Date(Math.ceil(end.getTime() / MS_PER_DAY) * MS_PER_DAY))
+const completionDay = (end: Date): string => formatDate(fromGameDay(Math.ceil(gameDay(end) - 1e-9)))
 
 export { completionDay, formatDate, parseDate }

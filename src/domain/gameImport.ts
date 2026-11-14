@@ -35,6 +35,13 @@ import { parseStaticModifiers } from './parsers/staticModifiers'
 import { parseEventTitles } from './parsers/events'
 import { parseStartingLines } from './parsers/countryStart'
 import { readTechnologies } from './parsers/technologies'
+import { readProduction } from './parsers/states'
+import {
+  defaultLawLines,
+  lawCategoryOf,
+  mergeLawCategories,
+  parseLawCategories,
+} from './parsers/laws'
 import {
   parseIdeologyGroups,
   parseLeaderRoles,
@@ -80,6 +87,22 @@ const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
   )
 
 /**
+ * The start's `add_ideas` for the laws the history does not set (see `defaultLawLines`), and the
+ * law category of every law idea, so a new law replaces the old one.
+ */
+const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
+  const texts = await Promise.all(
+    (await files.listFiles(GAME_PATHS.ideas))
+      .filter((file) => file.endsWith('.txt'))
+      .map((file) => files.readText(`${GAME_PATHS.ideas}/${file}`)),
+  )
+  const categories = mergeLawCategories(
+    texts.flatMap((text) => (text?.includes('law = yes') ? [parseLawCategories(text)] : [])),
+  )
+  return { lines: defaultLawLines(categories, startLines), laws: lawCategoryOf(categories) }
+}
+
+/**
  * How the country starts the game, as effect lines (with the starting leader added), and the
  * characters who could lead it later, as `promote_character` lines in the order the game would
  * pick them.
@@ -87,6 +110,8 @@ const valuesOf = (lists: EffectLine[][], ...keys: string[]): Set<string> =>
 const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
   const historyText = await readCountryHistoryText(files, tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
+  const defaults = historyText ? await readDefaultLaws(files, startLines) : undefined
+  if (defaults) startLines.push(...defaults.lines)
   const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
   const sources = historyText ? await readLeaderSources(files, tag, historyText) : undefined
   if (sources && rulingParty) {
@@ -111,7 +136,13 @@ const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string,
       subject: c.ideology,
     }),
   )
-  return { startLines, candidates, candidateLines, groups: sources?.groups ?? {} }
+  return {
+    startLines,
+    candidates,
+    candidateLines,
+    groups: sources?.groups ?? {},
+    laws: defaults?.laws ?? {},
+  }
 }
 
 /** The definitions the effects refer to, each read from the directory it lives in. */
@@ -211,7 +242,7 @@ export const importCountryFocuses = async (
     ...f,
     effects: resolveDlcConditions(f.effects, ownedDlc),
   }))
-  const { startLines, candidates, candidateLines, groups } = await readStart(
+  const { startLines, candidates, candidateLines, groups, laws } = await readStart(
     files,
     country.tag,
     ownedDlc,
@@ -229,6 +260,7 @@ export const importCountryFocuses = async (
   const candidatesListed = listed(candidateLines)
   // The tech tree: its folders, and the stats of each tech, which are named like any other line.
   const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
+  const production = await readProduction(files, country.tag)
   const lists = [
     ...focuses.map((f) => f.effects),
     start,
@@ -250,6 +282,8 @@ export const importCountryFocuses = async (
       ...Object.values(context.eventTitles),
       ...Object.values(context.factionNames),
       ...focuses.flatMap((f) => [f.id, `${f.id}_desc`]),
+      ...production.states.map((s) => s.name),
+      ...production.buildings.map((b) => b.id),
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
       ...Object.values(fallbackNames).flat(),
@@ -280,6 +314,7 @@ export const importCountryFocuses = async (
     return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
   }
   return {
+    laws,
     focuses: focuses.map((f) => ({
       ...f,
       name: names[f.id] ?? f.id,
@@ -290,6 +325,11 @@ export const importCountryFocuses = async (
     leaders: {
       candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
       groups,
+    },
+    production: {
+      ...production,
+      states: production.states.map((s) => ({ ...s, name: names[s.name] ?? humanize(s.name) })),
+      buildings: production.buildings.map((b) => ({ ...b, name: names[b.id] ?? humanize(b.id) })),
     },
     research: {
       ...research,
