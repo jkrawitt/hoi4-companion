@@ -50,6 +50,12 @@ import {
   pickStartingLeader,
 } from './parsers/leaders'
 import { parseFactionTemplates } from './parsers/factions'
+import {
+  annotateIdeaLines,
+  availabilityLines,
+  finishOption,
+  readPolitics,
+} from './politicsImport'
 import { parseStatDocs, type StatOverrides } from './stats'
 
 // Re-exported so callers have one import for "reading the game folder".
@@ -142,6 +148,7 @@ const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string,
     candidateLines,
     groups: sources?.groups ?? {},
     laws: defaults?.laws ?? {},
+    recruited: sources?.recruited ?? [],
   }
 }
 
@@ -242,11 +249,13 @@ export const importCountryFocuses = async (
     ...f,
     effects: resolveDlcConditions(f.effects, ownedDlc),
   }))
-  const { startLines, candidates, candidateLines, groups, laws } = await readStart(
+  const { startLines, candidates, candidateLines, groups, laws, recruited } = await readStart(
     files,
     country.tag,
     ownedDlc,
   )
+  // What political power can buy; the law of each slot the history leaves empty is a start idea.
+  const politics = await readPolitics(files, country, ownedDlc, recruited)
 
   // 2. The definitions the effects refer to, listed beneath the lines that apply them.
   const defs = await readEffectDefinitions(
@@ -266,6 +275,7 @@ export const importCountryFocuses = async (
     start,
     candidatesListed,
     ...research.techs.map((t) => t.modifiers),
+    ...politics.options.flatMap((o) => [o.modifiers, availabilityLines(o)]),
   ]
 
   // 3. What the countries and events they mention are.
@@ -286,6 +296,8 @@ export const importCountryFocuses = async (
       ...production.buildings.map((b) => b.id),
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
+      ...politics.options.flatMap((o) => [o.id, ...(o.character ? [o.character] : [])]),
+      ...politics.options.flatMap((o) => Object.keys(o.researchBonus ?? {})),
       ...Object.values(fallbackNames).flat(),
       ...lists.flatMap((lines) => lines.flatMap((e) => nameKeysOf(e, defs.ideaAliases))),
     ]),
@@ -313,15 +325,31 @@ export const importCountryFocuses = async (
     const candidates = [id, ...(fallbackNames[id] ?? [])].map((key) => (names[key] ?? '').trim())
     return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
   }
+  /** An option's name, with its modifier lines named and its `available` block written out. */
+  const options = politics.options.map((o) =>
+    finishOption(o, names[o.character ?? o.id] ?? names[o.id] ?? humanize(o.id), named),
+  )
+  const optionsById = new Map(options.map((o) => [o.id, o]))
+  const annotated = (lines: EffectLine[]) => annotateIdeaLines(lines, optionsById)
   return {
     laws,
     focuses: focuses.map((f) => ({
       ...f,
       name: names[f.id] ?? f.id,
       description: names[`${f.id}_desc`],
-      effects: named(f.effects),
+      effects: annotated(named(f.effects)),
     })),
-    start: named(start),
+    start: annotated(named(start)),
+    politics: {
+      options,
+      slots: politics.slots,
+      categoryNames: Object.fromEntries(
+        options.flatMap((o) =>
+          Object.keys(o.researchBonus ?? {}).map((c) => [c, (names[c] ?? humanize(c)).trim()]),
+        ),
+      ),
+      defines: politics.defines,
+    },
     leaders: {
       candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
       groups,

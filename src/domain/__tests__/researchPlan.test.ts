@@ -10,6 +10,7 @@ import {
 import {
   aheadOfTime,
   availableBonuses,
+  categoryBonusAt,
   bonusMatches,
   earliestFreeSlot,
   scheduleResearch,
@@ -405,5 +406,66 @@ describe('scheduleResearch', () => {
     expect([...s.researchedBy(day(0))]).toEqual(['s'])
     expect([...s.researchedBy(day(20))].sort()).toEqual(['s', 'x'])
     expect([...s.researchedBy(day(110))].sort()).toEqual(['a', 's', 'x'])
+  })
+})
+
+describe('category research bonus', () => {
+  const days = (s: ReturnType<typeof run>) => s.items[0].days
+  const armor = tech('t', { categories: ['armor', 'tank_tech'] })
+  const bonusEnv = (extra: ResearchEnvironment['categorySpeed']) => env({ categorySpeed: extra })
+
+  it('speeds up a tech in the category, and only while the designer is held', () => {
+    const base = days(run(q('t'), techsOf(armor)))
+    const fast = days(
+      run(q('t'), techsOf(armor), bonusEnv([{ date: start, bonuses: { armor: 0.15 } }])),
+    )
+    expect(base).toBe(110)
+    expect(fast).toBe(Math.ceil(110 / 1.15))
+    // Gone again after 50 days: the rest runs at the normal rate.
+    const lost = days(
+      run(
+        q('t'),
+        techsOf(armor),
+        bonusEnv([
+          { date: start, bonuses: { armor: 0.15 } },
+          { date: day(50), bonuses: {} },
+        ]),
+      ),
+    )
+    expect(lost).toBeGreaterThan(fast)
+    expect(lost).toBeLessThan(base)
+  })
+
+  it('leaves other categories alone and sums matching ones', () => {
+    const plain = tech('p', { categories: ['industry'] })
+    const unchanged = days(
+      run(q('p'), techsOf(plain), bonusEnv([{ date: start, bonuses: { armor: 0.15 } }])),
+    )
+    expect(unchanged).toBe(110)
+    const both = days(
+      run(
+        q('t'),
+        techsOf(armor),
+        bonusEnv([{ date: start, bonuses: { armor: 0.1, tank_tech: 0.1 } }]),
+      ),
+    )
+    expect(both).toBe(Math.ceil(110 / 1.2))
+  })
+
+  it('starts the bonus from the day it is in force', () => {
+    expect(
+      categoryBonusAt(
+        { categorySpeed: [{ date: day(5), bonuses: { armor: 0.2 } }] },
+        armor,
+        day(4),
+      ),
+    ).toBe(0)
+    expect(
+      categoryBonusAt(
+        { categorySpeed: [{ date: day(5), bonuses: { armor: 0.2 } }] },
+        armor,
+        day(5),
+      ),
+    ).toBe(0.2)
   })
 })

@@ -3,6 +3,7 @@ export const DAYS_PER_WEEK = 7
 
 import type { ProductionData } from './production'
 import type { ResearchData } from './research'
+import type { PoliticsData } from './politics'
 import type { StatDefinition } from './stats'
 
 /**
@@ -35,6 +36,18 @@ export type Check =
     }
   /** `has_country_leader = { id = 550 }` (a legacy leader) or `{ character = X }`. */
   | { type: 'leader'; id?: string; character?: string }
+  /** `has_war_support > 0.15`, `has_stability > 0.5`: the country's absolute stat. */
+  | {
+      type: 'stat'
+      key: 'war_support' | 'stability'
+      op: '>' | '<' | '>=' | '<=' | '='
+      than: number
+    }
+  /** `original_tag = ROM` / `tag = ROM`, `has_dlc = "X"` and `always = yes`. */
+  | { type: 'tag' | 'dlc'; id: string }
+  | { type: 'const'; value: boolean }
+  /** `has_war = yes` (`atWar: true`) or `has_war = no`. */
+  | { type: 'war'; atWar: boolean }
   | { type: 'not'; of: Check }
   | { type: 'all' | 'any'; of: Check[] }
   | { type: 'unknown' }
@@ -106,6 +119,10 @@ export interface EffectLine {
   traits?: string[]
   /** For `diplomatic_relation` lines: whether the relation is being granted or removed. */
   active?: boolean
+  /** For `add_ideas` lines of a law or designer: the politics slot the idea fills (one at a time). */
+  slot?: string
+  /** For `add_ideas` lines of a designer: extra research speed per technology category. */
+  researchBonus?: Record<string, number>
   /** Inside a `hidden_effect` block: the game does not show it to the player. */
   hidden?: boolean
   /** Set on lines from an idea's `modifier` block; they are shown through their `stat`. */
@@ -153,4 +170,6 @@ export interface ImportedCountry {
   production: ProductionData
   /** The law category of every law idea, so adding a law replaces the one it competes with. */
   laws?: Record<string, string>
+  /** The laws, designers and advisors political power can buy, which are the country's own. */
+  politics: PoliticsData
 }

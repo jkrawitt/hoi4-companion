@@ -9,7 +9,16 @@ import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
 import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import { countryStateAt } from '@/domain/campaign/countryState'
-import { planResearch, researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
+import { planCampaign } from '@/domain/campaign/plan'
+import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
+import type { PoliticsData, PoliticsItem } from '@/domain/politics'
+import {
+  addPurchase as addToQueue,
+  knownPurchases,
+  movePurchase as moveInQueue,
+  removePurchase as removeFromQueue,
+  setNotBefore as setQueueNotBefore,
+} from '@/domain/plan/politicsPlan'
 import { industryAt } from '@/domain/campaign/industry'
 import { planConstruction } from '@/domain/campaign/construction'
 import {
@@ -42,6 +51,7 @@ interface SavedCampaign {
   plan: string[]
   researchPlan?: ResearchItem[]
   constructionPlan?: ConstructionItem[]
+  politicsPlan?: PoliticsItem[]
   viewDate: string
 }
 
@@ -98,6 +108,8 @@ const createCampaign = () => {
         start.value.flatMap((l) => (l.research?.kind === 'unlock' ? l.research.targets : [])),
       ),
   )
+  /** The laws, designers and advisors political power can buy. */
+  const politics = shallowRef<PoliticsData | undefined>()
   const hasData = computed(() => Object.keys(focuses.value).length > 0)
   const status = ref('')
   const error = ref('')
@@ -112,6 +124,10 @@ const createCampaign = () => {
   const constructionPlan = ref<ConstructionItem[]>(
     Array.isArray(saved.constructionPlan) ? saved.constructionPlan : [],
   )
+  /** The political power purchase queue: bought in order, each as soon as the power is there. */
+  const politicsPlan = ref<PoliticsItem[]>(
+    Array.isArray(saved.politicsPlan) ? saved.politicsPlan : [],
+  )
   const startDate = ref(saved.startDate ?? '1936-01-01')
   const speedBonusPercent = ref(saved.speedBonusPercent ?? 0)
   /** The date the overview shows the country at. */
@@ -125,12 +141,15 @@ const createCampaign = () => {
     laws: lawData,
     research: researchData,
     production: productionData,
+    politics: politicsData,
   }: ImportedCountry) => {
     start.value = startLines
     leaders.value = leaderData
     laws.value = lawData ?? {}
     research.value = researchData
     production.value = productionData
+    politics.value = politicsData
+    politicsPlan.value = knownPurchases(politicsPlan.value, politicsData.options)
     focuses.value = Object.fromEntries(list.map((f) => [f.id, f]))
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
@@ -156,9 +175,11 @@ const createCampaign = () => {
     laws.value = {}
     research.value = undefined
     production.value = undefined
+    politics.value = undefined
     plan.value = []
     researchPlan.value = []
     constructionPlan.value = []
+    politicsPlan.value = []
     error.value = ''
     status.value = ''
     await loadCached(tag)
@@ -217,15 +238,21 @@ const createCampaign = () => {
     leaders: leaders.value,
     laws: laws.value,
     startDate: parseDate(startDate.value),
+    ownedDlc,
   }))
 
-  /** Research is worked out together with the focus plan, which asks about technologies. */
+  /**
+   * Research and political power are worked out together with the focus plan: it asks about
+   * technologies, and what is bought speeds research up.
+   */
   const planned = computed(() =>
-    planResearch({
+    planCampaign({
       focusSchedule: schedule.value,
       options: stateOptions.value,
-      queue: researchPlan.value,
-      data: research.value,
+      researchQueue: researchPlan.value,
+      researchData: research.value,
+      politicsQueue: politicsPlan.value,
+      politicsData: politics.value,
       startDate: parseDate(startDate.value),
       until: addDays(
         schedule.value.finish > parseDate(startDate.value)
@@ -236,12 +263,15 @@ const createCampaign = () => {
     }),
   )
   const researchSchedule = computed(() => planned.value.schedule)
+  const politicsSchedule = computed(() => planned.value.politics)
 
   /** The country when the focus plan is done: every build of the plan, for the construction. */
   const finalState = computed(() =>
     countryStateAt(schedule.value, schedule.value.finish, {
       ...stateOptions.value,
       hasTech: planned.value.hasTech,
+      // A law bought with political power changes consumer goods, so purchases count too.
+      extraSteps: planned.value.politics.steps,
     }),
   )
   const plannedConstruction = computed(() =>
@@ -264,11 +294,15 @@ const createCampaign = () => {
   )
   const constructionSchedule = computed(() => plannedConstruction.value?.schedule)
 
-  /** The end of the whole plan: the last focus, research or construction, whichever is latest. */
+  /** The end of the whole plan: the last focus, research, construction or purchase. */
   const planEnd = computed(() => {
-    const latest = researchSchedule.value.items.reduce(
+    const lastResearch = researchSchedule.value.items.reduce(
       (latest, item) => (item.slot >= 0 && item.end > latest ? item.end : latest),
       schedule.value.finish,
+    )
+    const latest = politicsSchedule.value.items.reduce(
+      (latest, item) => (item.date > latest ? item.date : latest),
+      lastResearch,
     )
     const built = constructionSchedule.value?.finish
     return built && built > latest ? built : latest
@@ -364,11 +398,26 @@ const createCampaign = () => {
   }
 
   const resetConstruction = () => (constructionPlan.value = [])
+  const addPurchase = (optionId: string, dismiss = false) => {
+    politicsPlan.value = addToQueue(politicsPlan.value, optionId, dismiss)
+  }
+  const movePurchase = (index: number, by: -1 | 1) => {
+    politicsPlan.value = moveInQueue(politicsPlan.value, index, by)
+  }
+  const removePurchase = (index: number) => {
+    politicsPlan.value = removeFromQueue(politicsPlan.value, index)
+  }
+  const setNotBefore = (index: number, notBefore: string | undefined) => {
+    politicsPlan.value = setQueueNotBefore(politicsPlan.value, index, notBefore)
+  }
+  const resetPolitics = () => (politicsPlan.value = [])
 
   const state = computed(() =>
     countryStateAt(schedule.value, parseDate(viewDate.value), {
       ...stateOptions.value,
       hasTech: planned.value.hasTech,
+      politics: politics.value,
+      extraSteps: planned.value.politics.steps,
     }),
   )
 
@@ -385,7 +434,7 @@ const createCampaign = () => {
   )
 
   watch(
-    [countryTag, plan, researchPlan, constructionPlan, startDate, speedBonusPercent, viewDate],
+    [countryTag, plan, researchPlan, constructionPlan, politicsPlan, startDate, speedBonusPercent, viewDate],
     () =>
       save({
         version: STORAGE_VERSION,
@@ -395,6 +444,7 @@ const createCampaign = () => {
         plan: plan.value,
         researchPlan: researchPlan.value,
         constructionPlan: constructionPlan.value,
+        politicsPlan: politicsPlan.value,
         viewDate: viewDate.value,
       }),
   )
@@ -407,6 +457,7 @@ const createCampaign = () => {
     research,
     production,
     industry,
+    politics,
     startTechs,
     status,
     error,
@@ -421,6 +472,13 @@ const createCampaign = () => {
     state,
     researchPlan,
     researchSchedule,
+    politicsPlan,
+    politicsSchedule,
+    addPurchase,
+    movePurchase,
+    removePurchase,
+    setNotBefore,
+    resetPolitics,
     researchEnvironment,
     researchStatus,
     researchTotals,

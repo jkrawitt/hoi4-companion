@@ -1,7 +1,9 @@
 import type { EffectLine, LeaderData } from '../focus'
+import type { PoliticsData } from '../politics'
 import type { ResearchEnvironment } from '../research'
 import type { ScheduledFocus } from '../plan/types'
 import type { StatDefinition } from '../stats'
+import type { Step } from './applyReward'
 
 export interface ActiveIdea {
   id: string
@@ -13,6 +15,10 @@ export interface ActiveIdea {
   until?: Date
   /** The idea's modifier and rule lines, at depth 0. */
   modifiers: EffectLine[]
+  /** The politics slot it fills (one law, designer, ...), when it is one political power buys. */
+  slot?: string
+  /** A designer's extra research speed per technology category. */
+  researchBonus?: Record<string, number>
 }
 
 export interface CountryLeader {
@@ -95,6 +101,13 @@ export interface StateSnapshot {
   rulingPopularity: number
 }
 
+export interface CountryPolitics {
+  /** The active ideas in each politics slot (`economy`, `political_advisor`, ...). */
+  held: Record<string, ActiveIdea[]>
+  /** The characters recruited so far: the history's, and those focuses recruit. */
+  recruited: string[]
+}
+
 export interface CountryState {
   date: Date
   /** Focuses finished by `date`, in order. */
@@ -113,6 +126,12 @@ export interface CountryState {
   rulingParty?: string
   /** The ruling party's ideology id (`democratic`), which `popularity` entries are keyed by. */
   government?: string
+  /**
+   * Actual stability and war support (0 to 1; see `countryStat`): only known once the start has
+   * set them, like popularity.
+   */
+  stability?: number
+  warSupport?: number
   leader?: CountryLeader
   /** The production of each resource added by completed focuses, summed. */
   resources: ResourceTotal[]
@@ -125,6 +144,8 @@ export interface CountryState {
   conditional: ConditionalEffects[]
   /** The ideas and leader traits in force after each reward, to work out the modifiers on any date. */
   snapshots: StateSnapshot[]
+  /** What fills the politics slots, and which characters can be hired. */
+  politics: CountryPolitics
   /** The dated slots, speed, bonuses and techs the research planner schedules with. */
   research: ResearchEnvironment
 }
@@ -132,6 +153,18 @@ export interface CountryState {
 export interface CountryStateOptions {
   /** The country's own tag, so scopes naming it are not mistaken for another country's. */
   tag?: string
+  /** The DLCs the player owns, to answer `has_dlc`; one not listed is not owned. */
+  ownedDlc?: Record<string, boolean>
+  /**
+   * The laws, designers and advisors political power can buy: their slot sizes (a slot already full
+   * gives up its oldest idea for a new one) and which characters the history recruits.
+   */
+  politics?: PoliticsData
+  /**
+   * Rewards that are not focuses, applied in date order with the completed focuses (a focus first
+   * on the same day): the planned political power purchases.
+   */
+  extraSteps?: Step[]
   /** What the country starts with, applied first like a reward; see `parsers/countryStart.ts`. */
   start?: EffectLine[]
   /**

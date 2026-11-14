@@ -76,6 +76,70 @@ const COMPARISONS = new Set(['>', '<', '>=', '<=', '='])
 
 const POPULARITY_OF = /^party_popularity@(.+)$/
 
+const STAT_KEYS: Record<string, 'war_support' | 'stability'> = {
+  has_war_support: 'war_support',
+  has_stability: 'stability',
+}
+
+/** Whether a node is the `limit` block of an `if`, or an `else`/`else_if` branch. */
+const keyOf = (node: ConditionNode) => node.line.key?.toLowerCase() ?? ''
+const isBranch = (node: ConditionNode) =>
+  node.line.value === undefined && ['else_if', 'else'].includes(keyOf(node))
+
+/** The branches of a trigger `if` chain starting at `nodes[at]`, and how many nodes it took. */
+const chainAt = (
+  nodes: ConditionNode[],
+  at: number,
+): { branches: ConditionNode[]; used: number } => {
+  const branches = [nodes[at]]
+  // An `else` can sit inside the `if`, after the lines it replaces...
+  branches.push(...nodes[at].kids.filter(isBranch))
+  let used = 1
+  // ...or follow it at the same level.
+  while (at + used < nodes.length && isBranch(nodes[at + used])) branches.push(nodes[at + used++])
+  return { branches, used }
+}
+
+/**
+ * A trigger `if = { limit = L  body }` (with `else_if` / `else` branches) as a `Check`: with no
+ * branch taken the term holds, so `if L then B` is `any(not L, B)`, and with an `else` it is
+ * `any(all(L, B), all(not L, else))`.
+ */
+const chainCheck = (branches: ConditionNode[]): Check => {
+  const [head, ...rest] = branches
+  const limit = head.kids.find((k) => keyOf(k) === 'limit' && k.line.value === undefined)
+  const body = allOf(checksOfNodes(head.kids.filter((k) => k !== limit && !isBranch(k))))
+  const hold = allOf(checksOfNodes(limit?.kids ?? []))
+  const otherwise: Check = rest.length === 0 ? { type: 'const', value: true } : chainCheck(rest)
+  if (keyOf(head) === 'else') return body
+  return {
+    type: 'any',
+    of: [
+      { type: 'all', of: [hold, body] },
+      { type: 'all', of: [{ type: 'not', of: hold }, otherwise] },
+    ],
+  }
+}
+
+const allOf = (checks: Check[]): Check =>
+  checks.length === 1 ? checks[0] : { type: 'all', of: checks }
+
+/** The terms of a block, which are all required; `if` chains are read as one term each. */
+const checksOfNodes = (nodes: ConditionNode[]): Check[] => {
+  const checks: Check[] = []
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i]
+    if (node.line.value === undefined && keyOf(node) === 'if') {
+      const { branches, used } = chainAt(nodes, i)
+      checks.push(chainCheck(branches))
+      i += used - 1
+    } else if (isBranch(node)) {
+      checks.push({ type: 'unknown' })
+    } else checks.push(checkOfNode(node))
+  }
+  return checks
+}
+
 /** One term of a limit as a `Check`; anything we cannot answer is `unknown`. */
 const checkOfNode = ({ line, kids }: ConditionNode): Check => {
   const key = line.key?.toLowerCase() ?? ''
@@ -98,11 +162,15 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'unknown' }
   }
   if (line.value === undefined) {
-    const inner = kids.map(checkOfNode)
-    if (key === 'not')
-      return { type: 'not', of: inner.length === 1 ? inner[0] : { type: 'all', of: inner } }
+    const inner = checksOfNodes(kids)
+    if (key === 'not') return { type: 'not', of: allOf(inner) }
     if (key === 'or') return { type: 'any', of: inner }
     if (key === 'and') return { type: 'all', of: inner }
+    // Blocks that only change the tooltip hold plain terms, all required (`tooltip = key` is not one).
+    if (key === 'hidden_trigger') return allOf(inner)
+    if (key === 'custom_trigger_tooltip') {
+      return allOf(checksOfNodes(kids.filter((k) => k.line.key !== 'tooltip')))
+    }
     return { type: 'unknown' }
   }
   const value = line.value
@@ -110,7 +178,18 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
   if (key === 'has_completed_focus') return { type: 'focus', id: value }
   if (key === 'has_tech') return { type: 'tech', id: value }
   if (key === 'has_government') return { type: 'government', id: value }
+  if (key === 'original_tag' || key === 'tag') return { type: 'tag', id: value }
+  if (key === 'has_dlc') return { type: 'dlc', id: value }
+  if (key === 'has_war' && (value === 'yes' || value === 'no')) {
+    return { type: 'war', atWar: value === 'yes' }
+  }
+  if (key === 'always' && (value === 'yes' || value === 'no')) {
+    return { type: 'const', value: value === 'yes' }
+  }
   const op = line.operator ?? '='
+  if (key in STAT_KEYS && COMPARISONS.has(op) && value !== '' && Number.isFinite(Number(value))) {
+    return { type: 'stat', key: STAT_KEYS[key], op: op as '>', than: Number(value) }
+  }
   if (POPULARITY_IDEOLOGIES.has(key) && COMPARISONS.has(op)) {
     const other = POPULARITY_OF.exec(value)
     if (other) return { type: 'popularity', ideology: key, op: op as '>', than: other[1] }
@@ -121,9 +200,12 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
   return { type: 'unknown' }
 }
 
+/** The lines of a trigger block (an `available` or `allowed`) as one `Check`: all terms required. */
+export const checkOfLines = (lines: EffectLine[]): Check => allOf(checksOfNodes(toTree(lines)))
+
 /** The terms of a `limit` (which are all required) as one `Check`, or undefined if none is known. */
 const checkOf = (limit: EffectLine[]): Check | undefined => {
-  const checks = toTree(limit).map(checkOfNode)
+  const checks = checksOfNodes(toTree(limit))
   const known = (c: Check): boolean =>
     c.type === 'not'
       ? known(c.of)

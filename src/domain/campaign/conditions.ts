@@ -11,8 +11,8 @@ import { blockEnd, isElseBranch, opensBlock, outdent } from '../effects/lines'
 
 /** What the campaign knows when a focus completes. A missing answer is `undefined`. */
 export interface ConditionContext {
-  hasIdea: (id: string) => boolean
-  hasFocus: (id: string) => boolean
+  hasIdea: (id: string) => boolean | undefined
+  hasFocus: (id: string) => boolean | undefined
   /** The tech tree is not planned yet, so this can stay out until it is. */
   hasTech?: (id: string) => boolean | undefined
   /** Who leads the country, once known; `undefined` when not known (or retired and not replaced). */
@@ -21,6 +21,16 @@ export interface ConditionContext {
   government: () => string | undefined
   /** An ideology's popularity as a fraction of 1, once known. */
   popularity: (ideology: string) => number | undefined
+  /** The country's own tag, and the DLCs it owns (a DLC not listed is not owned). */
+  tag?: string
+  hasDlc?: (id: string) => boolean | undefined
+  /** The country's absolute `war_support` or `stability`, once the start has set them. */
+  stat?: (key: 'war_support' | 'stability') => number | undefined
+  /**
+   * Whether the country is at war. Wars are not planned, so only the political power planner
+   * answers it (with no: purchases are planned for peace); focus rewards leave it unknown.
+   */
+  atWar?: () => boolean | undefined
 }
 
 const compare = (a: number, op: string, b: number): boolean => {
@@ -59,6 +69,20 @@ export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | un
       const left = ctx.popularity(check.ideology)
       const right = typeof check.than === 'number' ? check.than : ctx.popularity(check.than)
       return left === undefined || right === undefined ? undefined : compare(left, check.op, right)
+    }
+    case 'stat': {
+      const value = ctx.stat?.(check.key)
+      return value === undefined ? undefined : compare(value, check.op, check.than)
+    }
+    case 'tag':
+      return ctx.tag === undefined ? undefined : ctx.tag === check.id
+    case 'dlc':
+      return ctx.hasDlc?.(check.id)
+    case 'const':
+      return check.value
+    case 'war': {
+      const atWar = ctx.atWar?.()
+      return atWar === undefined ? undefined : atWar === check.atWar
     }
     case 'not': {
       const inner = evaluateCheck(check.of, ctx)

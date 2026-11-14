@@ -44,6 +44,20 @@ export const statOverrides: StatOverrides = {
     decimals: 0,
     goodWhen: 'positive',
   },
+  // Political power: the daily gain is a plain number, the drain and the factor are changes to it.
+  political_power_gain: {
+    label: 'Political power gain',
+    kind: 'number',
+    decimals: 2,
+    goodWhen: 'positive',
+  },
+  political_power_factor: { label: 'Political power gain', kind: 'percent', goodWhen: 'positive' },
+  political_power_cost: {
+    label: 'Political power cost',
+    kind: 'number',
+    decimals: 2,
+    goodWhen: 'negative',
+  },
   add_research_slot: { label: 'Research slots', kind: 'number', decimals: 0, goodWhen: 'positive' },
   army_experience: { label: 'Army experience', kind: 'number', decimals: 0, goodWhen: 'positive' },
   air_experience: { label: 'Air experience', kind: 'number', decimals: 0, goodWhen: 'positive' },

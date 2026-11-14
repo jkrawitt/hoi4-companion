@@ -3,6 +3,7 @@ import OverviewView from '@/views/OverviewView.vue'
 import FocusPlanView from '@/views/FocusPlanView.vue'
 import ResearchPlanView from '@/views/ResearchPlanView.vue'
 import ProductionView from '@/views/ProductionView.vue'
+import PoliticsPlanView from '@/views/PoliticsPlanView.vue'
 
 const router = createRouter({
   // Hash history keeps reloads and deep links working on GitHub Pages without a 404 fallback.
@@ -12,6 +13,7 @@ const router = createRouter({
     { path: '/focus', name: 'focus', component: FocusPlanView },
     { path: '/research', name: 'research', component: ResearchPlanView },
     { path: '/production', name: 'production', component: ProductionView },
+    { path: '/politics', name: 'politics', component: PoliticsPlanView },
   ],
   // Pages are kept alive, so going back finds them where they were left.
   scrollBehavior: (_to, _from, savedPosition) => savedPosition ?? { top: 0 },

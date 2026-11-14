@@ -6,11 +6,14 @@
  * queued tech that can start: not started yet, prerequisites done, no tech it excludes taken. A
  * tech that cannot start yet does not hold up the ones behind it. A slot adds, each day,
  *
- *   (1 + research speed + bonus) / (base cost x tech cost x (1 + penalty x years ahead of time))
+ *   (1 + research speed + bonus + category bonus)
+ *     / (base cost x tech cost x (1 + penalty x years ahead of time))
  *
  * to a tech, which is done at 1. The years ahead are counted from that day to January 1st of the
- * tech's `start_year`, minus the years the chosen bonus ignores. A bonus is spent when the tech
- * starts. Everything moves in whole days, so a tech's dates and days are whole numbers.
+ * tech's `start_year`, minus the years the chosen bonus ignores. The category bonus is what the
+ * designers the country has add for the tech's categories, from the day they are in force. A
+ * bonus is spent when the tech starts. Everything moves in whole days, so a tech's dates and days
+ * are whole numbers.
  */
 import type {
   AheadOfTime,
@@ -41,6 +44,24 @@ export const bonusMatches = (bonus: ResearchBonus, tech: Technology): boolean =>
       (kind !== 'category' && target === tech.id)
     )
   })
+
+/**
+ * The extra research speed a tech gets on `date` from its categories (a designer's
+ * `research_bonus`): the sum of the bonuses of the categories it is in.
+ */
+export const categoryBonusAt = (
+  env: Pick<ResearchEnvironment, 'categorySpeed'>,
+  tech: Pick<Technology, 'categories'>,
+  date: Date | number,
+): number => {
+  const time = typeof date === 'number' ? date : date.getTime()
+  const entry = (env.categorySpeed ?? []).filter((c) => c.date.getTime() <= time).pop()
+  if (!entry) return 0
+  return Object.entries(entry.bonuses).reduce(
+    (sum, [category, bonus]) => (tech.categories.includes(category) ? sum + bonus : sum),
+    0,
+  )
+}
 
 const bonusKey = (bonus: ResearchBonus) => `${bonus.ref.focusId}#${bonus.ref.index}`
 
@@ -191,7 +212,8 @@ export const scheduleResearch = (
       if (!r) return
       const { tech } = r.entry
       const { penalty } = aheadOfTime(tech, today, r.bonus?.ahead ?? 0, defines)
-      const speedFactor = Math.max(defines.minSpeed, 1 + speed + (r.bonus?.bonus ?? 0))
+      const bonus = (r.bonus?.bonus ?? 0) + categoryBonusAt(env, tech, today)
+      const speedFactor = Math.max(defines.minSpeed, 1 + speed + bonus)
       r.progress += speedFactor / (defines.baseCost * tech.cost * penalty)
       if (r.progress < 1 - EPSILON) return
       const end = addDays(startDate, day + 1)

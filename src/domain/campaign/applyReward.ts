@@ -13,7 +13,8 @@ import { addDays } from '../plan/focusPlan'
 import { resolveConditions } from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import { isNumeric, round, addTo } from './totals'
+import { activeModifiers, addTo, countryStat, isNumeric, round } from './totals'
+import { DEFAULT_POLITICS_DEFINES } from '../politics'
 import type {
   ActiveIdea,
   BuildingTotal,
@@ -53,6 +54,8 @@ export interface Working {
   retiredLeaders: Set<string>
   leader?: CountryLeader
   research: ResearchWorking
+  /** The characters recruited so far, whom advisors need to be hired. */
+  recruited: Set<string>
 }
 
 export const newWorking = (): Working => ({
@@ -67,6 +70,7 @@ export const newWorking = (): Working => ({
   doneFocuses: new Set(),
   retiredLeaders: new Set(),
   research: newResearchWorking(),
+  recruited: new Set(),
 })
 
 /** What a handler needs to know about the reward it is part of. */
@@ -135,6 +139,15 @@ const ideas: Handler = (c, e, i) => {
         if (id !== e.value && c.options.laws?.[id] === law) c.w.ideas.delete(id)
       }
     }
+    if (e.slot) {
+      // A politics slot that is full gives up its oldest idea: a new concern replaces the old one,
+      // and an advisor needs a free slot (the planner dismisses one first).
+      const capacity = c.options.politics?.slots[e.slot] ?? 1
+      const held = [...c.w.ideas.values()].filter((x) => x.slot === e.slot && x.id !== e.value)
+      for (const old of held.slice(0, Math.max(0, held.length - capacity + 1))) {
+        c.w.ideas.delete(old.id)
+      }
+    }
     c.w.ideas.set(e.value, {
       id: e.value,
       name: e.valueName ?? e.value,
@@ -145,6 +158,8 @@ const ideas: Handler = (c, e, i) => {
       modifiers: childrenAt(c.effects, i).filter(
         (m) => (m.isModifier || m.isRule) && m.stat !== undefined,
       ),
+      ...(e.slot && { slot: e.slot }),
+      ...(e.researchBonus && { researchBonus: e.researchBonus }),
     })
     return true
   }
@@ -153,6 +168,12 @@ const ideas: Handler = (c, e, i) => {
     return true
   }
   return false
+}
+
+const recruit: Handler = ({ w }, e) => {
+  if (e.key !== 'recruit_character' || !e.value) return false
+  w.recruited.add(e.value)
+  return true
 }
 
 const construction: Handler = (c, e) => {
@@ -285,6 +306,7 @@ const research: Handler = (c, e) => {
 const HANDLERS: Handler[] = [
   research,
   ideas,
+  recruit,
   construction,
   popularity,
   leaders,
@@ -420,6 +442,22 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
     popularity: (ideology) =>
       options.start?.length ? (w.popularity.get(ideology)?.total ?? 0) : undefined,
     hasTech: (id) => options.hasTech?.(id, step.end),
+    tag: options.tag,
+    hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
+    // The actual stat: only known once the start has set it, like popularity.
+    stat: (key) => {
+      if (!options.start?.length) return undefined
+      const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > step.end)
+      const { totals } = activeModifiers(active, w.leader?.traits ?? [])
+      return countryStat(
+        key,
+        options.start,
+        w.statChanges.get(`add_${key}`)?.total ?? 0,
+        (k) => totals.get(k)?.total ?? 0,
+        w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
+        (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
+      )
+    },
   })
 
   const { applied, conditional: skipped, states } = classify(effects, options.tag)
