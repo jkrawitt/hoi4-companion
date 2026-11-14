@@ -388,5 +388,24 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(level.civs).toBe(6)
     // Checked in game: queued on 1 January 1936, the factory is done on 10 October 1936.
     expect(level.end.toISOString().slice(0, 10)).toBe('1936-10-10')
+
+    // Checked in game: in Bessarabia (infrastructure 2) the same factory is done on 19 November.
+    const bessarabia = production.states.find((s) => s.id === 78)!
+    expect(bessarabia.buildings.infrastructure).toBe(2)
+    const there = planConstruction({
+      production,
+      finalState,
+      research: planned.schedule,
+      techs: research.techs,
+      queue: [{ building: 'industrial_complex', state: bessarabia.id, levels: 1 }],
+      startDate,
+      until: new Date(Date.UTC(1940, 0, 1)),
+    }).schedule.items[0].levels[0]
+    expect(there.end.toISOString().slice(0, 10)).toBe('1936-11-19')
+
+    // Checked in game: Muntenia (city) has 6 building slots, Oltenia (rural) 2.
+    const slots = (id: number) =>
+      production.categorySlots[production.states.find((s) => s.id === id)!.category]
+    expect([slots(46), slots(81)]).toEqual([6, 2])
   })
 })
