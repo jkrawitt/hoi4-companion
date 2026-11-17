@@ -92,7 +92,4 @@ const following = computed(() => completionDays.value.find((d) => d > viewDate.v
   height: 8px;
   background: #2f4f6f;
 }
-.muted {
-  color: #666;
-}
 </style>

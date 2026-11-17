@@ -229,6 +229,18 @@ describe('countryStateAt with a starting state', () => {
     expect(after.statChanges).toMatchObject([{ key: 'add_stability', total: 0.65 }])
     expect(after.completed).toHaveLength(1)
   })
+
+  it('starts stability at 50% when the history sets none, for consumer goods too', () => {
+    const noSet = startLines.filter((l) => l.key !== 'add_stability')
+    const schedule = schedulePlan([], {}, { startDate: start, speedBonus: 0 })
+    const s = countryStateAt(schedule, day(0), { start: noSet, startDate: start })
+    // What the overview shows and what industry and construction build on agree.
+    expect(s.stabilityBase).toBe(0.5)
+    expect(s.stability).toBe(0.5)
+    expect(s.snapshots[0].stabilityBase).toBe(0.5)
+    const set = countryStateAt(schedule, day(0), { start: startLines, startDate: start })
+    expect(set.stabilityBase).toBe(0.6)
+  })
 })
 
 describe('leader traits added after the leader', () => {

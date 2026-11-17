@@ -15,6 +15,7 @@ import type {
   TechFolder,
   Technology,
 } from '@/domain/research'
+import { describeAhead } from '@/domain/research'
 import { formatDate } from '@/stores/campaign'
 
 const props = defineProps<{
@@ -147,14 +148,6 @@ const aheadOf = (tech: Technology): AheadOfTime | null => {
   return ahead.years > 0 ? ahead : null
 }
 
-const aheadText = (ahead: AheadOfTime) => {
-  const years = Math.round(ahead.years * 10) / 10
-  const cost =
-    ahead.penalty > 1 ? `x${Math.round(ahead.penalty * 100) / 100} cost` : 'no extra cost'
-  const bonus = ahead.ignored > 0 ? `, the bonus ignores ${ahead.ignored} years` : ''
-  return `${years} ${years === 1 ? 'year' : 'years'} ahead of time: ${cost}${bonus}`
-}
-
 /** What a card says about its tech. */
 const stateOf = (tech: Technology) => {
   if (props.startTechs.has(tech.id)) return { kind: 'start', text: 'at start' }
@@ -263,7 +256,7 @@ const hideDetails = () => (hovered.value = null)
           ? 'When it starts in the queue:'
           : `If started when a slot is free (${formatDate(props.freeAt!)}):`
       }}
-      {{ aheadText(aheadOf(hovered.tech)!) }}
+      {{ describeAhead(aheadOf(hovered.tech)!) }}
     </div>
     <div v-if="hovered.tech.exclusiveWith.length > 0" class="meta">
       Excludes {{ hovered.tech.exclusiveWith.map(nameOf).join(', ') }}

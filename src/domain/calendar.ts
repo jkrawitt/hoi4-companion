@@ -46,3 +46,9 @@ export const daysBetween = (from: Date | number, to: Date | number): number =>
 
 /** The whole game day an instant falls on, counting a moment just past midnight as the day before. */
 export const wholeDay = (date: Date | number): number => Math.ceil(gameDay(date) - 1e-9)
+
+/** A `YYYY-MM-DD` date (a date input, a saved plan) as midnight UTC. */
+export const parseDay = (text: string): Date => new Date(`${text}T00:00:00Z`)
+
+/** A date as `YYYY-MM-DD`, the format of date inputs and the saved plan. */
+export const formatDay = (date: Date): string => date.toISOString().slice(0, 10)

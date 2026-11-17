@@ -143,9 +143,6 @@ const otherFactories = computed(
 </template>
 
 <style scoped>
-.muted {
-  color: #666;
-}
 .tiles {
   display: grid;
   gap: 0.75rem;

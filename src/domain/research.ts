@@ -125,6 +125,15 @@ export interface AheadOfTime {
   penalty: number
 }
 
+/** `1.5 years ahead of time: x4 cost (the bonus ignores 2 years)`, for tooltips and queue rows. */
+export const describeAhead = (ahead: AheadOfTime): string => {
+  const years = Math.round(ahead.years * 10) / 10
+  const cost =
+    ahead.penalty > 1 ? `x${Math.round(ahead.penalty * 100) / 100} cost` : 'no extra cost'
+  const bonus = ahead.ignored > 0 ? ` (the bonus ignores ${ahead.ignored} years)` : ''
+  return `${years} ${years === 1 ? 'year' : 'years'} ahead of time: ${cost}${bonus}`
+}
+
 export type ResearchIssue = { kind: 'already-researched' } | { kind: 'bonus-unavailable' }
 
 export interface ScheduledResearch {

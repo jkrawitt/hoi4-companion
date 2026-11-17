@@ -12,10 +12,9 @@
  */
 import { START_ID } from '../focus'
 import type { FocusSchedule } from '../plan/types'
-import { applyReward, newWorking } from './applyReward'
+import { applyReward, newWorking, rawStatNow } from './applyReward'
 import type { Step } from './applyReward'
-import { DEFAULT_POLITICS_DEFINES } from '../politics'
-import { activeModifiers, countryStat } from './totals'
+import { activeModifiers, clampStat, scriptedStat } from './totals'
 import { researchEnvironment } from './researchEvents'
 import type { ActiveIdea, CountryState, CountryStateOptions } from './types'
 
@@ -79,17 +78,9 @@ export const countryStateAt = (
   const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
 
   const { totals: modifierTotals, rules } = activeModifiers(active, w.leader?.traits ?? [])
+  // Only known once the start has set them, like popularity.
   const actual = (key: 'stability' | 'war_support') =>
-    options.start?.length
-      ? countryStat(
-          key,
-          options.start,
-          w.statChanges.get(`add_${key}`)?.total ?? 0,
-          (k) => modifierTotals.get(k)?.total ?? 0,
-          w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
-          (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
-        )
-      : undefined
+    options.start?.length ? clampStat(rawStatNow(w, options, key, date)) : undefined
 
   return {
     date,
@@ -103,6 +94,11 @@ export const countryStateAt = (
     rulingParty: w.rulingParty,
     government: w.government,
     stability: actual('stability'),
+    stabilityBase: scriptedStat(
+      'stability',
+      options.start ?? [],
+      w.statChanges.get('add_stability')?.total ?? 0,
+    ),
     warSupport: actual('war_support'),
     leader: w.leader,
     resources: [...w.resources.values()],

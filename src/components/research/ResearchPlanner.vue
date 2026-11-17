@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import EffectList from '../focus/EffectList.vue'
 import GameDataImport from '../GameDataImport.vue'
 import ResearchFolderGraph from './ResearchFolderGraph.vue'
 import { availableBonuses, earliestFreeSlot } from '@/domain/plan/researchPlan'
-import type { AheadOfTime, BonusRef, ResearchBonus, UnscheduledReason } from '@/domain/research'
-import { completionDay, formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import type { BonusRef, ResearchBonus, UnscheduledReason } from '@/domain/research'
+import { describeAhead } from '@/domain/research'
+import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { useShowOnOverview } from '../overviewLink'
+import { yearBanners } from '../yearBanners'
 
-const router = useRouter()
+const showOnOverview = useShowOnOverview()
 const {
   research,
   startTechs,
@@ -51,14 +53,12 @@ const parseBonusId = (id: string): BonusRef | undefined => {
 
 // Rows are in queue order. A tech's effects land when it is done, so a banner marks a new year.
 const rows = computed(() => {
-  let previousYear: number | undefined
+  const nextBanner = yearBanners()
   return researchPlan.value.map((queued, index) => {
     const tech = techs.value[queued.techId]
     const scheduled = researchSchedule.value.items.find((item) => item.index === index)
     const left = researchSchedule.value.unscheduled.find((u) => u.index === index)
-    const year = scheduled?.end.getUTCFullYear()
-    const banner = year !== undefined && year !== previousYear ? year : null
-    if (year !== undefined) previousYear = year
+    const banner = nextBanner(scheduled?.end)
     const offered = tech
       ? availableBonuses(tech, index, researchSchedule.value, researchEnvironment.value)
       : []
@@ -78,21 +78,6 @@ const rows = computed(() => {
 })
 
 const formatDays = (days: number) => Math.round(days)
-
-/** `1.5 years ahead of time: x4 cost (the bonus ignores 2 years)`. */
-const aheadText = (ahead: AheadOfTime) => {
-  const years = Math.round(ahead.years * 10) / 10
-  const cost =
-    ahead.penalty > 1 ? `x${Math.round(ahead.penalty * 100) / 100} cost` : 'no extra cost'
-  const bonus = ahead.ignored > 0 ? ` (the bonus ignores ${ahead.ignored} years)` : ''
-  return `${years} ${years === 1 ? 'year' : 'years'} ahead of time: ${cost}${bonus}`
-}
-
-/** Opens the overview showing the country as of the day this tech is done. */
-const showOnOverview = (end: Date) => {
-  viewDate.value = completionDay(end)
-  void router.push('/')
-}
 
 const doneBy = computed(() => parseDate(viewDate.value))
 
@@ -134,7 +119,7 @@ const freeAt = computed(() =>
       <p v-if="researchPlan.length === 0">Add technologies to build a queue.</p>
       <ol v-else class="plan">
         <template v-for="row in rows" :key="row.index">
-          <li v-if="row.banner !== null" class="year">{{ row.banner }}</li>
+          <li v-if="row.banner !== null" class="year-banner">{{ row.banner }}</li>
           <li class="entry">
             <div class="when">
               <strong>{{ row.tech?.name ?? row.queued.techId }}</strong>
@@ -152,7 +137,7 @@ const freeAt = computed(() =>
                 {{ formatDays(row.scheduled.days) }} days, slot {{ row.scheduled.slot + 1 }}
               </div>
               <div v-if="row.scheduled && row.scheduled.ahead.years > 0" class="muted">
-                {{ aheadText(row.scheduled.ahead) }}
+                {{ describeAhead(row.scheduled.ahead) }}
               </div>
               <div v-if="row.left" class="problem">{{ REASONS[row.left.reason] }}</div>
               <div v-for="(issue, i) in row.scheduled?.issues ?? []" :key="i" class="problem">
@@ -231,17 +216,6 @@ const freeAt = computed(() =>
   gap: 1.5rem;
   padding: 0.5rem 0;
   border-top: 1px solid #ddd;
-}
-.year {
-  margin-top: 1rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: #2f4f6f;
-  border-radius: 3px;
-}
-.muted {
-  color: #666;
 }
 .problem {
   color: #b3261e;

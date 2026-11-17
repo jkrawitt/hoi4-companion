@@ -119,7 +119,8 @@ const triggerOf = (
 const allowedIdeaTrait = (block: ScriptBlock | undefined): string | undefined => {
   for (const e of block ?? []) {
     if (typeof e.value !== 'object') continue
-    if (e.key?.toLowerCase() === 'has_allowed_idea_with_traits') return getString(e.value, 'idea') ?? ''
+    if (e.key?.toLowerCase() === 'has_allowed_idea_with_traits')
+      return getString(e.value, 'idea') ?? ''
     const inner = allowedIdeaTrait(e.value)
     if (inner !== undefined) return inner
   }

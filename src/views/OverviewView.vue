@@ -242,9 +242,6 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
 </template>
 
 <style scoped>
-.muted {
-  color: #666;
-}
 .ideas {
   padding: 0;
   list-style: none;

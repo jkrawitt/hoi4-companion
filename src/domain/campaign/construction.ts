@@ -21,6 +21,7 @@ import { scheduleConstruction } from '../plan/constructionPlan'
 import { techModifierTotals } from './research'
 import { placeBatches, sharedBuildings, startingRows } from './industry'
 import { activeModifiers } from './totals'
+import { changePoints } from './snapshots'
 import type { CountryState } from './types'
 
 /** Stat keys that look like a building speed but are not one. */
@@ -38,19 +39,9 @@ export const constructionFactors = (
   researchEnds: Date[],
   defines: ProductionDefines,
 ): ConstructionFactors[] => {
-  const times = new Set<number>([startDate.getTime()])
-  for (const s of finalState.snapshots) {
-    times.add(s.date.getTime())
-    for (const idea of s.ideas) if (idea.until) times.add(idea.until.getTime())
-  }
-  for (const end of researchEnds) times.add(end.getTime())
-  return [...times]
-    .sort((a, b) => a - b)
-    .map((time) => {
-      const date = new Date(time)
-      const latest = finalState.snapshots.filter((s) => s.date <= date).pop()
-      const active = (latest?.ideas ?? []).filter((idea) => !idea.until || idea.until > date)
-      const own = activeModifiers(active, latest?.traits ?? []).totals
+  return changePoints(finalState.snapshots, [startDate, ...researchEnds]).map(
+    ({ date, snapshot: latest, ideas, traits }) => {
+      const own = activeModifiers(ideas, traits).totals
       const totals = new Map<string, number>()
       for (const t of [
         ...own.values(),
@@ -80,7 +71,8 @@ export const constructionFactors = (
         energyGain: totals.get('energy_gain_factor') ?? 0,
         energyConsumption: totals.get('factory_energy_consumption') ?? 0,
       }
-    })
+    },
+  )
 }
 
 export interface ConstructionPlanInput {

@@ -49,7 +49,4 @@ const INDENT = 12
   color: #777;
   font-style: italic;
 }
-.muted {
-  color: #666;
-}
 </style>

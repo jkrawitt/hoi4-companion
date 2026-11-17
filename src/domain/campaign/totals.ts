@@ -34,14 +34,26 @@ export const rawCountryStat = (
   rulingPopularity: number,
   partyStability: number,
 ): number => {
-  const set = start.some((l) => l.depth === 0 && l.key === `add_${key}`)
   const party = key === 'stability' ? rulingPopularity * partyStability : 0
-  return round((set ? 0 : DEFAULT_STAT) + changes + modifiers(`${key}_factor`) + party)
+  return round(scriptedStat(key, start, changes) + modifiers(`${key}_factor`) + party)
 }
 
-/** `rawCountryStat` kept between 0 and 1, which is what the game shows. */
-export const countryStat = (...args: Parameters<typeof rawCountryStat>): number =>
-  Math.min(1, Math.max(0, rawCountryStat(...args)))
+/**
+ * The scripted part of stability or war support: the start's `set_*` (an `add_*` start line), or
+ * 50% when the history sets none, plus the changes since. Modifiers and party popularity come on
+ * top (`rawCountryStat`, `stabilityOf`).
+ */
+export const scriptedStat = (
+  key: 'stability' | 'war_support',
+  start: EffectLine[],
+  changes: number,
+): number => {
+  const set = start.some((l) => l.depth === 0 && l.key === `add_${key}`)
+  return round((set ? 0 : DEFAULT_STAT) + changes)
+}
+
+/** A stat kept between 0 and 1, which is what the game shows. */
+export const clampStat = (value: number): number => Math.min(1, Math.max(0, value))
 
 export const isNumeric = (value: string | undefined): value is string =>
   value !== undefined && value !== '' && Number.isFinite(Number(value))

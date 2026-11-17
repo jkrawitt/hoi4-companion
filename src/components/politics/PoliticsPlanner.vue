@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import EffectList from '../focus/EffectList.vue'
 import GameDataImport from '../GameDataImport.vue'
 import { capitalize, humanize } from '@/domain/effects/lines'
@@ -11,9 +10,11 @@ import {
   type PurchaseIssue,
   type UnscheduledPurchaseReason,
 } from '@/domain/politics'
-import { completionDay, formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { useShowOnOverview } from '../overviewLink'
+import { yearBanners } from '../yearBanners'
 
-const router = useRouter()
+const showOnOverview = useShowOnOverview()
 const {
   politics,
   hasData,
@@ -83,14 +84,12 @@ const bonusText = (option: PoliticalOption) =>
 
 /** Rows are in queue order; a banner marks the year a purchase happens in. */
 const rows = computed(() => {
-  let previousYear: number | undefined
+  const nextBanner = yearBanners()
   return politicsPlan.value.map((item, index) => {
     const option = byId.value.get(item.optionId)
     const scheduled = politicsSchedule.value.items.find((s) => s.index === index)
     const left = politicsSchedule.value.unscheduled.find((u) => u.index === index)
-    const year = scheduled?.date.getUTCFullYear()
-    const banner = year !== undefined && year !== previousYear ? year : null
-    if (year !== undefined) previousYear = year
+    const banner = nextBanner(scheduled?.date)
     return { index, item, option, scheduled, left, banner }
   })
 })
@@ -102,12 +101,6 @@ const nextPurchase = computed(() =>
   politicsSchedule.value.items.find((item) => item.date > viewed.value),
 )
 const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
-
-/** Opens the overview showing the country on the day of a purchase. */
-const showOnOverview = (date: Date) => {
-  viewDate.value = completionDay(date)
-  void router.push('/')
-}
 </script>
 
 <template>
@@ -197,7 +190,7 @@ const showOnOverview = (date: Date) => {
         <p v-if="politicsPlan.length === 0">Add laws, designers or advisors to build a queue.</p>
         <ol v-else class="plan">
           <template v-for="row in rows" :key="row.index">
-            <li v-if="row.banner !== null" class="year">{{ row.banner }}</li>
+            <li v-if="row.banner !== null" class="year-banner">{{ row.banner }}</li>
             <li class="entry">
               <strong>
                 <template v-if="row.item.dismiss">Dismiss </template
@@ -323,17 +316,6 @@ const showOnOverview = (date: Date) => {
 .plan > .entry {
   padding: 0.5rem 0;
   border-top: 1px solid #ddd;
-}
-.year {
-  margin-top: 1rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: #2f4f6f;
-  border-radius: 3px;
-}
-.muted {
-  color: #666;
 }
 .good {
   color: #1f7a3d;

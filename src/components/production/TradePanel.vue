@@ -112,7 +112,4 @@ ul {
   padding: 0;
   list-style: none;
 }
-.muted {
-  color: #666;
-}
 </style>

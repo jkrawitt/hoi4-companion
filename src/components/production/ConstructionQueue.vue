@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /** The construction queue: what the spare civilian factories build, in order, and where. */
 import { computed, watch } from 'vue'
-import { useRouter } from 'vue-router'
 import { levelsLeft, type ConstructionIssue, type ScheduledConstruction } from '@/domain/production'
 import { daysBetween } from '@/domain/calendar'
-import { completionDay, formatDate, useCampaign } from '@/stores/campaign'
+import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { useShowOnOverview } from '../overviewLink'
 
 /** What the add row holds; the state rows' `+` fills it in. */
 export interface ConstructionDraft {
@@ -15,7 +15,7 @@ export interface ConstructionDraft {
 
 const draft = defineModel<ConstructionDraft>('draft', { required: true })
 
-const router = useRouter()
+const showOnOverview = useShowOnOverview()
 const {
   production,
   industry,
@@ -43,7 +43,7 @@ const ISSUES: Record<ConstructionIssue, string> = {
  */
 const stateOptions = computed(() => {
   const shared = new Set(production.value?.buildings.filter((b) => b.sharesSlots).map((b) => b.id))
-  const viewed = new Date(viewDate.value).getTime()
+  const viewed = parseDate(viewDate.value).getTime()
   const pending = new Map<number, number>()
   for (const item of constructionSchedule.value?.items ?? []) {
     if (!shared.has(item.item.building)) continue
@@ -120,12 +120,6 @@ const rows = computed(() =>
     }
   }),
 )
-
-/** Opens the overview showing the country as of the day this is built. */
-const showOnOverview = (end: Date) => {
-  viewDate.value = completionDay(end)
-  void router.push('/')
-}
 </script>
 
 <template>
@@ -245,9 +239,6 @@ const showOnOverview = (end: Date) => {
 </template>
 
 <style scoped>
-.muted {
-  color: #666;
-}
 .problem {
   color: #b3261e;
 }

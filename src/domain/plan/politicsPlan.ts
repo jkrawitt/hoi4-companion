@@ -14,6 +14,7 @@
  * another first). There are no dependencies between purchases, so every order of the queue is valid.
  */
 import type { PoliticalOption, PoliticsDefines, PoliticsItem } from '../politics'
+import { moveItem } from '../queue'
 
 /** Summed stat totals by key, as the country state's modifier totals give them. */
 export type Totals = Record<string, number>
@@ -94,13 +95,8 @@ export const removePurchase = (queue: PoliticsItem[], index: number): PoliticsIt
   queue.filter((_, i) => i !== index)
 
 /** Moves an item up (-1) or down (1); out of range leaves the queue as it was. */
-export const movePurchase = (queue: PoliticsItem[], index: number, by: -1 | 1): PoliticsItem[] => {
-  const target = index + by
-  if (index < 0 || index >= queue.length || target < 0 || target >= queue.length) return queue
-  const moved = [...queue]
-  ;[moved[index], moved[target]] = [moved[target], moved[index]]
-  return moved
-}
+export const movePurchase = (queue: PoliticsItem[], index: number, by: -1 | 1): PoliticsItem[] =>
+  moveItem(queue, index, by)
 
 /** Sets or (with an empty date) clears the earliest day an item may be bought. */
 export const setNotBefore = (
@@ -111,6 +107,7 @@ export const setNotBefore = (
   queue.map((item, i) => {
     if (i !== index) return item
     return {
+      ...(item.id && { id: item.id }),
       optionId: item.optionId,
       ...(item.dismiss && { dismiss: true as const }),
       ...(notBefore && { notBefore }),
