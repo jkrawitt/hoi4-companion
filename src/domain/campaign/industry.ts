@@ -256,7 +256,7 @@ export const industryAt = (
     totalOf(state.modifierTotals, 'consumer_goods_factor') +
       totalOf(techTotals, 'consumer_goods_factor'),
     stabilityOf(
-      totalOf(state.statChanges, 'add_stability'),
+      state.stabilityBase,
       totalOf(state.modifierTotals, 'stability_factor') + totalOf(techTotals, 'stability_factor'),
       state.popularity.find((p) => p.subject === state.government)?.total ?? 0,
       production.defines,

@@ -39,7 +39,8 @@ import {
 } from '@/domain/production'
 import type { BonusRef, ResearchData, ResearchItem } from '@/domain/research'
 import { addDays } from '@/domain/plan/focusPlan'
-import { fromGameDay, wholeDay } from '@/domain/calendar'
+import { moveItem, newId, withIds } from '@/domain/queue'
+import { DAYS_PER_YEAR, formatDay, fromGameDay, parseDay, wholeDay } from '@/domain/calendar'
 import type { Adjustments } from '@/domain/adjustments'
 import { buildTimeline } from '@/domain/campaign/timeline'
 import {
@@ -92,8 +93,9 @@ const save = (campaign: SavedCampaign) => {
 const RESEARCH_YEARS = 25
 /** How long after the focus plan ends construction is followed. */
 const CONSTRUCTION_YEARS = 10
-const parseDate = (text: string) => new Date(`${text}T00:00:00Z`)
-const formatDate = (d: Date) => d.toISOString().slice(0, 10)
+/** `parseDay` and `formatDay` from the calendar, under the names the components use. */
+const parseDate = parseDay
+const formatDate = formatDay
 
 const createCampaign = () => {
   const saved = loadSaved()
@@ -138,11 +140,11 @@ const createCampaign = () => {
   )
   /** The construction queue: buildings the spare civilian factories build, in order. */
   const constructionPlan = ref<ConstructionItem[]>(
-    Array.isArray(saved.constructionPlan) ? saved.constructionPlan : [],
+    withIds(Array.isArray(saved.constructionPlan) ? saved.constructionPlan : []),
   )
   /** The political power purchase queue: bought in order, each as soon as the power is there. */
   const politicsPlan = ref<PoliticsItem[]>(
-    Array.isArray(saved.politicsPlan) ? saved.politicsPlan : [],
+    withIds(Array.isArray(saved.politicsPlan) ? saved.politicsPlan : []),
   )
   /** The ids of the timeline actions the player has checked off as done in game. */
   const checkedOff = ref<string[]>(Array.isArray(saved.checkedOff) ? saved.checkedOff : [])
@@ -161,7 +163,7 @@ const createCampaign = () => {
     const list = adjustments.value[kind] as AdjustmentEntry<K>[]
     adjustments.value = {
       ...adjustments.value,
-      [kind]: [...list, { ...entry, id: crypto.randomUUID() } as AdjustmentEntry<K>],
+      [kind]: [...list, { ...entry, id: newId() } as AdjustmentEntry<K>],
     }
   }
   const removeAdjustment = (kind: AdjustmentKind, id: string) => {
@@ -283,8 +285,17 @@ const createCampaign = () => {
     laws: laws.value,
     startDate: parseDate(startDate.value),
     ownedDlc,
+    // Slot sizes and the party stability define: every view of the country needs them, so they
+    // are here rather than passed by each caller.
+    politics: politics.value,
     adjustments: adjustmentSteps(adjustments.value, statOverrides),
   }))
+
+  /** Where the planners' horizons count from: the end of the focus plan, or the start. */
+  const planBase = computed(() => {
+    const begin = parseDate(startDate.value)
+    return schedule.value.finish > begin ? schedule.value.finish : begin
+  })
 
   /**
    * Research and political power are worked out together with the focus plan: it asks about
@@ -299,30 +310,32 @@ const createCampaign = () => {
       politicsQueue: politicsPlan.value,
       politicsData: politics.value,
       startDate: parseDate(startDate.value),
-      until: addDays(
-        schedule.value.finish > parseDate(startDate.value)
-          ? schedule.value.finish
-          : parseDate(startDate.value),
-        RESEARCH_YEARS * 366,
-      ),
+      until: addDays(planBase.value, RESEARCH_YEARS * DAYS_PER_YEAR),
     }),
   )
   const researchSchedule = computed(() => planned.value.schedule)
   const politicsSchedule = computed(() => planned.value.politics)
 
+  /** The country on a date, with the research, purchases and adjustments of the campaign. */
+  const stateOn = (date: Date) =>
+    countryStateAt(schedule.value, date, {
+      ...stateOptions.value,
+      hasTech: planned.value.hasTech,
+      extraSteps: planned.value.politics.steps,
+    })
+
   /** The later of `date` and the last thing the player entered from the game. */
   const lastChange = (date: Date) =>
     (stateOptions.value.adjustments ?? []).reduce((l, s) => (s.end > l ? s.end : l), date)
+  /** The later of `date` and the last political power purchase. */
+  const lastPurchase = (date: Date) =>
+    politicsSchedule.value.items.reduce((l, p) => (p.date > l ? p.date : l), date)
 
-  /** The country when the focus plan is done: every build of the plan, for the construction. */
-  const finalState = computed(() =>
-    countryStateAt(schedule.value, lastChange(schedule.value.finish), {
-      ...stateOptions.value,
-      hasTech: planned.value.hasTech,
-      // A law bought with political power changes consumer goods, so purchases count too.
-      extraSteps: planned.value.politics.steps,
-    }),
-  )
+  /**
+   * The country once the focus plan, the purchases and the adjustments are all done: every build of
+   * the plan, and every change to consumer goods and build speed, for the construction.
+   */
+  const finalState = computed(() => stateOn(lastPurchase(lastChange(schedule.value.finish))))
   const plannedConstruction = computed(() =>
     production.value
       ? planConstruction({
@@ -333,12 +346,7 @@ const createCampaign = () => {
           queue: constructionPlan.value,
           adjustments: adjustments.value,
           startDate: parseDate(startDate.value),
-          until: addDays(
-            schedule.value.finish > parseDate(startDate.value)
-              ? schedule.value.finish
-              : parseDate(startDate.value),
-            CONSTRUCTION_YEARS * 366,
-          ),
+          until: addDays(planBase.value, CONSTRUCTION_YEARS * DAYS_PER_YEAR),
         })
       : undefined,
   )
@@ -411,10 +419,7 @@ const createCampaign = () => {
 
   /** Moves a queued tech up (-1) or down (1), when the queue stays valid. */
   const moveTech = (index: number, by: -1 | 1) => {
-    const queue = [...researchPlan.value]
-    const target = index + by
-    if (target < 0 || target >= queue.length) return
-    ;[queue[index], queue[target]] = [queue[target], queue[index]]
+    const queue = moveItem(researchPlan.value, index, by)
     if (isValidResearchPlan(queue, techs.value, startTechs.value)) researchPlan.value = queue
   }
 
@@ -431,17 +436,13 @@ const createCampaign = () => {
       production.value &&
       levelsLeft(production.value, item.building, item.state, constructionPlan.value) >= item.levels
     ) {
-      constructionPlan.value = [...constructionPlan.value, item]
+      constructionPlan.value = withIds([...constructionPlan.value, item])
     }
   }
 
   /** Moves a queued building up (-1) or down (1). */
   const moveConstruction = (index: number, by: -1 | 1) => {
-    const queue = [...constructionPlan.value]
-    const target = index + by
-    if (target < 0 || target >= queue.length) return
-    ;[queue[index], queue[target]] = [queue[target], queue[index]]
-    constructionPlan.value = queue
+    constructionPlan.value = moveItem(constructionPlan.value, index, by)
   }
 
   const removeConstruction = (index: number) => {
@@ -450,7 +451,7 @@ const createCampaign = () => {
 
   const resetConstruction = () => (constructionPlan.value = [])
   const addPurchase = (optionId: string, dismiss = false) => {
-    politicsPlan.value = addToQueue(politicsPlan.value, optionId, dismiss)
+    politicsPlan.value = withIds(addToQueue(politicsPlan.value, optionId, dismiss))
   }
   const movePurchase = (index: number, by: -1 | 1) => {
     politicsPlan.value = moveInQueue(politicsPlan.value, index, by)
@@ -463,14 +464,6 @@ const createCampaign = () => {
   }
   const resetPolitics = () => (politicsPlan.value = [])
 
-  /** The country on a date, with the research, purchases and adjustments of the campaign. */
-  const stateOn = (date: Date) =>
-    countryStateAt(schedule.value, date, {
-      ...stateOptions.value,
-      hasTech: planned.value.hasTech,
-      politics: politics.value,
-      extraSteps: planned.value.politics.steps,
-    })
   const state = computed(() => stateOn(parseDate(viewDate.value)))
   /** The stability the plan has on a date, `YYYY-MM-DD`, or undefined before the start is known. */
   const stabilityOn = (date: string): number | undefined => stateOn(parseDate(date)).stability

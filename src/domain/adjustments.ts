@@ -8,6 +8,7 @@ import type { EffectLine } from './focus'
 import type { Step } from './campaign/applyReward'
 import { resolveStat, type StatDefinition, type StatOverrides } from './stats'
 import { DEFAULT_RESOURCE_COST, type TradePoint } from './production'
+import { formatDay, parseDay } from './calendar'
 
 /** "Stability was 63% on this date." `value` is a fraction of 1, like the game scripts. */
 export interface StabilityAdjustment {
@@ -98,8 +99,6 @@ export const adjustableStat = (key: string, overrides: StatOverrides = {}): Stat
   return resolveStat(key, known?.label, {}, overrides, known && { kind: known.kind })
 }
 
-const parseDay = (text: string): Date => new Date(`${text}T00:00:00Z`)
-
 /**
  * The adjustments as rewards for `countryStateAt`'s `adjustments`, the shape the political power
  * purchases have. A modifier is a national spirit (timed when it has `days`); stability is an
@@ -164,7 +163,7 @@ export const tradeOverTime = (
     .sort((a, b) => a - b)
     .map((time) => {
       const date = new Date(time)
-      const day = date.toISOString().slice(0, 10)
+      const day = formatDay(date)
       const active = adj.imports.filter((i) => i.from <= day && (!i.until || day < i.until))
       return {
         date,

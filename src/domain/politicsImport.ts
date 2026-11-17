@@ -81,10 +81,12 @@ export const readPolitics = async (
   )
   const triggers: ScriptedTriggers = Object.assign(
     {},
-    ...(await readAll(
-      files,
-      triggerFiles.map((f) => `${GAME_PATHS.scriptedTriggers}/${f}`),
-    )).map(parseScriptedTriggers),
+    ...(
+      await readAll(
+        files,
+        triggerFiles.map((f) => `${GAME_PATHS.scriptedTriggers}/${f}`),
+      )
+    ).map(parseScriptedTriggers),
   )
   const lawTexts = await readAll(files, LAW_FILES)
   const designerTexts = await readAll(files, [

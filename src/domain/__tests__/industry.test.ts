@@ -68,6 +68,7 @@ const country = (extra: Partial<CountryState> = {}): CountryState =>
   ({
     modifierTotals: [],
     statChanges: [],
+    stabilityBase: 0,
     popularity: [],
     buildings: [],
     buildingSlots: 0,

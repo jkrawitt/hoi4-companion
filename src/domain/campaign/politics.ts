@@ -17,7 +17,7 @@ import type { PurchaseIssue, ScheduledPurchase, UnscheduledPurchase } from '../p
 import type { EffectLine } from '../focus'
 import type { FocusSchedule } from '../plan/types'
 import { dailyGain, purchaseCost, replacedBy, slotHasRoom, totalsOf } from '../plan/politicsPlan'
-import { addDays, daysBetween } from '../calendar'
+import { addDays, daysBetween, parseDay } from '../calendar'
 import type { Step } from './applyReward'
 import { evaluateCheck, type ConditionContext } from './conditions'
 import { countryStateAt } from './countryState'
@@ -74,8 +74,6 @@ const conditionsOf = (state: CountryState, options: CountryStateOptions): Condit
     atWar: () => false,
   }
 }
-
-const parseDay = (text: string): Date => new Date(`${text}T00:00:00Z`)
 
 /** What happens to the head of the queue in the country as it is right now. */
 type Outcome =
@@ -180,6 +178,7 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       if (outcome.kind === 'already') {
         items.push({
           index,
+          id: item.id,
           optionId: option.id,
           dismiss,
           date: t,
@@ -218,6 +217,7 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       points.push({ date: t, balance, gain })
       items.push({
         index,
+        id: item.id,
         optionId: option.id,
         dismiss,
         date: t,

@@ -50,12 +50,7 @@ import {
   pickStartingLeader,
 } from './parsers/leaders'
 import { parseFactionTemplates } from './parsers/factions'
-import {
-  annotateIdeaLines,
-  availabilityLines,
-  finishOption,
-  readPolitics,
-} from './politicsImport'
+import { annotateIdeaLines, availabilityLines, finishOption, readPolitics } from './politicsImport'
 import { parseStatDocs, type StatOverrides } from './stats'
 
 // Re-exported so callers have one import for "reading the game folder".

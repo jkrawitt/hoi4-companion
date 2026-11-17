@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { RouterLink, useRouter } from 'vue-router'
+import { RouterLink } from 'vue-router'
 import GameDataImport from '../GameDataImport.vue'
 import type { TimelineKind } from '@/domain/campaign/timeline'
-import { completionDay, formatDate, useCampaign } from '@/stores/campaign'
+import { formatDate, useCampaign } from '@/stores/campaign'
+import { useShowOnOverview } from '../overviewLink'
+import { yearBanners } from '../yearBanners'
 
-const router = useRouter()
-const { hasData, timeline, viewDate, checkedOff, toggleChecked, resetChecked } = useCampaign()
+const showOnOverview = useShowOnOverview()
+const { hasData, timeline, checkedOff, toggleChecked, resetChecked } = useCampaign()
 
 const KINDS: { kind: TimelineKind; label: string }[] = [
   { kind: 'focus', label: 'Focus' },
@@ -24,15 +26,13 @@ const checked = computed(() => new Set(checkedOff.value))
 // is one whose actions were all checked off while those are hidden.
 const rows = computed(() => {
   const rows: { day: (typeof timeline.value.days)[number]; banner: number | null }[] = []
-  let previous: number | undefined
+  const banner = yearBanners()
   for (const day of timeline.value.days) {
     const done = day.done.filter((e) => shown.value.includes(e.kind))
     const shownTodo = day.todo.filter((e) => shown.value.includes(e.kind))
     const todo = hideChecked.value ? shownTodo.filter((e) => !checked.value.has(e.id)) : shownTodo
     if (todo.length === 0 && (done.length === 0 || shownTodo.length > 0)) continue
-    const year = day.date.getUTCFullYear()
-    rows.push({ day: { ...day, done, todo }, banner: year !== previous ? year : null })
-    previous = year
+    rows.push({ day: { ...day, done, todo }, banner: banner(day.date) })
   }
   return rows
 })
@@ -45,12 +45,6 @@ const unscheduled = computed(() => {
     { count: u.politics, label: 'purchases', to: '/politics' },
   ].filter((x) => x.count > 0)
 })
-
-/** Opens the overview showing the country on this day. */
-const showOnOverview = (date: Date) => {
-  viewDate.value = completionDay(date)
-  void router.push('/')
-}
 </script>
 
 <template>
@@ -72,7 +66,7 @@ const showOnOverview = (date: Date) => {
     <p v-if="rows.length === 0">Nothing is planned yet.</p>
     <ol v-else class="days">
       <template v-for="{ day, banner } in rows" :key="day.day">
-        <li v-if="banner !== null" class="year">{{ banner }}</li>
+        <li v-if="banner !== null" class="year-banner">{{ banner }}</li>
         <li class="day">
           <a
             href="#"
@@ -159,17 +153,6 @@ ul {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-.year {
-  margin-top: 1rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: #2f4f6f;
-  border-radius: 3px;
-}
-.muted {
-  color: #666;
 }
 .automatic {
   color: #888;

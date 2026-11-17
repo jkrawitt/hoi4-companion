@@ -84,15 +84,10 @@ export const DEFAULT_POLITICS_DEFINES: PoliticsDefines = {
   focusCost: 1,
 }
 
-export const emptyPolitics = (): PoliticsData => ({
-  options: [],
-  slots: {},
-  categoryNames: {},
-  defines: DEFAULT_POLITICS_DEFINES,
-})
-
 /** An entry of the purchase queue: buy an option, or dismiss it (an advisor, say) to free its slot. */
 export interface PoliticsItem {
+  /** Stays with the item when the queue is reordered; see `withIds`. */
+  id?: string
   optionId: string
   dismiss?: true
   /** The earliest day to buy it, `YYYY-MM-DD`. */
@@ -118,6 +113,8 @@ export type PurchaseIssue =
 export interface ScheduledPurchase {
   /** Position in the queue. */
   index: number
+  /** The queue item's id. */
+  id?: string
   optionId: string
   /** A dismissal, not a purchase. */
   dismiss: boolean

@@ -1,4 +1,4 @@
-import { fromGameDay, wholeDay } from '../calendar'
+import { fromGameDay, parseDay, wholeDay } from '../calendar'
 import type { FocusSchedule } from '../plan/types'
 import type { PoliticalOption, PoliticsSchedule } from '../politics'
 import type { ConstructionSchedule, ProductionData } from '../production'
@@ -132,7 +132,7 @@ export const buildTimeline = (input: TimelineInput): Timeline => {
     const order = (automatic ? 100000 : 0) + i
     for (const [k, level] of item.levels.entries()) {
       const progress = `${k + 1}/${item.item.levels}`
-      const key = `${item.source}:${item.source === 'focus' ? item.focusName : item.index}:${item.item.building}:${item.item.state}:${k}`
+      const key = `${item.source}:${item.source === 'focus' ? item.focusName : (item.item.id ?? item.index)}:${item.item.building}:${item.item.state}:${k}`
       add(
         level.end,
         'done',
@@ -166,7 +166,7 @@ export const buildTimeline = (input: TimelineInput): Timeline => {
       item.date,
       'todo',
       {
-        id: `politics:${item.index}:${item.optionId}${item.dismiss ? ':dismiss' : ''}`,
+        id: `politics:${item.id ?? item.index}:${item.optionId}${item.dismiss ? ':dismiss' : ''}`,
         kind: 'politics',
         text: item.dismiss ? `Dismiss ${name}` : `Buy ${name} (${Math.round(item.cost)} PP)`,
         detail: `${Math.round(item.balanceAfter)} PP left`,
@@ -176,7 +176,6 @@ export const buildTimeline = (input: TimelineInput): Timeline => {
   }
 
   const adj = input.adjustments
-  const parseDay = (text: string) => new Date(`${text}T00:00:00Z`)
   for (const [i, s] of (adj?.stability ?? []).entries()) {
     add(
       parseDay(s.date),

@@ -13,7 +13,15 @@ import { addDays } from '../plan/focusPlan'
 import { resolveConditions } from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import { activeModifiers, addTo, countryStat, isNumeric, rawCountryStat, round } from './totals'
+import {
+  activeModifiers,
+  addTo,
+  clampStat,
+  isNumeric,
+  rawCountryStat,
+  round,
+  scriptedStat,
+} from './totals'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
 import type {
   ActiveIdea,
@@ -127,6 +135,29 @@ const LEADER_KEYS = new Set([
   'add_country_leader_role',
   'add_country_leader_trait',
 ])
+
+/**
+ * The country's stability or war support on `date` as the rewards so far leave it, before it is
+ * kept between 0 and 1 (see `rawCountryStat`): what conditions, the overview and
+ * `set_actual_stability` all go by.
+ */
+export const rawStatNow = (
+  w: Working,
+  options: CountryStateOptions,
+  key: 'stability' | 'war_support',
+  date: Date,
+): number => {
+  const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
+  const { totals } = activeModifiers(active, w.leader?.traits ?? [])
+  return rawCountryStat(
+    key,
+    options.start ?? [],
+    w.statChanges.get(`add_${key}`)?.total ?? 0,
+    (k) => totals.get(k)?.total ?? 0,
+    w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
+    (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
+  )
+}
 
 // --- Handlers, one per kind of effect. ---
 
@@ -282,16 +313,7 @@ const statChange: Handler = (c, e, i) => {
 const setActualStability: Handler = (c, e) => {
   if (e.key !== 'set_actual_stability' || !isNumeric(e.value)) return false
   const { w, step, options } = c
-  const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > step.end)
-  const { totals } = activeModifiers(active, w.leader?.traits ?? [])
-  const current = rawCountryStat(
-    'stability',
-    options.start ?? [],
-    w.statChanges.get('add_stability')?.total ?? 0,
-    (k) => totals.get(k)?.total ?? 0,
-    w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
-    (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
-  )
+  const current = rawStatNow(w, options, 'stability', step.end)
   const stat = w.statChanges.get('add_stability')?.stat ?? {
     key: 'add_stability',
     label: 'Stability',
@@ -475,19 +497,8 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
     tag: options.tag,
     hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
     // The actual stat: only known once the start has set it, like popularity.
-    stat: (key) => {
-      if (!options.start?.length) return undefined
-      const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > step.end)
-      const { totals } = activeModifiers(active, w.leader?.traits ?? [])
-      return countryStat(
-        key,
-        options.start,
-        w.statChanges.get(`add_${key}`)?.total ?? 0,
-        (k) => totals.get(k)?.total ?? 0,
-        w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
-        (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
-      )
-    },
+    stat: (key) =>
+      options.start?.length ? clampStat(rawStatNow(w, options, key, step.end)) : undefined,
   })
 
   const { applied, conditional: skipped, states } = classify(effects, options.tag)
@@ -537,7 +548,11 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
   recordResearchState(w.research, step.end, w.statChanges.get('add_research_slot')?.total ?? 0, {
     ideas: [...w.ideas.values()],
     traits: w.leader?.traits ?? [],
-    stabilityBase: w.statChanges.get('add_stability')?.total ?? 0,
+    stabilityBase: scriptedStat(
+      'stability',
+      options.start ?? [],
+      w.statChanges.get('add_stability')?.total ?? 0,
+    ),
     rulingPopularity: (w.government && w.popularity.get(w.government)?.total) || 0,
   })
 }

@@ -1,19 +1,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useRouter } from 'vue-router'
 import FocusTreeGraph from './FocusTreeGraph.vue'
 import EffectList from './EffectList.vue'
 import GameDataImport from '../GameDataImport.vue'
-import { completionDay, formatDate, useCampaign } from '@/stores/campaign'
+import { formatDate, useCampaign } from '@/stores/campaign'
+import { useShowOnOverview } from '../overviewLink'
+import { yearBanners } from '../yearBanners'
 
-const router = useRouter()
+const showOnOverview = useShowOnOverview()
 const {
   focuses,
   hasData,
   plan,
   startDate: startDateInput,
   speedBonusPercent,
-  viewDate,
   schedule,
   blockedIds,
   toggle,
@@ -23,19 +23,10 @@ const {
 const formatDays = (days: number) => Math.round(days * 10) / 10
 
 // A focus's effects land when it completes, so rows are grouped under their completion year.
-const rows = computed(() =>
-  schedule.value.items.map((item, i, items) => {
-    const year = item.end.getUTCFullYear()
-    const previous = items[i - 1]?.end.getUTCFullYear()
-    return { item, banner: year !== previous ? year : null }
-  }),
-)
-
-/** Opens the overview showing the country as of the day this focus completes. */
-const showOnOverview = (end: Date) => {
-  viewDate.value = completionDay(end)
-  void router.push('/')
-}
+const rows = computed(() => {
+  const banner = yearBanners()
+  return schedule.value.items.map((item) => ({ item, banner: banner(item.end) }))
+})
 </script>
 
 <template>
@@ -64,7 +55,7 @@ const showOnOverview = (end: Date) => {
       <p v-if="schedule.items.length === 0">Add focuses to build a plan.</p>
       <ol v-else class="plan">
         <template v-for="({ item, banner }, i) in rows" :key="i">
-          <li v-if="banner !== null" class="year">{{ banner }}</li>
+          <li v-if="banner !== null" class="year-banner">{{ banner }}</li>
           <li class="entry">
             <div class="when">
               <strong>{{ item.focus.name }}</strong>
@@ -115,17 +106,6 @@ const showOnOverview = (end: Date) => {
   gap: 1.5rem;
   padding: 0.5rem 0;
   border-top: 1px solid #ddd;
-}
-.year {
-  margin-top: 1rem;
-  padding: 0.25rem 0.75rem;
-  font-weight: 700;
-  color: #fff;
-  background: #2f4f6f;
-  border-radius: 3px;
-}
-.muted {
-  color: #666;
 }
 button {
   margin-right: 0.25rem;

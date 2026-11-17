@@ -102,6 +102,8 @@ export const DEFAULT_DEFINES: ProductionDefines = {
 
 /** A building queued in a state: it builds its levels one after another. */
 export interface ConstructionItem {
+  /** Stays with the item when the queue is reordered; see `withIds`. */
+  id?: string
   building: string
   state: number
   levels: number
@@ -170,13 +172,6 @@ export interface ConstructionEnvironment {
   /** Change points of the trade, sorted by date. */
   trade: TradePoint[]
 }
-
-export const emptyConstructionEnvironment = (): ConstructionEnvironment => ({
-  factors: [],
-  events: [],
-  focusBuilds: [],
-  trade: [],
-})
 
 export interface ConstructionOptions {
   startDate: Date

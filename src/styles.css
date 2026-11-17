@@ -1,0 +1,16 @@
+/* Styles every page shares. Component styles are scoped; these are the few classes used across them. */
+
+/* Secondary text: dates, durations, notes. */
+.muted {
+  color: #666;
+}
+
+/* The banner above the first row of each year in the plan lists (see `yearBanners`). */
+.year-banner {
+  margin-top: 1rem;
+  padding: 0.25rem 0.75rem;
+  font-weight: 700;
+  color: #fff;
+  background: #2f4f6f;
+  border-radius: 3px;
+}
