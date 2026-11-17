@@ -125,10 +125,6 @@ export const parseProductionDefines = (text: string): ProductionDefines => {
       'ENERGY_SCALE_PER_TRADE_FACTORY_EXPORT',
       d.energyScalePerTradeFactory,
     ),
-    partyPopularityStability: read(
-      'BASE_STABILITY_PARTY_POPULARITY_FACTOR',
-      d.partyPopularityStability,
-    ),
     stabilityConsumerGoods: d.stabilityConsumerGoods,
   }
 }

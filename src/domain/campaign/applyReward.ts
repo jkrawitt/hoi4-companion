@@ -159,6 +159,17 @@ export const rawStatNow = (
   )
 }
 
+/**
+ * Stability before modifiers (see `stabilityFrom`): the scripted part plus the ruling party's
+ * popularity times `partyStability`, from the same inputs `rawStatNow` uses.
+ */
+export const stabilityBeforeModifiersNow = (w: Working, options: CountryStateOptions): number =>
+  round(
+    scriptedStat('stability', options.start ?? [], w.statChanges.get('add_stability')?.total ?? 0) +
+      (w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0) *
+        (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
+  )
+
 // --- Handlers, one per kind of effect. ---
 
 const ideas: Handler = (c, e, i) => {
@@ -548,11 +559,6 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
   recordResearchState(w.research, step.end, w.statChanges.get('add_research_slot')?.total ?? 0, {
     ideas: [...w.ideas.values()],
     traits: w.leader?.traits ?? [],
-    stabilityBase: scriptedStat(
-      'stability',
-      options.start ?? [],
-      w.statChanges.get('add_stability')?.total ?? 0,
-    ),
-    rulingPopularity: (w.government && w.popularity.get(w.government)?.total) || 0,
+    stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
   })
 }

@@ -3,12 +3,25 @@ import { addDays } from '../calendar'
 import { constructionFactors, planConstruction } from '../campaign/construction'
 import { industryAt } from '../campaign/industry'
 import type { ActiveIdea, ConstructionBatch, CountryState } from '../campaign/types'
-import type { EffectLine } from '../focus'
+import { countryStateAt } from '../campaign/countryState'
+import type { EffectLine, Focus } from '../focus'
+import { schedulePlan } from '../plan/focusPlan'
 import { DEFAULT_DEFINES, type ProductionData } from '../production'
 import type { ResearchSchedule, ScheduledResearch, Technology } from '../research'
 
 const begin = new Date(Date.UTC(1936, 0, 1))
 const day = (n: number) => addDays(begin, n)
+
+const focus = (id: string, effects: EffectLine[], days = 70): Focus => ({
+  id,
+  name: id.toUpperCase(),
+  days,
+  prerequisites: [],
+  mutuallyExclusive: [],
+  x: 0,
+  y: 0,
+  effects,
+})
 
 const line = (key: string, value: number): EffectLine =>
   ({
@@ -119,13 +132,12 @@ describe('constructionFactors', () => {
       until: day(40),
     }
     const snapshots = [
-      { date: begin, ideas: [timed], traits: [], stabilityBase: 0.6, rulingPopularity: 0.6 },
+      { date: begin, ideas: [timed], traits: [], stabilityBeforeModifiers: 0.69 },
       {
         date: day(20),
         ideas: [timed, idea('slots', [line('global_building_slots_factor', 0.1)])],
         traits: [],
-        stabilityBase: 0.6,
-        rulingPopularity: 0.6,
+        stabilityBeforeModifiers: 0.69,
       },
     ]
     const techs = [
@@ -140,7 +152,6 @@ describe('constructionFactors', () => {
       techs,
       begin,
       [day(30)],
-      DEFAULT_DEFINES,
     )
     expect(result.map((f) => f.date)).toEqual([begin, day(20), day(30), day(40)])
     expect(result.map((f) => f.buildingsSpeed)).toEqual([0.2, 0.2, 0.2 + 0.1, 0.1])
@@ -148,6 +159,34 @@ describe('constructionFactors', () => {
     expect(result[2].buildingSpeed).toEqual({ arms_factory: 0.05 })
     // 60% stability plus 15% of the ruling party's 60%: 69%.
     expect(result[0].stability).toBeCloseTo(0.69)
+  })
+
+  it('agrees with the country state on stability after a timed idea expires', () => {
+    const timed = focus('a', [
+      { depth: 0, key: 'add_timed_idea', value: 'idea_t', valueName: 'T', days: 30 },
+      { ...line('stability_factor', 0.1), depth: 1 },
+    ])
+    const startLines: EffectLine[] = [
+      { ...line('add_stability', 0.6), isModifier: true },
+      { depth: 0, key: 'add_ideas', value: 'start_idea', valueName: 'Start' },
+    ]
+    const schedule = schedulePlan(['a'], { a: timed }, { startDate: begin, speedBonus: 0 })
+    const options = { start: startLines, startDate: begin }
+    const final = countryStateAt(schedule, day(200), options)
+    const factors = constructionFactors(
+      { snapshots: final.snapshots },
+      researchDone({}),
+      [],
+      begin,
+      [],
+    )
+    for (const n of [80, 101, 150]) {
+      const at = factors.filter((f) => f.date <= day(n)).pop()
+      expect(at?.stability).toBeCloseTo(countryStateAt(schedule, day(n), options).stability ?? -1)
+    }
+    // The timed +10% is in force at day 80 and gone by day 101.
+    expect(factors.filter((f) => f.date <= day(80)).pop()?.stability).toBeCloseTo(0.7)
+    expect(factors.filter((f) => f.date <= day(101)).pop()?.stability).toBeCloseTo(0.6)
   })
 })
 
@@ -160,7 +199,7 @@ describe('planConstruction', () => {
     planConstruction({
       production,
       finalState: finalState(
-        [{ date: begin, ideas: [], traits: [], stabilityBase: 0, rulingPopularity: 0 }],
+        [{ date: begin, ideas: [], traits: [], stabilityBeforeModifiers: 0 }],
         batches,
       ),
       research: researchDone({}),
