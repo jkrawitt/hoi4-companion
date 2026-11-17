@@ -17,7 +17,7 @@ export const addTo = (
 }
 
 /** `DEFAULT_STABILITY` and `DEFAULT_WAR_SUPPORT`: what a country has when its history sets none. */
-const DEFAULT_STAT = 0.5
+export const DEFAULT_STAT = 0.5
 
 /**
  * The country's actual stability or war support before it is kept between 0 and 1 (`countryStat`
@@ -34,14 +34,30 @@ export const rawCountryStat = (
   rulingPopularity: number,
   partyStability: number,
 ): number => {
-  const party = key === 'stability' ? rulingPopularity * partyStability : 0
-  return round(scriptedStat(key, start, changes) + modifiers(`${key}_factor`) + party)
+  const factor = modifiers(`${key}_factor`)
+  if (key === 'stability') {
+    return stabilityFrom(
+      scriptedStat(key, start, changes) + rulingPopularity * partyStability,
+      factor,
+    )
+  }
+  return round(scriptedStat(key, start, changes) + factor)
 }
+
+/**
+ * Stability, not yet kept between 0 and 1: what does not depend on modifiers (`scriptedStat` plus
+ * the ruling party's popularity times `partyStability`) plus the `stability_factor` of the ideas and
+ * leader traits. Every planner goes through this one formula. Technologies do not change stability
+ * (checked in the 1.x install: no `stability_factor` in `common/technologies`); if a mod adds it, it
+ * belongs in `countryStateAt`, not in one planner.
+ */
+export const stabilityFrom = (beforeModifiers: number, stabilityFactor: number): number =>
+  round(beforeModifiers + stabilityFactor)
 
 /**
  * The scripted part of stability or war support: the start's `set_*` (an `add_*` start line), or
  * 50% when the history sets none, plus the changes since. Modifiers and party popularity come on
- * top (`rawCountryStat`, `stabilityOf`).
+ * top (`rawCountryStat`, `stabilityFrom`).
  */
 export const scriptedStat = (
   key: 'stability' | 'war_support',

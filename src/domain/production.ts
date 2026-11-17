@@ -73,8 +73,6 @@ export interface ProductionDefines {
    * as factories in the energy cost scaling.
    */
   energyScalePerTradeFactory: number
-  /** `BASE_STABILITY_PARTY_POPULARITY_FACTOR`: stability from the ruling party's popularity. */
-  partyPopularityStability: number
   /**
    * The `consumer_goods_factor` of `stability_good_modifier` (`common/modifiers`), which applies in
    * full at 100% stability and scales down to nothing at 50%.
@@ -96,7 +94,6 @@ export const DEFAULT_DEFINES: ProductionDefines = {
   energyCostScaling: 0.0225,
   energyCostCap: 6.6,
   energyScalePerTradeFactory: 0.25,
-  partyPopularityStability: 0.15,
   stabilityConsumerGoods: -0.2,
 }
 
@@ -123,7 +120,7 @@ export interface ConstructionFactors {
   /** `consumer_goods_expected_value` and `consumer_goods_factor` */
   consumerExpected: number
   consumerFactor: number
-  /** The country's stability (see `stabilityOf`), which lowers consumer goods above 50%. */
+  /** The country's stability (see `stabilityFrom`), which lowers consumer goods above 50%. */
   stability: number
   /** `energy_gain_factor` and `factory_energy_consumption` */
   energyGain: number
@@ -265,22 +262,6 @@ export interface ConsumerGoods {
   stabilityFactor: number
   factories: number
 }
-
-/**
- * A country's stability: what history and effects set (`add_stability` total), its ideas' and
- * technologies' `stability_factor`, and a share of the ruling party's popularity. Romania in 1936:
- * 60% + 15% x 60% democratic = 69% (checked in game). Between 0 and 1.
- */
-export const stabilityOf = (
-  base: number,
-  stabilityFactor: number,
-  rulingPopularity: number,
-  defines: ProductionDefines,
-): number =>
-  Math.min(
-    1,
-    Math.max(0, base + stabilityFactor + rulingPopularity * defines.partyPopularityStability),
-  )
 
 /**
  * The `consumer_goods_factor` from stability: `stability_good_modifier` scaled from nothing at 50%

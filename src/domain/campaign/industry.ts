@@ -11,7 +11,8 @@
  * What cannot be placed is listed in `unplaced` and still counted country-wide.
  */
 import { humanize } from '../focusEffects'
-import { consumerGoodsFor, stabilityOf, type ConsumerGoods } from '../production'
+import { consumerGoodsFor, type ConsumerGoods } from '../production'
+import { clampStat, stabilityFrom } from './totals'
 import type { BuiltLevel, ProductionData, TradePoint } from '../production'
 import type { ConstructionBatch, CountryState, StatTotal } from './types'
 
@@ -255,12 +256,13 @@ export const industryAt = (
     totalOf(state.modifierTotals, 'consumer_goods_expected_value'),
     totalOf(state.modifierTotals, 'consumer_goods_factor') +
       totalOf(techTotals, 'consumer_goods_factor'),
-    stabilityOf(
-      state.stabilityBase,
-      totalOf(state.modifierTotals, 'stability_factor') + totalOf(techTotals, 'stability_factor'),
-      state.popularity.find((p) => p.subject === state.government)?.total ?? 0,
-      production.defines,
-    ),
+    state.stability ??
+      clampStat(
+        stabilityFrom(
+          state.stabilityBeforeModifiers,
+          totalOf(state.modifierTotals, 'stability_factor'),
+        ),
+      ),
     production.defines,
   )
   return {

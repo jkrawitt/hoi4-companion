@@ -12,9 +12,9 @@
  */
 import { START_ID } from '../focus'
 import type { FocusSchedule } from '../plan/types'
-import { applyReward, newWorking, rawStatNow } from './applyReward'
+import { applyReward, newWorking, rawStatNow, stabilityBeforeModifiersNow } from './applyReward'
 import type { Step } from './applyReward'
-import { activeModifiers, clampStat, scriptedStat } from './totals'
+import { activeModifiers, clampStat } from './totals'
 import { researchEnvironment } from './researchEvents'
 import type { ActiveIdea, CountryState, CountryStateOptions } from './types'
 
@@ -94,11 +94,7 @@ export const countryStateAt = (
     rulingParty: w.rulingParty,
     government: w.government,
     stability: actual('stability'),
-    stabilityBase: scriptedStat(
-      'stability',
-      options.start ?? [],
-      w.statChanges.get('add_stability')?.total ?? 0,
-    ),
+    stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
     warSupport: actual('war_support'),
     leader: w.leader,
     resources: [...w.resources.values()],

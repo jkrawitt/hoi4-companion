@@ -235,11 +235,11 @@ describe('countryStateAt with a starting state', () => {
     const schedule = schedulePlan([], {}, { startDate: start, speedBonus: 0 })
     const s = countryStateAt(schedule, day(0), { start: noSet, startDate: start })
     // What the overview shows and what industry and construction build on agree.
-    expect(s.stabilityBase).toBe(0.5)
+    expect(s.stabilityBeforeModifiers).toBe(0.5)
     expect(s.stability).toBe(0.5)
-    expect(s.snapshots[0].stabilityBase).toBe(0.5)
+    expect(s.snapshots[0].stabilityBeforeModifiers).toBe(0.5)
     const set = countryStateAt(schedule, day(0), { start: startLines, startDate: start })
-    expect(set.stabilityBase).toBe(0.6)
+    expect(set.stabilityBeforeModifiers).toBe(0.6)
   })
 })
 

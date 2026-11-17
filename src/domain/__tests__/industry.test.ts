@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { consumerGoodsFor, industryAt } from '../campaign/industry'
+import { stabilityFrom } from '../campaign/totals'
 import type { BuildingTotal, ConstructionBatch, CountryState, StatTotal } from '../campaign/types'
-import {
-  DEFAULT_DEFINES,
-  stabilityConsumerFactor,
-  stabilityOf,
-  type ProductionData,
-} from '../production'
+import { DEFAULT_DEFINES, stabilityConsumerFactor, type ProductionData } from '../production'
 
 const total = (key: string, value: number): StatTotal => ({
   key,
@@ -68,7 +64,7 @@ const country = (extra: Partial<CountryState> = {}): CountryState =>
   ({
     modifierTotals: [],
     statChanges: [],
-    stabilityBase: 0,
+    stabilityBeforeModifiers: 0,
     popularity: [],
     buildings: [],
     buildingSlots: 0,
@@ -215,7 +211,7 @@ describe('placing focus builds in states', () => {
 
 describe('consumerGoodsFor', () => {
   it('matches Romania in 1936: 35% scaled down by 69% stability, of 11 civs + 7 mils', () => {
-    const stability = stabilityOf(0.6, 0, 0.6, DEFAULT_DEFINES)
+    const stability = stabilityFrom(0.6 + 0.6 * 0.15, 0)
     expect(stability).toBeCloseTo(0.69)
     expect(stabilityConsumerFactor(stability, DEFAULT_DEFINES)).toBeCloseTo(-0.076)
     const goods = consumerGoodsFor(11, 7, 0.35, 0, stability, DEFAULT_DEFINES)
