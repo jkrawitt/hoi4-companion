@@ -42,12 +42,18 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const folders = research.folders.map((f) => f.id)
     // The DLC variants of the owned DLCs, and not the one for a DLC that is not owned.
     expect(folders).toEqual(
-      expect.arrayContaining(['bba_air_techs_folder', 'mtgnavalfolder', 'armour_folder']),
+      expect.arrayContaining(['bba_air_techs_folder', 'mtgnavalfolder', 'nsb_armour_folder']),
     )
-    expect(folders).not.toContain('nsb_armour_folder')
+    expect(folders).not.toContain('armour_folder')
+    expect(folders).not.toContain('naval_folder')
     expect(folders).not.toContain('air_techs_folder')
     expect(research.folders.find((f) => f.id === 'industry_folder')?.name).toBe('Industry')
-    expect(research.defines).toEqual({ baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 })
+    expect(research.defines).toEqual({
+      baseCost: 110,
+      aheadPenalty: 2,
+      minSpeed: 0.1,
+      designTeamBonus: 0.05,
+    })
 
     const unlocked = start.flatMap((l) => (l.research?.kind === 'unlock' ? l.research.targets : []))
     expect(unlocked).toEqual(expect.arrayContaining(['infantry_weapons', 'iw_small_airframe']))
@@ -175,8 +181,8 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(
       focuses.flatMap((f) => f.effects.filter((e) => e.key === 'free_building_slots')),
     ).toEqual([])
-    // With Arms Against Tyranny the MIO branch is shown. MIO effects are not formatted yet, so they
-    // read as raw lines; this changes when MIOs get their own display.
+    // Arms Against Tyranny is owned, so the MIO branch shows. MIO effects are not formatted yet, so
+    // they read as raw lines.
     expect(lines('ROM_invest_in_the_iar')).toEqual(
       expect.arrayContaining([
         'Available as Military Industrial Organization:',
@@ -447,6 +453,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const { politics, start } = await importRomania()
     const option = (id: string) => politics.options.find((o) => o.id === id)
     expect(politics.defines).toEqual({
+      designTeamCost: 0.1,
       baseGain: 2,
       cap: 2000,
       partyStability: 0.15,
@@ -476,9 +483,9 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     })
     expect(option('ROM_armand_calinescu')?.modifiers[0]).toMatchObject({ key: 'leader_trait' })
     expect(option('ROM_gheorghe_potopeanu')).toMatchObject({ cost: 100, ledger: 'army' })
-    // With Arms Against Tyranny the equipment designers are MIOs, so only the concerns are left:
-    // Romania's own industrial concern, and the generic electronics concern beside it (checked in
-    // game: both 150), while the generic industrial concern steps aside for ROMLOC.
+    // The equipment designers are MIOs (base game), so only the concerns are left: Romania's own
+    // industrial concern (Death or Dishonor is base game now), and the generic electronics concern
+    // beside it (checked in game: both 150), while the generic industrial concern steps aside.
     expect(option('ROM_leonidas_works')).toBeUndefined()
     expect(option('pzinz_rom')).toBeUndefined()
     expect(option('ROM_ROMLOC')).toMatchObject({ kind: 'designer', cost: 150 })
@@ -490,6 +497,72 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     // Laws the country can never have are left out.
     expect(option('undisturbed_isolation')).toBeUndefined()
     console.log(`${politics.options.length} political options`)
+  })
+
+  it("imports Romania's military industrial organisations", async () => {
+    const { mios, research } = await importRomania()
+    const ids = mios.map((m) => m.id)
+    // Death or Dishonor is base game now, so Leonidas Works is kept; the debug copies are not.
+    expect(ids).toEqual(expect.arrayContaining(['ROM_leonidas_works_organization']))
+    expect(ids.some((id) => id.startsWith('DEBUG_'))).toBe(false)
+    const malaxa = mios.find((m) => m.id === 'ROM_malaxa_organization')
+    expect(malaxa).toMatchObject({ researchBonus: -0.03 })
+    expect(malaxa?.name).toBeTruthy()
+    expect(malaxa?.name).not.toContain('$')
+    // Foreign MIOs a country with Death or Dishonor can license are named for the country.
+    const vauxhall = mios.find((m) => m.id === 'ENG_vauxhall_automotive_organization')
+    expect(vauxhall?.name).toContain('Vauxhall')
+    const leonidas = mios.find((m) => m.id === 'ROM_leonidas_works_organization')
+    expect(leonidas?.available).toEqual({ type: 'focus', id: 'ROM_mobile_tank_destroyers' })
+    expect(leonidas?.researchCategories.length).toBeGreaterThan(0)
+    // The techs list the MIO research categories, so a design team can match them.
+    const categories = new Set(research.techs.flatMap((t) => t.categories))
+    for (const mio of mios) {
+      expect(mio.researchCategories.some((c) => categories.has(c))).toBe(true)
+    }
+    expect(research.defines.designTeamBonus).toBe(0.05)
+  })
+
+  it('plans a design team on the real data and charges its political power', async () => {
+    const { mios, research, politics, start, leaders } = await importRomania()
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const had = new Set(
+      start.flatMap((l) => (l.research?.kind === 'unlock' ? l.research.targets : [])),
+    )
+    const researchable = new Set(
+      research.techs
+        .filter((t) => t.researchable && t.prerequisites.length === 0 && !had.has(t.id))
+        .map((t) => t.id),
+    )
+    const tech = research.techs.find(
+      (t) =>
+        researchable.has(t.id) &&
+        mios.some(
+          (m) => !m.available && m.researchCategories.some((c) => t.categories.includes(c)),
+        ),
+    )
+    const mio = mios.find(
+      (m) => !m.available && m.researchCategories.some((c) => tech?.categories.includes(c)),
+    )
+    expect(tech && mio).toBeTruthy()
+    const plan = (designTeam?: string) =>
+      planCampaign({
+        focusSchedule: schedulePlan([], {}, { startDate, speedBonus: 0 }),
+        options: { tag: 'ROM', start, leaders, startDate, ownedDlc },
+        researchQueue: [{ techId: tech!.id, designTeam }],
+        researchData: research,
+        mios,
+        politicsQueue: [],
+        politicsData: politics,
+        startDate,
+        until: new Date(Date.UTC(1940, 0, 1)),
+      })
+    const plain = plan()
+    const team = plan(mio!.id)
+    expect(team.schedule.items[0].designTeam).toBe(mio!.id)
+    expect(team.schedule.items[0].days).toBeLessThanOrEqual(plain.schedule.items[0].days)
+    expect(team.politics.designTeamsAt(startDate)).toBe(1)
+    expect(team.politics.gainAt(startDate)).toBeCloseTo(plain.politics.gainAt(startDate) - 0.1)
   })
 
   it('plans political power purchases on the real data', async () => {

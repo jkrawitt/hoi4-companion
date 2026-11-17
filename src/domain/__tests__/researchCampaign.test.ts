@@ -207,12 +207,13 @@ describe('planResearch', () => {
     })
 
   it('gives the bonus only when the tech was not researched before the focus completes', () => {
-    // air1 takes 110 days on a slot, so it is not done when the focus completes on day 70...
+    // air1 takes 110 days on a slot, so it is not done when the focus completes on day 70, and the
+    // bonus speeds it up from then: 70/110 done, the rest at double speed, so day 90.
     const slow = plan([{ techId: 'air1' }])
-    expect(slow.schedule.items[0].end).toEqual(day(110))
+    expect(slow.schedule.items[0].end).toEqual(day(90))
     expect(slow.environment.bonuses).toHaveLength(1)
     expect(slow.hasTech?.('air1', day(70))).toBe(false)
-    expect(slow.hasTech?.('air1', day(110))).toBe(true)
+    expect(slow.hasTech?.('air1', day(90))).toBe(true)
     expect(slow.hasTech?.('unknown', day(110))).toBeUndefined()
   })
 
@@ -235,8 +236,10 @@ describe('planResearch', () => {
       { techId: 'other' },
       { techId: 'air1', bonus: { focusId: 'a', index: 0 } },
     ])
-    // `other` takes slot 0 and air1 slot 1 from day 0, before the focus gives the bonus.
-    expect(planned.schedule.items[1].issues).toEqual([{ kind: 'bonus-unavailable' }])
+    // `other` takes slot 0 and air1 slot 1 from day 0, before the focus gives the bonus on day 70,
+    // which then applies to air1 while it is researched.
+    expect(planned.schedule.items[1]).toMatchObject({ issues: [], bonusApplied: day(70) })
+    expect(planned.schedule.items[1].bonusUsed).toEqual({ focusId: 'a', index: 0 })
   })
 
   it('answers nothing without tech data', () => {
@@ -264,17 +267,18 @@ describe('researchStatusAt', () => {
   })
 
   it('counts the slots, finished and running techs and the bonuses not spent', () => {
-    const status = researchStatusAt(planned.schedule, planned.environment, day(100))
+    const status = researchStatusAt(planned.schedule, planned.environment, day(80))
     expect(status.slots).toBe(4)
     expect(status.finished).toEqual([])
     expect(status.inProgress.map((i) => i.techId)).toEqual(['air1', 'other'])
-    expect(status.unusedBonuses.map((b) => b.left)).toEqual([2])
+    // air1 took one of the two uses when the bonus came (day 70).
+    expect(status.unusedBonuses.map((b) => b.left)).toEqual([1])
     const later = researchStatusAt(planned.schedule, planned.environment, day(200))
     expect(later.finished.map((i) => i.techId)).toEqual(['air1', 'other'])
     expect(later.inProgress).toEqual([])
   })
 
-  it('does not count what a bonus was spent on', () => {
+  it('does not count what a bonus was spent on, also mid-research', () => {
     const used = planResearch({
       focusSchedule: focusSchedule(
         [focus('a', [techBonus('light_fighter', { uses: 1 })])].map((f) => ({ ...f, days: 1 })),
@@ -285,9 +289,10 @@ describe('researchStatusAt', () => {
       startDate: begin,
       until: day(3000),
     })
-    expect(used.schedule.items[1].bonusUsed).toBeUndefined()
+    // The bonus comes on day 1, while air1 is being researched, and is applied to it.
+    expect(used.schedule.items[1].bonusUsed).toEqual({ focusId: 'a', index: 0 })
     expect(researchStatusAt(used.schedule, used.environment, day(200)).unusedBonuses).toHaveLength(
-      1,
+      0,
     )
   })
 })

@@ -4,7 +4,7 @@
  * can never have (`allowed` is false for its tag and DLCs) is dropped; one that is only
  * sometimes available keeps its `available` condition for the campaign to answer.
  */
-import type { EffectLine } from './focus'
+import type { Check, EffectLine } from './focus'
 import { evaluateCheck, type ConditionContext } from './campaign/conditions'
 import { ideaLineIndexes } from './effects/ideaLines'
 import { GAME_PATHS, type GameFiles } from './gameFiles'
@@ -33,8 +33,10 @@ export interface RawPolitics {
   defines: PoliticsData['defines']
 }
 
-const AAT = 'Arms Against Tyranny'
-/** The designer slots that Arms Against Tyranny turns into military industrial organisations. */
+/**
+ * The designer slots that are military industrial organisations (MIOs) in the game since 1.14, which
+ * are not bought with political power: their design teams are planned with the research instead.
+ */
 const MIO_SLOTS = new Set([
   'tank_manufacturer',
   'naval_manufacturer',
@@ -42,8 +44,12 @@ const MIO_SLOTS = new Set([
   'materiel_manufacturer',
 ])
 
-/** Whether an option can ever be had by a country, from its `allowed` block. Unknown counts as yes. */
-const isAllowed = (option: RawOption, tag: string, ownedDlc: Record<string, boolean>): boolean => {
+/** Whether something can ever be had by a country, from its `allowed` block. Unknown counts as yes. */
+export const isAllowed = (
+  option: { allowed?: Check },
+  tag: string,
+  ownedDlc: Record<string, boolean>,
+): boolean => {
   if (!option.allowed) return true
   const none = () => undefined
   const ctx: ConditionContext = {
@@ -61,6 +67,22 @@ const isAllowed = (option: RawOption, tag: string, ownedDlc: Record<string, bool
 const readAll = async (files: GameFiles, paths: string[]) =>
   (await Promise.all(paths.map((path) => files.readText(path)))).map((text) => text ?? '')
 
+/** Scripted triggers (`PHI_SEA = yes`), which are written out in the conditions so they can be answered. */
+export const readScriptedTriggers = async (files: GameFiles): Promise<ScriptedTriggers> => {
+  const triggerFiles = (await files.listFiles(GAME_PATHS.scriptedTriggers)).filter((f) =>
+    f.endsWith('.txt'),
+  )
+  return Object.assign(
+    {},
+    ...(
+      await readAll(
+        files,
+        triggerFiles.map((f) => `${GAME_PATHS.scriptedTriggers}/${f}`),
+      )
+    ).map(parseScriptedTriggers),
+  )
+}
+
 export const readPolitics = async (
   files: GameFiles,
   country: { tag: string; ideasFile?: string },
@@ -75,19 +97,7 @@ export const readPolitics = async (
     `${GAME_PATHS.staticModifiers}/00_static_modifiers.txt`,
   ])
   const { slots, lawSlots, designerSlots } = parseIdeaSlots(tagsText)
-  // Scripted triggers (`PHI_SEA = yes`) are written out in the conditions, so they can be answered.
-  const triggerFiles = (await files.listFiles(GAME_PATHS.scriptedTriggers)).filter((f) =>
-    f.endsWith('.txt'),
-  )
-  const triggers: ScriptedTriggers = Object.assign(
-    {},
-    ...(
-      await readAll(
-        files,
-        triggerFiles.map((f) => `${GAME_PATHS.scriptedTriggers}/${f}`),
-      )
-    ).map(parseScriptedTriggers),
-  )
+  const triggers = await readScriptedTriggers(files)
   const lawTexts = await readAll(files, LAW_FILES)
   const designerTexts = await readAll(files, [
     ...(country.ideasFile ? [country.ideasFile] : []),
@@ -103,9 +113,7 @@ export const readPolitics = async (
     const key = `${option.kind}:${option.id}`
     if (seen.has(key)) return false
     seen.add(key)
-    // With Arms Against Tyranny the equipment designers are military industrial organisations,
-    // which are not bought with political power (and not planned yet).
-    if (ownedDlc[AAT] && option.kind === 'designer' && MIO_SLOTS.has(option.slot)) return false
+    if (option.kind === 'designer' && MIO_SLOTS.has(option.slot)) return false
     return isAllowed(option, tag, ownedDlc)
   })
   // A generic designer steps aside when the country has one of its own for the slot.
@@ -155,7 +163,7 @@ export const readPolitics = async (
 }
 
 /** The `available` block as the header of an `if`, so folding the condition writes it in English. */
-export const availabilityLines = (option: RawOption): EffectLine[] =>
+export const availabilityLines = (option: Pick<RawOption, 'availableLines'>): EffectLine[] =>
   option.availableLines?.length
     ? [
         { depth: 0, key: 'if' },

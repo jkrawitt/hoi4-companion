@@ -73,6 +73,8 @@ export interface PoliticsDefines {
   stabilityBad: number
   /** `political_power_cost` of `gain_focus`: what running a national focus costs a day. */
   focusCost: number
+  /** Political power a day for each design team (a MIO assigned to a research slot). */
+  designTeamCost: number
 }
 
 export const DEFAULT_POLITICS_DEFINES: PoliticsDefines = {
@@ -82,6 +84,7 @@ export const DEFAULT_POLITICS_DEFINES: PoliticsDefines = {
   stabilityGood: 0.1,
   stabilityBad: -0.2,
   focusCost: 1,
+  designTeamCost: 0.1,
 }
 
 /** An entry of the purchase queue: buy an option, or dismiss it (an advisor, say) to free its slot. */
@@ -151,4 +154,6 @@ export interface PoliticsSchedule {
   /** The political power on a date, and the daily gain in force on it. */
   balanceAt: (date: Date) => number
   gainAt: (date: Date) => number
+  /** How many design teams are costing political power on a date. */
+  designTeamsAt: (date: Date) => number
 }

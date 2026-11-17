@@ -95,7 +95,11 @@ export const parseScriptedTriggers = (text: string): ScriptedTriggers =>
  * `block` with each scripted trigger written out: `PHI_SEA = yes` becomes `AND = { <its body> }`
  * and `= no` becomes `NOT = { ... }`, so the conditions inside can be answered.
  */
-const expandTriggers = (block: ScriptBlock, triggers: ScriptedTriggers, depth = 0): ScriptBlock =>
+export const expandTriggers = (
+  block: ScriptBlock,
+  triggers: ScriptedTriggers,
+  depth = 0,
+): ScriptBlock =>
   block.map((e) => {
     if (typeof e.value !== 'string') {
       return { ...e, value: expandTriggers(e.value, triggers, depth) }
@@ -106,7 +110,7 @@ const expandTriggers = (block: ScriptBlock, triggers: ScriptedTriggers, depth = 
     return { key: e.value === 'yes' ? 'AND' : 'NOT', operator: '=', value }
   })
 
-const triggerOf = (
+export const triggerOf = (
   block: ScriptBlock | undefined,
   triggers: ScriptedTriggers,
 ): { check?: Check; lines: EffectLine[] } => {
@@ -267,5 +271,6 @@ export const parsePoliticsDefines = (text: string, staticModifiersText = ''): Po
     stabilityGood: stat('stability_good_modifier', 'political_power_factor', d.stabilityGood),
     stabilityBad: stat('stability_bad_modifier', 'political_power_factor', d.stabilityBad),
     focusCost: stat('gain_focus', 'political_power_cost', d.focusCost),
+    designTeamCost: read('ASSIGN_DESIGN_TEAM_PP_COST_PER_DAY', d.designTeamCost),
   }
 }

@@ -19,7 +19,7 @@
  * phases as one more list of effect lines each, so their ideas and names are looked up too.
  */
 import type { EffectLine, ImportedCountry } from './focus'
-import type { Technology } from './research'
+import type { MioData, Technology } from './research'
 import { parseFocusTreeFile } from './parsers/focusTree'
 import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
 import { listModifiersUnderLines } from './effects/modifierLines'
@@ -36,6 +36,7 @@ import { parseEventTitles } from './parsers/events'
 import { parseStartingLines } from './parsers/countryStart'
 import { readTechnologies } from './parsers/technologies'
 import { readProduction } from './parsers/states'
+import { readMios } from './parsers/mios'
 import {
   defaultLawLines,
   lawCategoryOf,
@@ -265,12 +266,14 @@ export const importCountryFocuses = async (
   // The tech tree: its folders, and the stats of each tech, which are named like any other line.
   const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
   const production = await readProduction(files, country.tag)
+  const rawMios = await readMios(files, country.tag, ownedDlc)
   const lists = [
     ...focuses.map((f) => f.effects),
     start,
     candidatesListed,
     ...research.techs.map((t) => t.modifiers),
     ...politics.options.flatMap((o) => [o.modifiers, availabilityLines(o)]),
+    ...rawMios.map(availabilityLines),
   ]
 
   // 3. What the countries and events they mention are.
@@ -291,6 +294,7 @@ export const importCountryFocuses = async (
       ...production.buildings.map((b) => b.id),
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
+      ...rawMios.flatMap((m) => [m.id, `${country.tag}_${m.id}`]),
       ...politics.options.flatMap((o) => [o.id, ...(o.character ? [o.character] : [])]),
       ...politics.options.flatMap((o) => Object.keys(o.researchBonus ?? {})),
       ...Object.values(fallbackNames).flat(),
@@ -324,9 +328,24 @@ export const importCountryFocuses = async (
   const options = politics.options.map((o) =>
     finishOption(o, names[o.character ?? o.id] ?? names[o.id] ?? humanize(o.id), named),
   )
+  const mios = rawMios.map(
+    (m): MioData => ({
+      id: m.id,
+      // A foreign MIO a country can license is named `<TAG>_<id>` for that country.
+      name:
+        [`${country.tag}_${m.id}`, m.id]
+          .map((key) => (names[key] ?? '').trim())
+          .find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(m.id),
+      researchCategories: m.researchCategories,
+      researchBonus: m.researchBonus,
+      ...(m.available && { available: m.available }),
+      availableText: named(availabilityLines(m))[0]?.condition,
+    }),
+  )
   const optionsById = new Map(options.map((o) => [o.id, o]))
   const annotated = (lines: EffectLine[]) => annotateIdeaLines(lines, optionsById)
   return {
+    mios,
     laws,
     focuses: focuses.map((f) => ({
       ...f,

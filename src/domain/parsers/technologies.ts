@@ -50,7 +50,12 @@ const NOT_STATS = new Set([
   'sub_tech_index',
 ])
 
-const DEFAULT_DEFINES: ResearchDefines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 }
+const DEFAULT_DEFINES: ResearchDefines = {
+  baseCost: 110,
+  aheadPenalty: 2,
+  minSpeed: 0.1,
+  designTeamBonus: 0.05,
+}
 
 /** The first `@name = value` entry of a block (the files define `@1936` more than once). */
 const variablesIn = (block: ScriptBlock): Record<string, number> =>
@@ -249,6 +254,13 @@ export const parseResearchDefines = (text: string): ResearchDefines => {
     baseCost: read('BASE_TECH_COST', DEFAULT_DEFINES.baseCost),
     aheadPenalty: read('BASE_YEAR_AHEAD_PENALTY_FACTOR', DEFAULT_DEFINES.aheadPenalty),
     minSpeed: read('MIN_RESEARCH_SPEED', DEFAULT_DEFINES.minSpeed),
+    // In `NMilitaryIndustrialOrganization`; the name is not used anywhere else.
+    designTeamBonus: (() => {
+      const found = /\bDESIGN_TEAM_RESEARCH_BONUS\s*=\s*(-?[\d.]+)/.exec(text)
+      return found && Number.isFinite(Number(found[1]))
+        ? Number(found[1])
+        : DEFAULT_DEFINES.designTeamBonus
+    })(),
   }
 }
 

@@ -5,6 +5,7 @@
  * is answered from the research schedule, so the two are settled together (`planResearch`).
  */
 import type {
+  MioData,
   ResearchBonus,
   ResearchData,
   ResearchEnvironment,
@@ -17,6 +18,8 @@ import { emptyEnvironment, sameBonus } from '../research'
 import type { FocusSchedule } from '../plan/types'
 import { scheduleResearch } from '../plan/researchPlan'
 import { countryStateAt } from './countryState'
+import { evaluateCheck } from './conditions'
+import { conditionsOf } from './politics'
 import { addTo, isNumeric } from './totals'
 import { statLabel } from '../stats'
 import type { CountryStateOptions, StatTotal } from './types'
@@ -34,6 +37,8 @@ export interface ResearchPlanInput {
   options: CountryStateOptions
   queue: ResearchItem[]
   data?: ResearchData
+  /** The MIOs the queue's design teams are chosen from; their `available` is answered here. */
+  mios?: MioData[]
   startDate: Date
   /** How far to look for techs finishing. */
   until: Date
@@ -81,14 +86,21 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   let hasTech: PlannedResearch['hasTech']
   let planned: PlannedResearch | undefined
   for (let pass = 0; pass < MAX_PASSES; pass++) {
-    const environment = countryStateAt(focusSchedule, finish, {
-      ...options,
-      hasTech,
-    }).research
+    const passOptions = { ...options, hasTech }
+    const environment = countryStateAt(focusSchedule, finish, passOptions).research
+    // A MIO's `available` (a focus completed, say) is answered from the country on that day.
+    const mios = input.mios ?? []
+    environment.mioAvailable = (id, date) => {
+      const available = mios.find((mio) => mio.id === id)?.available
+      if (!available) return true
+      const state = countryStateAt(focusSchedule, date, passOptions)
+      return evaluateCheck(available, conditionsOf(state, passOptions))
+    }
     const schedule = scheduleResearch(queue, techs, environment, {
       startDate,
       until,
       defines: data.defines,
+      mios,
     })
     const settled = planned !== undefined && signature(planned.schedule) === signature(schedule)
     hasTech = answerFrom(schedule)
@@ -98,7 +110,7 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   return planned!
 }
 
-const emptyDefines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 }
+const emptyDefines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1, designTeamBonus: 0.05 }
 
 /** A research bonus and how many uses of it are left. */
 export interface BonusLeft {

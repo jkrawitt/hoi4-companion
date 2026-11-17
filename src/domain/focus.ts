@@ -2,7 +2,7 @@
 export const DAYS_PER_WEEK = 7
 
 import type { ProductionData } from './production'
-import type { ResearchData } from './research'
+import type { MioData, ResearchData } from './research'
 import type { PoliticsData } from './politics'
 import type { StatDefinition } from './stats'
 
@@ -158,6 +158,8 @@ export interface Focus {
 
 /** What an import produces: the focus tree, and what the country starts the game with. */
 export interface ImportedCountry {
+  /** The military industrial organisations the country can use as design teams. */
+  mios: MioData[]
   focuses: Focus[]
   /** The starting ideas, stats and politics as effect lines, applied like a focus reward. */
   start: EffectLine[]

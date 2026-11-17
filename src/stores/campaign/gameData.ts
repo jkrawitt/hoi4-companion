@@ -5,7 +5,7 @@ import { countries } from '@/data/countries'
 import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import type { PoliticsData } from '@/domain/politics'
 import type { ProductionData } from '@/domain/production'
-import type { ResearchData } from '@/domain/research'
+import type { MioData, ResearchData } from '@/domain/research'
 import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
 import { loadCachedCountry, saveCachedCountry } from '@/import/cache'
 
@@ -29,6 +29,8 @@ export const createGameData = (
   const laws = shallowRef<Record<string, string>>({})
   /** The technologies, folders and research numbers from the game. */
   const research = shallowRef<ResearchData | undefined>()
+  /** The military industrial organisations that can be the design team of a research. */
+  const mios = shallowRef<MioData[]>([])
   /** The states the country owns at the start and what decides their building slots. */
   const production = shallowRef<ProductionData | undefined>()
   const techs = computed(() =>
@@ -53,6 +55,7 @@ export const createGameData = (
     leaders.value = imported.leaders
     laws.value = imported.laws ?? {}
     research.value = imported.research
+    mios.value = imported.mios ?? []
     production.value = imported.production
     politics.value = imported.politics
     focuses.value = Object.fromEntries(imported.focuses.map((f) => [f.id, f]))
@@ -71,6 +74,7 @@ export const createGameData = (
     leaders.value = undefined
     laws.value = {}
     research.value = undefined
+    mios.value = []
     production.value = undefined
     politics.value = undefined
     error.value = ''
@@ -102,6 +106,7 @@ export const createGameData = (
     leaders,
     laws,
     research,
+    mios,
     production,
     techs,
     startTechs,

@@ -3,7 +3,7 @@
  * dated inputs the campaign hands the planner (`ResearchEnvironment`) and what the planner
  * produces (`ResearchSchedule`). `plan/researchPlan.ts` depends on nothing but this file.
  */
-import type { EffectLine } from './focus'
+import type { Check, EffectLine } from './focus'
 
 /** One technology as the game defines it, with the folders it can be seen in. */
 export interface Technology {
@@ -45,6 +45,24 @@ export interface ResearchDefines {
   aheadPenalty: number
   /** Research speed never goes below this. */
   minSpeed: number
+  /** Research bonus of a design team (a military industrial organisation) matching the tech. */
+  designTeamBonus: number
+}
+
+/**
+ * A military industrial organisation (MIO) the country can have as the design team of a research.
+ * Its trait unlocks, policies, funds and size are not modelled.
+ */
+export interface MioData {
+  id: string
+  name: string
+  /** The `mio_cat_tech_*` categories whose technologies it can research as a design team. */
+  researchCategories: string[]
+  /** Its own research bonus (`military_industrial_organization_research_bonus`), added to the define's. */
+  researchBonus: number
+  /** Its `available` block (a focus completed, say), when it has one. */
+  available?: Check
+  availableText?: string
 }
 
 /** What the importer reads about research. */
@@ -97,6 +115,8 @@ export interface ResearchEnvironment {
    * has (`research_bonus`); a tech takes the sum of the entries for its categories.
    */
   categorySpeed?: { date: Date; bonuses: Record<string, number> }[]
+  /** Whether a MIO is available on a date; `undefined` when the campaign cannot tell. */
+  mioAvailable?: (id: string, date: Date) => boolean | undefined
 }
 
 export const emptyEnvironment = (): ResearchEnvironment => ({
@@ -108,10 +128,11 @@ export const emptyEnvironment = (): ResearchEnvironment => ({
   categorySpeed: [],
 })
 
-/** A technology in the queue, and the focus bonus chosen for it. */
+/** A technology in the queue, the focus bonus and the design team (a MIO id) chosen for it. */
 export interface ResearchItem {
   techId: string
   bonus?: BonusRef
+  designTeam?: string
 }
 
 /**
@@ -134,7 +155,15 @@ export const describeAhead = (ahead: AheadOfTime): string => {
   return `${years} ${years === 1 ? 'year' : 'years'} ahead of time: ${cost}${bonus}`
 }
 
-export type ResearchIssue = { kind: 'already-researched' } | { kind: 'bonus-unavailable' }
+export type ResearchIssue =
+  | { kind: 'already-researched' }
+  | { kind: 'bonus-unavailable' }
+  /** The design team does not research any of the tech's categories. */
+  | { kind: 'design-team-mismatch' }
+  /** The design team is the one of another research that is under way. */
+  | { kind: 'design-team-busy' }
+  /** The design team's `available` block does not hold on the day the tech starts. */
+  | { kind: 'design-team-unavailable' }
 
 export interface ScheduledResearch {
   /** Position in the queue. */
@@ -146,6 +175,10 @@ export interface ScheduledResearch {
   end: Date
   days: number
   bonusUsed?: BonusRef
+  /** The day the bonus was applied, when it was granted while the tech was being researched. */
+  bonusApplied?: Date
+  /** The design team (MIO id) actually used; the tech runs without it when there is an issue. */
+  designTeam?: string
   /** The ahead-of-time penalty on the day it started; see `aheadOfTime`. */
   ahead: AheadOfTime
   issues: ResearchIssue[]
@@ -172,6 +205,14 @@ export interface ResearchSchedule {
   unscheduled: UnscheduledResearch[]
   /** Every tech the country has on a date: the start techs, grants and finished research. */
   researchedBy: (date: Date) => Set<string>
+  /** When each design team was in use: from its tech's start to its end. */
+  designTeams: DesignTeamUse[]
+}
+
+export interface DesignTeamUse {
+  mio: string
+  start: Date
+  end: Date
 }
 
 export interface ResearchOptions {
@@ -179,4 +220,6 @@ export interface ResearchOptions {
   /** How far to simulate; techs not done by then are left unscheduled. */
   until: Date
   defines: ResearchDefines
+  /** The MIOs a queued tech can name as its design team. */
+  mios?: MioData[]
 }

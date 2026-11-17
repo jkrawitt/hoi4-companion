@@ -5,10 +5,11 @@
  * bonus follows from when it is bought), so they are settled together by repetition, as
  * `planResearch` does for research and `has_tech` alone: each pass plans the purchases with the
  * technologies the previous pass finished, then plans research with those purchases, until
- * neither schedule changes.
+ * neither schedule changes. The design teams (MIOs) of the research cost political power, so each
+ * pass hands the previous research schedule's team intervals to the political power plan.
  */
 import type { PoliticsData, PoliticsItem } from '../politics'
-import type { ResearchData, ResearchItem } from '../research'
+import type { MioData, ResearchData, ResearchItem } from '../research'
 import type { FocusSchedule } from '../plan/types'
 import { planPolitics, type PlannedPolitics } from './politics'
 import { planResearch, type PlannedResearch } from './research'
@@ -20,6 +21,8 @@ export interface CampaignPlanInput {
   options: CountryStateOptions
   researchQueue: ResearchItem[]
   researchData?: ResearchData
+  /** The MIOs a queued tech can use as its design team. */
+  mios?: MioData[]
   politicsQueue: PoliticsItem[]
   politicsData?: PoliticsData
   startDate: Date
@@ -55,12 +58,15 @@ export const planCampaign = (input: CampaignPlanInput): PlannedCampaign => {
       data: input.politicsData,
       startDate,
       until,
+      // The design teams of the previous pass's research each cost political power a day.
+      designTeams: planned?.schedule.designTeams,
     })
     const research = planResearch({
       focusSchedule,
       options: { ...withPolitics, extraSteps: politics.steps },
       queue: input.researchQueue,
       data: input.researchData,
+      mios: input.mios,
       startDate,
       until,
     })

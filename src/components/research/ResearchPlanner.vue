@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import EffectList from '../focus/EffectList.vue'
 import GameDataImport from '../GameDataImport.vue'
 import ResearchFolderGraph from './ResearchFolderGraph.vue'
-import { availableBonuses, earliestFreeSlot } from '@/domain/plan/researchPlan'
+import { availableBonuses, designTeamsFor, earliestFreeSlot } from '@/domain/plan/researchPlan'
 import type { BonusRef, ResearchBonus, UnscheduledReason } from '@/domain/research'
 import { describeAhead } from '@/domain/research'
 import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
@@ -13,6 +13,7 @@ import { yearBanners } from '../yearBanners'
 const showOnOverview = useShowOnOverview()
 const {
   research,
+  mios,
   startTechs,
   hasData,
   viewDate,
@@ -24,6 +25,7 @@ const {
   toggleTech,
   moveTech,
   setTechBonus,
+  setTechDesignTeam,
   resetResearch,
 } = useCampaign()
 
@@ -73,9 +75,28 @@ const rows = computed(() => {
         text: `${known ? bonusText(known) : bonusId(current)} (not available here)`,
       })
     }
-    return { index, queued, tech, scheduled, left, banner, options }
+    const teams = tech
+      ? designTeamsFor(tech, mios.value).map((mio) => ({
+          id: mio.id,
+          text: `${mio.name} ${formatPercent(research.value!.defines.designTeamBonus + mio.researchBonus)}`,
+        }))
+      : []
+    // A team chosen earlier stays visible when it does not match, so the issue makes sense.
+    const chosen = queued.designTeam
+    if (chosen && !teams.some((t) => t.id === chosen)) {
+      teams.push({
+        id: chosen,
+        text: `${mios.value.find((m) => m.id === chosen)?.name ?? chosen} (does not match)`,
+      })
+    }
+    return { index, queued, tech, scheduled, left, banner, options, teams }
   })
 })
+
+const formatPercent = (fraction: number) => {
+  const percent = Math.round(fraction * 1000) / 10
+  return `${percent >= 0 ? '+' : ''}${percent}%`
+}
 
 const formatDays = (days: number) => Math.round(days)
 
@@ -144,6 +165,15 @@ const freeAt = computed(() =>
                 <template v-if="issue.kind === 'already-researched'"
                   >Already researched, so it needs no slot.</template
                 >
+                <template v-else-if="issue.kind === 'design-team-mismatch'"
+                  >The design team does not research this technology.</template
+                >
+                <template v-else-if="issue.kind === 'design-team-busy'"
+                  >The design team is busy with another research.</template
+                >
+                <template v-else-if="issue.kind === 'design-team-unavailable'"
+                  >The design team is not available when this starts.</template
+                >
                 <template v-else>The chosen bonus cannot be used here.</template>
               </div>
               <div class="controls">
@@ -184,6 +214,25 @@ const freeAt = computed(() =>
                   <option value="">None</option>
                   <option v-for="o in row.options" :key="o.id" :value="o.id">{{ o.text }}</option>
                 </select>
+                <span v-if="row.scheduled?.bonusApplied" class="muted">
+                  bonus from {{ formatDate(row.scheduled.bonusApplied) }}
+                </span>
+              </label>
+              <label v-if="mios.length > 0" class="bonus">
+                Design team
+                <select
+                  :value="row.queued.designTeam ?? ''"
+                  @change="
+                    setTechDesignTeam(
+                      row.index,
+                      ($event.target as HTMLSelectElement).value || undefined,
+                    )
+                  "
+                >
+                  <option value="">None</option>
+                  <option v-for="o in row.teams" :key="o.id" :value="o.id">{{ o.text }}</option>
+                </select>
+                <span v-if="row.scheduled?.designTeam" class="muted"> costs political power</span>
               </label>
               <EffectList :effects="row.tech?.modifiers ?? []" />
             </div>

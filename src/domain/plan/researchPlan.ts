@@ -10,13 +10,19 @@
  *     / (base cost x tech cost x (1 + penalty x years ahead of time))
  *
  * to a tech, which is done at 1. The years ahead are counted from that day to January 1st of the
- * tech's `start_year`, minus the years the chosen bonus ignores. The category bonus is what the
+ * tech's `start_year`, minus the years the chosen bonus ignores. A design team (a military
+ * industrial organisation, chosen per queue item) adds the define's bonus plus its own when one of
+ * the tech's categories is one of its research categories, it is available on the start day and
+ * it is not the design team of another research under way. The category bonus is what the
  * designers the country has add for the tech's categories, from the day they are in force. A
- * bonus is spent when the tech starts. Everything moves in whole days, so a tech's dates and days
- * are whole numbers.
+ * bonus is spent when the tech starts, or, when it is granted while a matching tech is being
+ * researched, on that tech from that day (assumed, not checked in game). Everything moves in
+ * whole days, so a tech's dates and days are whole numbers.
  */
 import type {
   AheadOfTime,
+  DesignTeamUse,
+  MioData,
   ResearchBonus,
   ResearchDefines,
   ResearchEnvironment,
@@ -100,6 +106,10 @@ interface Running {
   start: number
   progress: number
   bonus?: ResearchBonus
+  /** The day a bonus granted during the research was applied to it. */
+  bonusApplied?: number
+  /** The design team in use, with its research bonus (the define's plus its own). */
+  designTeam?: { id: string; bonus: number }
   /** The penalty on the day it started, for the queue to show. */
   ahead: AheadOfTime
   issues: ResearchIssue[]
@@ -171,6 +181,10 @@ export const scheduleResearch = (
   const started = new Set<string>()
   const running: (Running | undefined)[] = []
   const bonusUses = new Map<string, number>()
+  const mioById = new Map((options.mios ?? []).map((mio) => [mio.id, mio]))
+  /** The design teams of the research under way: a team does one research at a time. */
+  const busyTeams = new Set<string>()
+  const teamUses: DesignTeamUse[] = []
 
   const canStart = ({ tech }: Entry, day: number) =>
     tech.prerequisites.every((group) => group.some((id) => doneDay(id) <= day)) &&
@@ -193,12 +207,40 @@ export const scheduleResearch = (
         issues.push({ kind: 'bonus-unavailable' })
       }
     }
+    let designTeam: Running['designTeam']
+    const mio = entry.item.designTeam ? mioById.get(entry.item.designTeam) : undefined
+    if (mio) {
+      if (!mio.researchCategories.some((category) => entry.tech.categories.includes(category))) {
+        issues.push({ kind: 'design-team-mismatch' })
+      } else if (env.mioAvailable?.(mio.id, addDays(startDate, day)) === false) {
+        issues.push({ kind: 'design-team-unavailable' })
+      } else if (busyTeams.has(mio.id)) {
+        issues.push({ kind: 'design-team-busy' })
+      } else {
+        designTeam = { id: mio.id, bonus: defines.designTeamBonus + mio.researchBonus }
+        busyTeams.add(mio.id)
+      }
+    }
     started.add(entry.tech.id)
     const ahead = aheadOfTime(entry.tech, addDays(startDate, day), bonus?.ahead ?? 0, defines)
-    return { entry, start: day, progress: 0, bonus, ahead, issues }
+    return { entry, start: day, progress: 0, bonus, designTeam, ahead, issues }
   }
 
   for (let day = 0; day < horizon && (pending.length > 0 || running.some(Boolean)); day++) {
+    // A bonus granted today goes to the research under way (assumed: in game it applies at once),
+    // in slot order, to the techs it matches that have no bonus yet, while it has uses left.
+    // Techs that start today choose their own bonus below.
+    for (const bonus of env.bonuses) {
+      if (dayOf(bonus.date) !== day) continue
+      for (const r of running) {
+        if ((bonusUses.get(bonusKey(bonus)) ?? 0) >= bonus.uses) break
+        if (!r || r.bonus || !bonusMatches(bonus, r.entry.tech)) continue
+        r.bonus = bonus
+        r.bonusApplied = day
+        r.issues = r.issues.filter((issue) => issue.kind !== 'bonus-unavailable')
+        bonusUses.set(bonusKey(bonus), (bonusUses.get(bonusKey(bonus)) ?? 0) + 1)
+      }
+    }
     const slots = valueAt(slotsByDay, day, 0)
     for (let slot = 0; slot < slots; slot++) {
       if (running[slot] || pending.length === 0) continue
@@ -212,7 +254,8 @@ export const scheduleResearch = (
       if (!r) return
       const { tech } = r.entry
       const { penalty } = aheadOfTime(tech, today, r.bonus?.ahead ?? 0, defines)
-      const bonus = (r.bonus?.bonus ?? 0) + categoryBonusAt(env, tech, today)
+      const bonus =
+        (r.bonus?.bonus ?? 0) + categoryBonusAt(env, tech, today) + (r.designTeam?.bonus ?? 0)
       const speedFactor = Math.max(defines.minSpeed, 1 + speed + bonus)
       r.progress += speedFactor / (defines.baseCost * tech.cost * penalty)
       if (r.progress < 1 - EPSILON) return
@@ -224,9 +267,15 @@ export const scheduleResearch = (
         start: addDays(startDate, r.start),
         end,
         days: day + 1 - r.start,
+        designTeam: r.designTeam?.id,
         bonusUsed: r.bonus?.ref,
+        bonusApplied: r.bonusApplied === undefined ? undefined : addDays(startDate, r.bonusApplied),
         ahead: r.ahead,
         issues: r.issues,
+      }
+      if (r.designTeam) {
+        busyTeams.delete(r.designTeam.id)
+        teamUses.push({ mio: r.designTeam.id, start: addDays(startDate, r.start), end })
       }
       doneAt.set(tech.id, end)
       running[slot] = undefined
@@ -235,8 +284,15 @@ export const scheduleResearch = (
 
   // What never got going, and why.
   for (const r of running) {
-    if (r)
-      unscheduled.push({ index: r.entry.index, techId: r.entry.tech.id, reason: 'out-of-time' })
+    if (!r) continue
+    unscheduled.push({ index: r.entry.index, techId: r.entry.tech.id, reason: 'out-of-time' })
+    if (r.designTeam) {
+      teamUses.push({
+        mio: r.designTeam.id,
+        start: addDays(startDate, r.start),
+        end: options.until,
+      })
+    }
   }
   for (const { index, tech } of pending) {
     const blocked = tech.exclusiveWith.some((id) => started.has(id) || doneAt.has(id))
@@ -250,6 +306,7 @@ export const scheduleResearch = (
     unscheduled: unscheduled.sort((a, b) => a.index - b.index),
     researchedBy: (date) =>
       new Set([...doneAt].flatMap(([id, when]) => (when <= date ? [id] : []))),
+    designTeams: teamUses.sort((a, b) => a.start.getTime() - b.start.getTime()),
   }
 }
 
@@ -279,6 +336,10 @@ export const earliestFreeSlot = (
   return earliest
 }
 
+/** The MIOs that can be the design team of a tech: one of its categories is theirs. */
+export const designTeamsFor = (tech: Pick<Technology, 'categories'>, mios: MioData[]): MioData[] =>
+  mios.filter((mio) => mio.researchCategories.some((c) => tech.categories.includes(c)))
+
 /**
  * The bonuses a queued tech can be given: the ones that apply to it, have been granted by the
  * day it starts, and have a use left after the techs that start before it. A tech that is not
@@ -294,6 +355,8 @@ export const availableBonuses = (
   return env.bonuses.filter((bonus) => {
     if (!bonusMatches(bonus, tech)) return false
     if (!self) return true
+    // One applied while the tech was being researched stays on offer.
+    if (sameBonus(self.bonusUsed, bonus.ref)) return true
     if (bonus.date > self.start) return false
     const usedBefore = schedule.items.filter(
       (other) =>
