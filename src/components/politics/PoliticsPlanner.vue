@@ -97,6 +97,8 @@ const rows = computed(() => {
 const viewed = computed(() => parseDate(viewDate.value))
 const balance = computed(() => politicsSchedule.value.balanceAt(viewed.value))
 const gain = computed(() => politicsSchedule.value.gainAt(viewed.value))
+const teams = computed(() => politicsSchedule.value.designTeamsAt(viewed.value))
+const teamCost = computed(() => politics.value?.defines.designTeamCost ?? 0)
 const nextPurchase = computed(() =>
   politicsSchedule.value.items.find((item) => item.date > viewed.value),
 )
@@ -120,6 +122,7 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
         round(gain, 2)
       }}
       a day.
+      <template v-if="teams > 0">Design teams: -{{ round(teamCost, 2) }} x {{ teams }}.</template>
       <template v-if="nextPurchase">
         Next purchase:
         {{ byId.get(nextPurchase.optionId)?.name }} on {{ formatDate(nextPurchase.date) }}.

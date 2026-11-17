@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { GameFiles } from '../gameFiles'
+import { ownedDlc } from '../../data/dlc'
 import {
   buildTechnologies,
   parseResearchDefines,
@@ -154,6 +155,25 @@ technology_folders = {
     ).toEqual(['infantry_folder', 'armour_folder', 'bba_air_techs_folder', 'either'])
   })
 
+  it("picks the folders of the player's DLCs", () => {
+    const folders = `technology_folders = {
+  naval_folder = { available = { not = { has_dlc = "Man the Guns" } } }
+  mtgnavalfolder = { available = { has_dlc = "Man the Guns" } }
+  mtgnavalsupportfolder = { available = { has_dlc = "Man the Guns" } }
+  armour_folder = { available = { NOT = { has_dlc = "No Step Back" } } }
+  nsb_armour_folder = { available = { has_dlc = "No Step Back" } }
+  air_techs_folder = { available = { NOT = { has_dlc = "By Blood Alone" } } }
+  bba_air_techs_folder = { available = { has_dlc = "By Blood Alone" } }
+  special_forces_doctrine_folder = { doctrine = yes available = { has_dlc = "Arms Against Tyranny" } }
+}`
+    expect(parseTechFolders(folders, ownedDlc)).toEqual([
+      'mtgnavalfolder',
+      'mtgnavalsupportfolder',
+      'nsb_armour_folder',
+      'bba_air_techs_folder',
+    ])
+  })
+
   it('counts a DLC that is not listed as not owned', () => {
     expect(parseTechFolders(tags, {})).toEqual([
       'infantry_folder',
@@ -165,9 +185,19 @@ technology_folders = {
 
 describe('parseResearchDefines', () => {
   it('reads NTechnology and falls back to the usual values', () => {
-    const lua = `NOther = {\n BASE_TECH_COST = 5,\n},\nNTechnology = {\n\tBASE_YEAR_AHEAD_PENALTY_FACTOR = 3, -- c\n\tBASE_TECH_COST = 120,\n\tMIN_RESEARCH_SPEED = 0.2,\n},\n`
-    expect(parseResearchDefines(lua)).toEqual({ baseCost: 120, aheadPenalty: 3, minSpeed: 0.2 })
-    expect(parseResearchDefines('')).toEqual({ baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 })
+    const lua = `NOther = {\n BASE_TECH_COST = 5,\n},\nNTechnology = {\n\tBASE_YEAR_AHEAD_PENALTY_FACTOR = 3, -- c\n\tBASE_TECH_COST = 120,\n\tMIN_RESEARCH_SPEED = 0.2,\n},\nNMilitaryIndustrialOrganization = {\n\tDESIGN_TEAM_RESEARCH_BONUS = 0.07,\n},\n`
+    expect(parseResearchDefines(lua)).toEqual({
+      baseCost: 120,
+      aheadPenalty: 3,
+      minSpeed: 0.2,
+      designTeamBonus: 0.07,
+    })
+    expect(parseResearchDefines('')).toEqual({
+      baseCost: 110,
+      aheadPenalty: 2,
+      minSpeed: 0.1,
+      designTeamBonus: 0.05,
+    })
   })
 })
 

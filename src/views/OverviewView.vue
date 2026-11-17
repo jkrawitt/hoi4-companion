@@ -69,6 +69,8 @@ const power = computed(() => ({
   balance: politicsSchedule.value.balanceAt(viewed.value),
   gain: politicsSchedule.value.gainAt(viewed.value),
   next: politicsSchedule.value.items.find((item) => item.date > viewed.value),
+  teams: politicsSchedule.value.designTeamsAt(viewed.value),
+  teamCost: politics.value?.defines.designTeamCost ?? 0,
 }))
 const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
 const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
@@ -114,6 +116,9 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
         <h3>Political power</h3>
         <p>
           {{ round(power.balance) }} political power, +{{ round(power.gain, 2) }} a day.
+          <template v-if="power.teams > 0">
+            Design teams: -{{ round(power.teamCost, 2) }} x {{ power.teams }}.
+          </template>
           <template v-if="power.next">
             Next purchase: {{ optionName(power.next.optionId) }} on
             {{ formatDate(power.next.date) }}.

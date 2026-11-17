@@ -622,6 +622,26 @@ describe('planPolitics', () => {
     expect(discounted.items[1].cost).toBe(75)
   })
 
+  it('loses the design team cost a day while a team is in use', () => {
+    const none = planOf([], data([]))
+    const cost = DEFAULT_POLITICS_DEFINES.designTeamCost
+    const plan = planOf([], data([], { defines: { ...NO_FOCUS, designTeamCost: cost } }), [], 0, {
+      designTeams: [
+        { start: day(10), end: day(30) },
+        { start: day(20), end: day(40) },
+      ],
+    })
+    expect(none.gainAt(day(15))).toBe(2)
+    expect(plan.gainAt(day(5))).toBe(2)
+    expect(plan.gainAt(day(15))).toBeCloseTo(2 - cost)
+    expect(plan.gainAt(day(25))).toBeCloseTo(2 - 2 * cost)
+    expect(plan.gainAt(day(35))).toBeCloseTo(2 - cost)
+    expect(plan.gainAt(day(40))).toBe(2)
+    expect(plan.designTeamsAt(day(25))).toBe(2)
+    // 2 + 2 a day for 50 days, less 0.1 x 20 and 0.1 x 20 for the two teams.
+    expect(plan.balanceAt(day(50))).toBeCloseTo(2 + 2 * 50 - 2 * cost * 20)
+  })
+
   it('does not count timed ideas past their end', () => {
     const f = focus('f', [
       { depth: 0, key: 'add_timed_idea', value: 'boom', days: 30, valueName: 'boom' },

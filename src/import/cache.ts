@@ -7,7 +7,7 @@ import type { ImportedCountry } from '@/domain/focus'
 const DB_NAME = 'hoi4-companion'
 const STORE = 'focuses'
 /** Bump when the shape of Focus or the imported country changes; older cached data is then ignored (re-import needed). */
-const CACHE_VERSION = 34
+const CACHE_VERSION = 35
 
 interface CachedCountry extends ImportedCountry {
   version: number
@@ -31,6 +31,7 @@ export const loadCachedCountry = async (tag: string): Promise<ImportedCountry | 
         resolve(
           cached?.version === CACHE_VERSION
             ? {
+                mios: cached.mios,
                 focuses: cached.focuses,
                 start: cached.start,
                 leaders: cached.leaders,

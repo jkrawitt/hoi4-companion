@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { addDays, daysBetween } from '../calendar'
 import {
   emptyEnvironment,
+  type MioData,
   type ResearchBonus,
   type ResearchEnvironment,
   type ResearchItem,
@@ -18,7 +19,7 @@ import {
 
 const start = new Date(Date.UTC(1936, 0, 1))
 const day = (n: number) => addDays(start, n)
-const defines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1 }
+const defines = { baseCost: 110, aheadPenalty: 2, minSpeed: 0.1, designTeamBonus: 0.05 }
 
 const tech = (id: string, extra: Partial<Technology> = {}): Technology => ({
   id,
@@ -47,12 +48,13 @@ const run = (
   queue: ResearchItem[],
   techs: Record<string, Technology>,
   environment = env(),
-  opts: { startDate?: Date; until?: Date } = {},
+  opts: { startDate?: Date; until?: Date; mios?: MioData[] } = {},
 ) =>
   scheduleResearch(queue, techs, environment, {
     startDate: opts.startDate ?? start,
     until: opts.until ?? day(5000),
     defines,
+    mios: opts.mios,
   })
 
 const span = (s: ReturnType<typeof run>) =>
@@ -330,14 +332,41 @@ describe('scheduleResearch', () => {
       expect(s.items[0].issues).toEqual([{ kind: 'bonus-unavailable' }])
     })
 
-    it('is not used by a tech that starts before it is granted', () => {
+    it('applies at once to a matching tech being researched when it is granted', () => {
+      const environment = env({ bonuses: [bonus({ date: day(10) })] })
+      // Without a choice in the queue, and with one that was not granted yet when it started.
+      for (const queue of [q('a'), withBonus('a')]) {
+        const s = run(queue, techsOf(catTech('a')), environment)
+        // 10 days at 1/110, then 2/110 a day for the remaining 100/110: 50 days more.
+        expect(s.items[0]).toMatchObject({ days: 60, bonusUsed: chosen, bonusApplied: day(10) })
+        expect(s.items[0].end).toEqual(day(60))
+        expect(s.items[0].issues).toEqual([])
+      }
+    })
+
+    it('leaves a running tech it does not match untouched', () => {
       const s = run(
-        withBonus('a'),
-        techsOf(catTech('a')),
+        q('a'),
+        techsOf(tech('a', { categories: ['other'] })),
         env({ bonuses: [bonus({ date: day(10) })] }),
       )
-      expect(s.items[0].days).toBe(110)
-      expect(s.items[0].issues).toEqual([{ kind: 'bonus-unavailable' }])
+      expect(s.items[0]).toMatchObject({ days: 110, bonusUsed: undefined })
+      expect(s.items[0].bonusApplied).toBeUndefined()
+    })
+
+    it('does not give a mid-research bonus to a tech that already has one, or more than its uses', () => {
+      const other = { focusId: 'focus', index: 1 }
+      const environment = env({
+        slots: [{ date: start, total: 3 }],
+        bonuses: [bonus({ ref: other, date: start, bonus: 0.5 }), bonus({ date: day(10) })],
+      })
+      const items = [{ techId: 'a', bonus: other }, { techId: 'b' }, { techId: 'c' }]
+      const s = run(items, techsOf(catTech('a'), catTech('b'), catTech('c')), environment)
+      expect(s.items.map((i) => [i.techId, i.bonusUsed?.index, i.days])).toEqual([
+        ['a', 1, 74],
+        ['b', 0, 60],
+        ['c', undefined, 110],
+      ])
     })
 
     it('runs out after its uses', () => {
@@ -467,5 +496,76 @@ describe('category research bonus', () => {
         day(5),
       ),
     ).toBe(0.2)
+  })
+})
+
+describe('design teams', () => {
+  const mio = (extra: Partial<MioData> = {}): MioData => ({
+    id: 'mio',
+    name: 'Mio',
+    researchCategories: ['mio_cat'],
+    researchBonus: 0,
+    ...extra,
+  })
+  const armoured = (id: string) => tech(id, { categories: ['mio_cat', 'other'] })
+  const withTeam = (...ids: string[]): ResearchItem[] =>
+    ids.map((techId) => ({ techId, designTeam: 'mio' }))
+
+  it('adds the define and its own bonus to a matching tech', () => {
+    // 110 / 1.05 = 104.8 days, and with the MIO's own +3%: 110 / 1.08 = 101.9 days.
+    const plain = run(withTeam('a'), techsOf(armoured('a')), env(), { mios: [mio()] })
+    expect(plain.items[0]).toMatchObject({ days: 105, designTeam: 'mio', issues: [] })
+    const own = run(withTeam('a'), techsOf(armoured('a')), env(), {
+      mios: [mio({ researchBonus: 0.03 })],
+    })
+    expect(own.items[0].days).toBe(102)
+    expect(own.designTeams).toEqual([{ mio: 'mio', start: start, end: day(102) }])
+  })
+
+  it('does nothing for a tech outside its categories', () => {
+    const s = run(withTeam('a'), techsOf(tech('a', { categories: ['other'] })), env(), {
+      mios: [mio()],
+    })
+    expect(s.items[0]).toMatchObject({ days: 110, designTeam: undefined })
+    expect(s.items[0].issues).toEqual([{ kind: 'design-team-mismatch' }])
+    expect(s.designTeams).toEqual([])
+  })
+
+  it('does one research at a time: a busy team is skipped', () => {
+    const s = run(
+      withTeam('a', 'b'),
+      techsOf(armoured('a'), armoured('b')),
+      env({ slots: [{ date: start, total: 2 }] }),
+      { mios: [mio()] },
+    )
+    expect(s.items.map((i) => [i.techId, i.days, i.designTeam ?? null])).toEqual([
+      ['a', 105, 'mio'],
+      ['b', 110, null],
+    ])
+    expect(s.items[1].issues).toEqual([{ kind: 'design-team-busy' }])
+  })
+
+  it('is free again once its research is done', () => {
+    const s = run(withTeam('a', 'b'), techsOf(armoured('a'), armoured('b')), env(), {
+      mios: [mio()],
+    })
+    expect(s.items.map((i) => i.designTeam)).toEqual(['mio', 'mio'])
+    expect(s.designTeams).toHaveLength(2)
+  })
+
+  it('is left out when it is not available on the start day', () => {
+    const s = run(
+      withTeam('a'),
+      techsOf(armoured('a')),
+      env({ mioAvailable: (_id, date) => date >= day(10) }),
+      { mios: [mio()] },
+    )
+    expect(s.items[0]).toMatchObject({ days: 110, designTeam: undefined })
+    expect(s.items[0].issues).toEqual([{ kind: 'design-team-unavailable' }])
+  })
+
+  it('ignores a team that is not known', () => {
+    const s = run(withTeam('a'), techsOf(armoured('a')), env(), { mios: [] })
+    expect(s.items[0]).toMatchObject({ days: 110, issues: [] })
   })
 })

@@ -32,6 +32,8 @@ export interface PoliticsPlanInput {
   startDate: Date
   /** How far to look for purchases. */
   until: Date
+  /** When design teams (MIOs assigned to research) are in use; each costs political power a day. */
+  designTeams?: { start: Date; end: Date }[]
 }
 
 export interface PlannedPolitics extends PoliticsSchedule {
@@ -56,7 +58,10 @@ export const purchaseEffects = (option: PoliticalOption, dismiss: boolean): Effe
       ]
 
 /** What the campaign knows about the country in `state`, for an option's `available` block. */
-const conditionsOf = (state: CountryState, options: CountryStateOptions): ConditionContext => {
+export const conditionsOf = (
+  state: CountryState,
+  options: CountryStateOptions,
+): ConditionContext => {
   const known = Boolean(options.start?.length)
   return {
     hasIdea: (id) => state.ideas.some((idea) => idea.id === id),
@@ -89,17 +94,29 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
   const unscheduled: UnscheduledPurchase[] = []
   const steps: Step[] = []
   if (!data) {
-    return { items, unscheduled, steps, balanceAt: () => 0, gainAt: () => 0 }
+    return {
+      items,
+      unscheduled,
+      steps,
+      balanceAt: () => 0,
+      gainAt: () => 0,
+      designTeamsAt: () => 0,
+    }
   }
   const byId = new Map(data.options.map((o) => [o.id, o]))
-  const { cap } = data.defines
+  const { cap, designTeamCost } = data.defines
+  const teams = input.designTeams ?? []
+  /** How many design teams are in use on a date: from the day their research starts until it ends. */
+  const teamsAt = (date: Date) => teams.filter((u) => u.start <= date && date < u.end).length
 
   const stateAt = (date: Date) =>
     countryStateAt(focusSchedule, date, { ...options, politics: data, extraSteps: steps })
   const lumpOf = (state: CountryState) =>
     state.statChanges.find((s) => s.key === 'add_political_power')?.total ?? 0
+  /** The gain on the day `t`: the modifiers' gain less what the design teams in use cost. */
   const gainOf = (state: CountryState) =>
-    dailyGain(totalsOf(state.modifierTotals), data.defines, state.stability)
+    dailyGain(totalsOf(state.modifierTotals), data.defines, state.stability) -
+    designTeamCost * teamsAt(t)
 
   let t = startDate
   let state = stateAt(t)
@@ -129,6 +146,8 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       ...(state.next ? [state.next.end] : []),
       // What the player entered from the game changes the gain on its day.
       ...(options.adjustments ?? []).map((step) => step.end),
+      // A design team starts or stops costing political power.
+      ...teams.flatMap((u) => [u.start, u.end]),
       ...state.ideas.flatMap((idea) => (idea.until && idea.until > t ? [idea.until] : [])),
     ].filter((d) => d > t && d <= until)
     return times.length > 0 ? new Date(Math.min(...times.map((d) => d.getTime()))) : undefined
@@ -243,5 +262,6 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       return Math.min(cap, p.balance + p.gain * elapsed)
     },
     gainAt: (date) => pointAt(date).gain,
+    designTeamsAt: teamsAt,
   }
 }

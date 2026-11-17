@@ -34,6 +34,8 @@ export interface TimelineInput {
   focusSchedule: FocusSchedule
   research?: ResearchSchedule
   techs: Record<string, Technology>
+  /** The MIOs, to name a research's design team. */
+  mios?: { id: string; name: string }[]
   construction?: ConstructionSchedule
   production?: ProductionData
   politics?: PoliticsSchedule
@@ -105,6 +107,10 @@ export const buildTimeline = (input: TimelineInput): Timeline => {
     )
     const details: string[] = []
     if (item.bonusUsed) details.push('using a bonus')
+    if (item.designTeam) {
+      const mio = input.mios?.find((m) => m.id === item.designTeam)
+      details.push(`with ${mio?.name ?? item.designTeam}`)
+    }
     if (item.ahead.years > 0) details.push(`${Math.round(item.ahead.years * 10) / 10} years early`)
     add(
       item.start,

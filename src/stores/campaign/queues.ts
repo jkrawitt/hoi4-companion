@@ -75,17 +75,29 @@ export const createQueues = (saved: Partial<SavedCampaign>, data: GameData) => {
    * Keeps the saved queues when the imported data still supports them, and drops them when it
    * does not. Runs once the data is in place.
    */
-  const keepValid = ({ politics: politicsData, production: productionData }: ImportedCountry) => {
+  const keepValid = ({
+    politics: politicsData,
+    production: productionData,
+    mios,
+  }: ImportedCountry) => {
     politicsPlan.value = knownPurchases(politicsPlan.value, politicsData.options)
     const known = plan.value.filter((id) => id in focuses.value)
     plan.value = isValidPlan(known, focuses.value) ? known : []
     researchPlan.value = isValidResearchPlan(researchPlan.value, techs.value, startTechs.value)
-      ? researchPlan.value
+      ? withKnownTeams(researchPlan.value, mios ?? [])
       : []
     constructionPlan.value = isValidConstructionPlan(constructionPlan.value, productionData)
       ? constructionPlan.value
       : []
   }
+
+  /** The research queue without design teams the importer did not find (saved queues of a past import). */
+  const withKnownTeams = (queue: ResearchItem[], mios: { id: string }[]): ResearchItem[] =>
+    queue.map((item) =>
+      item.designTeam && !mios.some((m) => m.id === item.designTeam)
+        ? { ...item, designTeam: undefined }
+        : item,
+    )
 
   /** Another country is another campaign: start its plan from scratch. */
   const clear = () => {
@@ -156,7 +168,13 @@ export const createQueues = (saved: Partial<SavedCampaign>, data: GameData) => {
 
   const setTechBonus = (index: number, bonus: BonusRef | undefined) => {
     researchPlan.value = researchPlan.value.map((item, i) =>
-      i === index ? { techId: item.techId, ...(bonus && { bonus }) } : item,
+      i === index ? { ...item, bonus } : item,
+    )
+  }
+
+  const setTechDesignTeam = (index: number, designTeam: string | undefined) => {
+    researchPlan.value = researchPlan.value.map((item, i) =>
+      i === index ? { ...item, designTeam } : item,
     )
   }
 
@@ -215,6 +233,7 @@ export const createQueues = (saved: Partial<SavedCampaign>, data: GameData) => {
     toggleTech,
     moveTech,
     setTechBonus,
+    setTechDesignTeam,
     resetResearch,
     addConstruction,
     moveConstruction,
