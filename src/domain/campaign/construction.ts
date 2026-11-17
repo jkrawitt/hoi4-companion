@@ -13,14 +13,12 @@ import type {
   ConstructionSchedule,
   FocusConstruction,
   ProductionData,
-  ProductionDefines,
 } from '../production'
-import { stabilityOf } from '../production'
 import { tradeOverTime, type Adjustments } from '../adjustments'
 import { scheduleConstruction } from '../plan/constructionPlan'
 import { techModifierTotals } from './research'
 import { placeBatches, sharedBuildings, startingRows } from './industry'
-import { activeModifiers } from './totals'
+import { DEFAULT_STAT, activeModifiers, clampStat, stabilityFrom } from './totals'
 import { changePoints } from './snapshots'
 import type { CountryState } from './types'
 
@@ -37,7 +35,6 @@ export const constructionFactors = (
   techs: Technology[],
   startDate: Date,
   researchEnds: Date[],
-  defines: ProductionDefines,
 ): ConstructionFactors[] => {
   return changePoints(finalState.snapshots, [startDate, ...researchEnds]).map(
     ({ date, snapshot: latest, ideas, traits }) => {
@@ -62,11 +59,11 @@ export const constructionFactors = (
         slotFactor: totals.get('global_building_slots_factor') ?? 0,
         consumerExpected: own.get('consumer_goods_expected_value')?.total ?? 0,
         consumerFactor: totals.get('consumer_goods_factor') ?? 0,
-        stability: stabilityOf(
-          latest?.stabilityBase ?? 0,
-          totals.get('stability_factor') ?? 0,
-          latest?.rulingPopularity ?? 0,
-          defines,
+        stability: clampStat(
+          stabilityFrom(
+            latest?.stabilityBeforeModifiers ?? DEFAULT_STAT,
+            own.get('stability_factor')?.total ?? 0,
+          ),
         ),
         energyGain: totals.get('energy_gain_factor') ?? 0,
         energyConsumption: totals.get('factory_energy_consumption') ?? 0,
@@ -97,14 +94,7 @@ export interface PlannedConstruction {
 export const planConstruction = (input: ConstructionPlanInput): PlannedConstruction => {
   const { production, finalState, research, techs, queue, adjustments, startDate, until } = input
   const researchEnds = research.items.filter((i) => i.slot >= 0).map((i) => i.end)
-  const factors = constructionFactors(
-    finalState,
-    research,
-    techs,
-    startDate,
-    researchEnds,
-    production.defines,
-  )
+  const factors = constructionFactors(finalState, research, techs, startDate, researchEnds)
 
   // Place every build of the plan, with the slots of the day the focus plan is done.
   const shared = sharedBuildings(production)

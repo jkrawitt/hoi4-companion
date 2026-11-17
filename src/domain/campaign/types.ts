@@ -95,10 +95,8 @@ export interface StateSnapshot {
   date: Date
   ideas: ActiveIdea[]
   traits: EffectLine[]
-  /** The scripted stability so far (see `scriptedStat`): the start's, or 50%, plus changes. */
-  stabilityBase: number
-  /** The ruling party's popularity, as a fraction of 1. */
-  rulingPopularity: number
+  /** Stability before modifiers (see `stabilityFrom`). */
+  stabilityBeforeModifiers: number
 }
 
 export interface CountryPolitics {
@@ -133,10 +131,10 @@ export interface CountryState {
   stability?: number
   warSupport?: number
   /**
-   * The scripted part of stability (see `scriptedStat`): what `stabilityOf` adds the modifiers of
-   * ideas and technologies to.
+   * Stability before modifiers: the scripted part plus the ruling party's popularity times
+   * `partyStability` (see `stabilityFrom`, which adds the ideas' `stability_factor`).
    */
-  stabilityBase: number
+  stabilityBeforeModifiers: number
   leader?: CountryLeader
   /** The production of each resource added by completed focuses, summed. */
   resources: ResourceTotal[]
