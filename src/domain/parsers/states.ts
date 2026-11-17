@@ -6,6 +6,7 @@
 import { GAME_PATHS, type GameFiles } from '../gameFiles'
 import {
   DEFAULT_DEFINES,
+  DEFAULT_RESOURCE_COST,
   type BuildingData,
   type ProductionData,
   type ProductionDefines,
@@ -120,6 +121,10 @@ export const parseProductionDefines = (text: string): ProductionDefines => {
     baseEnergyCost: read('BASE_ENERGY_COST', d.baseEnergyCost),
     energyCostScaling: read('ENERGY_SCALING_COST_BY_FACTORY_COUNT', d.energyCostScaling),
     energyCostCap: read('ENERGY_COST_CAP', d.energyCostCap),
+    energyScalePerTradeFactory: read(
+      'ENERGY_SCALE_PER_TRADE_FACTORY_EXPORT',
+      d.energyScalePerTradeFactory,
+    ),
     partyPopularityStability: read(
       'BASE_STABILITY_PARTY_POPULARITY_FACTOR',
       d.partyPopularityStability,
@@ -127,6 +132,18 @@ export const parseProductionDefines = (text: string): ProductionDefines => {
     stabilityConsumerGoods: d.stabilityConsumerGoods,
   }
 }
+
+/** The `cic` (civilian factories per unit traded) of each resource in `common/resources`. */
+export const parseResourceCosts = (text: string): Record<string, number> =>
+  Object.fromEntries(
+    (getBlock(parseScript(text), 'resources') ?? []).flatMap((e) => {
+      if (typeof e.value !== 'object' || e.key === null) return []
+      const cic = getString(e.value, 'cic')
+      return [
+        [e.key, cic != null && Number.isFinite(Number(cic)) ? Number(cic) : DEFAULT_RESOURCE_COST],
+      ]
+    }),
+  )
 
 /** The `consumer_goods_factor` of `stability_good_modifier` in a `common/modifiers` file. */
 export const parseStabilityConsumerGoods = (text: string): number | undefined => {
@@ -167,6 +184,10 @@ export const readProduction = async (files: GameFiles, tag: string): Promise<Pro
     ),
     sharedSlotBuildings: buildingTexts.flatMap(parseSharedSlotBuildings),
     buildings: buildingTexts.flatMap(parseBuildings),
+    resourceCost: Object.assign(
+      {},
+      ...(await readAll(files, GAME_PATHS.resources)).map(parseResourceCosts),
+    ),
     defines: {
       ...defines,
       stabilityConsumerGoods:

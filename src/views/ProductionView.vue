@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import ConstructionQueue, {
   type ConstructionDraft,
 } from '@/components/production/ConstructionQueue.vue'
+import TradePanel from '@/components/production/TradePanel.vue'
 import GameDataImport from '@/components/GameDataImport.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
 import { useCampaign } from '@/stores/campaign'
@@ -72,6 +73,10 @@ const otherFactories = computed(
         </div>
         <div class="tile">
           <span>Available civilian factories</span><strong>{{ industry.availableCivs }}</strong>
+          <small v-if="industry.trade.received > 0 || industry.trade.importCost > 0">
+            Trade: +{{ industry.trade.received }} received, -{{ industry.trade.importCost }} for
+            imports
+          </small>
         </div>
         <div class="tile">
           <span>Building slots used</span>
@@ -131,6 +136,7 @@ const otherFactories = computed(
           </ul>
         </template>
       </section>
+      <TradePanel />
       <ConstructionQueue v-model:draft="draft" />
     </template>
   </div>

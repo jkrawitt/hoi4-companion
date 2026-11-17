@@ -19,17 +19,29 @@ import {
   removePurchase as removeFromQueue,
   setNotBefore as setQueueNotBefore,
 } from '@/domain/plan/politicsPlan'
+import {
+  adjustmentSteps,
+  emptyAdjustments,
+  hasAdjustments,
+  sanitizeAdjustments,
+  tradeOverTime,
+  type AdjustmentEntry,
+  type AdjustmentKind,
+} from '@/domain/adjustments'
 import { industryAt } from '@/domain/campaign/industry'
 import { planConstruction } from '@/domain/campaign/construction'
 import {
   isValidConstructionPlan,
   levelsLeft,
+  tradeAt,
   type ConstructionItem,
   type ProductionData,
 } from '@/domain/production'
 import type { BonusRef, ResearchData, ResearchItem } from '@/domain/research'
 import { addDays } from '@/domain/plan/focusPlan'
-import { fromGameDay, gameDay } from '@/domain/calendar'
+import { fromGameDay, wholeDay } from '@/domain/calendar'
+import type { Adjustments } from '@/domain/adjustments'
+import { buildTimeline } from '@/domain/campaign/timeline'
 import {
   isValidResearchPlan,
   pathToTech,
@@ -52,6 +64,10 @@ interface SavedCampaign {
   researchPlan?: ResearchItem[]
   constructionPlan?: ConstructionItem[]
   politicsPlan?: PoliticsItem[]
+  /** Timeline actions the player has done in game. */
+  checkedOff?: string[]
+  /** What the player saw in game: stability, event modifiers, trade. */
+  adjustments?: Adjustments
   viewDate: string
 }
 
@@ -128,6 +144,32 @@ const createCampaign = () => {
   const politicsPlan = ref<PoliticsItem[]>(
     Array.isArray(saved.politicsPlan) ? saved.politicsPlan : [],
   )
+  /** The ids of the timeline actions the player has checked off as done in game. */
+  const checkedOff = ref<string[]>(Array.isArray(saved.checkedOff) ? saved.checkedOff : [])
+  const toggleChecked = (id: string) => {
+    checkedOff.value = checkedOff.value.includes(id)
+      ? checkedOff.value.filter((x) => x !== id)
+      : [...checkedOff.value, id]
+  }
+  const resetChecked = () => (checkedOff.value = [])
+  /** Stability, event modifiers and trade entered from the game, each with its date. */
+  const adjustments = ref<Adjustments>(sanitizeAdjustments(saved.adjustments))
+  const addAdjustment = <K extends AdjustmentKind>(
+    kind: K,
+    entry: Omit<AdjustmentEntry<K>, 'id'>,
+  ) => {
+    const list = adjustments.value[kind] as AdjustmentEntry<K>[]
+    adjustments.value = {
+      ...adjustments.value,
+      [kind]: [...list, { ...entry, id: crypto.randomUUID() } as AdjustmentEntry<K>],
+    }
+  }
+  const removeAdjustment = (kind: AdjustmentKind, id: string) => {
+    adjustments.value = {
+      ...adjustments.value,
+      [kind]: adjustments.value[kind].filter((entry) => entry.id !== id),
+    }
+  }
   const startDate = ref(saved.startDate ?? '1936-01-01')
   const speedBonusPercent = ref(saved.speedBonusPercent ?? 0)
   /** The date the overview shows the country at. */
@@ -180,6 +222,8 @@ const createCampaign = () => {
     researchPlan.value = []
     constructionPlan.value = []
     politicsPlan.value = []
+    checkedOff.value = []
+    adjustments.value = emptyAdjustments()
     error.value = ''
     status.value = ''
     await loadCached(tag)
@@ -239,6 +283,7 @@ const createCampaign = () => {
     laws: laws.value,
     startDate: parseDate(startDate.value),
     ownedDlc,
+    adjustments: adjustmentSteps(adjustments.value, statOverrides),
   }))
 
   /**
@@ -265,9 +310,13 @@ const createCampaign = () => {
   const researchSchedule = computed(() => planned.value.schedule)
   const politicsSchedule = computed(() => planned.value.politics)
 
+  /** The later of `date` and the last thing the player entered from the game. */
+  const lastChange = (date: Date) =>
+    (stateOptions.value.adjustments ?? []).reduce((l, s) => (s.end > l ? s.end : l), date)
+
   /** The country when the focus plan is done: every build of the plan, for the construction. */
   const finalState = computed(() =>
-    countryStateAt(schedule.value, schedule.value.finish, {
+    countryStateAt(schedule.value, lastChange(schedule.value.finish), {
       ...stateOptions.value,
       hasTech: planned.value.hasTech,
       // A law bought with political power changes consumer goods, so purchases count too.
@@ -282,6 +331,7 @@ const createCampaign = () => {
           research: researchSchedule.value,
           techs: research.value?.techs ?? [],
           queue: constructionPlan.value,
+          adjustments: adjustments.value,
           startDate: parseDate(startDate.value),
           until: addDays(
             schedule.value.finish > parseDate(startDate.value)
@@ -305,7 +355,8 @@ const createCampaign = () => {
       lastResearch,
     )
     const built = constructionSchedule.value?.finish
-    return built && built > latest ? built : latest
+    // An adjustment entered after the rest of the plan still needs the slider to reach it.
+    return lastChange(built && built > latest ? built : latest)
   })
 
   // A view that sits at the end of the plan stays there as the plan changes, so new focuses and
@@ -412,13 +463,27 @@ const createCampaign = () => {
   }
   const resetPolitics = () => (politicsPlan.value = [])
 
-  const state = computed(() =>
-    countryStateAt(schedule.value, parseDate(viewDate.value), {
+  /** The country on a date, with the research, purchases and adjustments of the campaign. */
+  const stateOn = (date: Date) =>
+    countryStateAt(schedule.value, date, {
       ...stateOptions.value,
       hasTech: planned.value.hasTech,
       politics: politics.value,
       extraSteps: planned.value.politics.steps,
-    }),
+    })
+  const state = computed(() => stateOn(parseDate(viewDate.value)))
+  /** The stability the plan has on a date, `YYYY-MM-DD`, or undefined before the start is known. */
+  const stabilityOn = (date: string): number | undefined => stateOn(parseDate(date)).stability
+
+  /** What trade does to the civs, from the imports and the civs received, as change points. */
+  const trade = computed(() =>
+    production.value
+      ? tradeOverTime(
+          adjustments.value,
+          production.value.resourceCost ?? {},
+          production.value.defines.energyResource,
+        )
+      : [],
   )
 
   /** The factories, slots and consumer goods on the viewed date. */
@@ -429,12 +494,24 @@ const createCampaign = () => {
           state.value,
           researchTotals.value,
           constructionSchedule.value?.built,
+          tradeAt(trade.value, parseDate(viewDate.value)),
         )
       : undefined,
   )
 
   watch(
-    [countryTag, plan, researchPlan, constructionPlan, politicsPlan, startDate, speedBonusPercent, viewDate],
+    [
+      countryTag,
+      plan,
+      researchPlan,
+      constructionPlan,
+      politicsPlan,
+      checkedOff,
+      adjustments,
+      startDate,
+      speedBonusPercent,
+      viewDate,
+    ],
     () =>
       save({
         version: STORAGE_VERSION,
@@ -445,8 +522,24 @@ const createCampaign = () => {
         researchPlan: researchPlan.value,
         constructionPlan: constructionPlan.value,
         politicsPlan: politicsPlan.value,
+        checkedOff: checkedOff.value,
+        adjustments: hasAdjustments(adjustments.value) ? adjustments.value : undefined,
         viewDate: viewDate.value,
       }),
+  )
+
+  const timeline = computed(() =>
+    buildTimeline({
+      focusSchedule: schedule.value,
+      research: researchSchedule.value,
+      techs: techs.value,
+      construction: constructionSchedule.value,
+      production: production.value,
+      politics: politicsSchedule.value,
+      options: politics.value?.options ?? [],
+      adjustments: adjustments.value,
+      resourceCost: production.value?.resourceCost,
+    }),
   )
 
   return {
@@ -484,6 +577,15 @@ const createCampaign = () => {
     researchTotals,
     constructionPlan,
     constructionSchedule,
+    timeline,
+    checkedOff,
+    adjustments,
+    addAdjustment,
+    removeAdjustment,
+    stabilityOn,
+    trade,
+    toggleChecked,
+    resetChecked,
     addConstruction,
     moveConstruction,
     removeConstruction,
@@ -504,6 +606,6 @@ let campaign: ReturnType<typeof createCampaign> | undefined
 export const useCampaign = () => (campaign ??= createCampaign())
 
 /** The first whole day on which a focus ending at `end` counts as complete. */
-const completionDay = (end: Date): string => formatDate(fromGameDay(Math.ceil(gameDay(end) - 1e-9)))
+const completionDay = (end: Date): string => formatDate(fromGameDay(wholeDay(end)))
 
 export { completionDay, formatDate, parseDate }

@@ -4,12 +4,14 @@ import FocusPlanView from '@/views/FocusPlanView.vue'
 import ResearchPlanView from '@/views/ResearchPlanView.vue'
 import ProductionView from '@/views/ProductionView.vue'
 import PoliticsPlanView from '@/views/PoliticsPlanView.vue'
+import TimelineView from '@/views/TimelineView.vue'
 
 const router = createRouter({
   // Hash history keeps reloads and deep links working on GitHub Pages without a 404 fallback.
   history: createWebHashHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'overview', component: OverviewView },
+    { path: '/timeline', name: 'timeline', component: TimelineView },
     { path: '/focus', name: 'focus', component: FocusPlanView },
     { path: '/research', name: 'research', component: ResearchPlanView },
     { path: '/production', name: 'production', component: ProductionView },

@@ -241,3 +241,32 @@ describe('consumerGoodsFor', () => {
     expect(consumerGoodsFor(0, 3, 0.5, 0, 0.5, defines).factories).toBe(0)
   })
 })
+
+describe('industryAt and event modifiers and trade', () => {
+  it('follows an event modifier of consumer goods', () => {
+    const plain = industryAt(
+      production,
+      country({ modifierTotals: [total('consumer_goods_expected_value', 0.5)] }),
+      [],
+    )
+    const event = industryAt(
+      production,
+      country({
+        modifierTotals: [
+          total('consumer_goods_expected_value', 0.5),
+          total('consumer_goods_factor', 0.2),
+        ],
+      }),
+      [],
+    )
+    expect(event.consumerGoods.percent).toBeGreaterThan(plain.consumerGoods.percent)
+    expect(event.availableCivs).toBeLessThanOrEqual(plain.availableCivs)
+  })
+
+  it('counts trade in the available civs', () => {
+    const base = industryAt(production, country(), [])
+    const traded = industryAt(production, country(), [], [], { received: 4, importCost: 1 })
+    expect(traded.trade).toEqual({ received: 4, importCost: 1 })
+    expect(traded.availableCivs).toBe(base.availableCivs + 3)
+  })
+})

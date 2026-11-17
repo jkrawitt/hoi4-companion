@@ -12,7 +12,7 @@
  */
 import { humanize } from '../focusEffects'
 import { consumerGoodsFor, stabilityOf, type ConsumerGoods } from '../production'
-import type { BuiltLevel, ProductionData } from '../production'
+import type { BuiltLevel, ProductionData, TradePoint } from '../production'
 import type { ConstructionBatch, CountryState, StatTotal } from './types'
 
 export { consumerGoodsFor }
@@ -67,7 +67,9 @@ export interface Industry {
   /** Batches of the plan that fit no state (an unowned numbered scope, or no states at all). */
   unplaced: UnplacedBatch[]
   consumerGoods: ConsumerGoods
-  /** Civilian factories left once the consumer goods are paid. */
+  /** The civs received from trade and what the imports cost, on the date. */
+  trade: { received: number; importCost: number }
+  /** Civilian factories left once the consumer goods are paid, and trade is counted. */
   availableCivs: number
 }
 
@@ -202,6 +204,8 @@ export const industryAt = (
   techTotals: StatTotal[],
   /** The levels the construction queue finished; those by the state's date count as built. */
   built: BuiltLevel[] = [],
+  /** The trade on the state's date (`tradeAt`). */
+  tradeNow?: Pick<TradePoint, 'received' | 'importCost'>,
 ): Industry => {
   const shared = sharedBuildings(production)
   const slotFactor =
@@ -266,6 +270,13 @@ export const industryAt = (
     states,
     unplaced,
     consumerGoods,
-    availableCivs: count(CIVILIAN) - consumerGoods.factories,
+    trade: { received: tradeNow?.received ?? 0, importCost: tradeNow?.importCost ?? 0 },
+    availableCivs: Math.max(
+      0,
+      count(CIVILIAN) -
+        consumerGoods.factories +
+        (tradeNow?.received ?? 0) -
+        (tradeNow?.importCost ?? 0),
+    ),
   }
 }

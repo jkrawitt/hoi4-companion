@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import EffectList from '@/components/focus/EffectList.vue'
 import GameDataImport from '@/components/GameDataImport.vue'
+import AdjustmentsPanel from '@/components/overview/AdjustmentsPanel.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
 import StatTotals from '@/components/overview/StatTotals.vue'
 import type { StatTotal } from '@/domain/campaign/countryState'
@@ -92,6 +93,7 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
         </template>
       </p>
       <DateScrubber />
+      <AdjustmentsPanel />
 
       <section v-if="hasGovernment">
         <h3>Government</h3>

@@ -43,3 +43,6 @@ export const addDays = (date: Date, days: number): Date => fromGameDay(gameDay(d
 /** Game days from `from` to `to` (negative when `to` is earlier). */
 export const daysBetween = (from: Date | number, to: Date | number): number =>
   gameDay(to) - gameDay(from)
+
+/** The whole game day an instant falls on, counting a moment just past midnight as the day before. */
+export const wholeDay = (date: Date | number): number => Math.ceil(gameDay(date) - 1e-9)

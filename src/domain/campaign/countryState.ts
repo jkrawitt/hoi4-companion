@@ -62,6 +62,9 @@ export const countryStateAt = (
     ...(options.extraSteps ?? [])
       .filter((step) => step.end <= date)
       .map((step, index) => ({ step, rank: 1, index })),
+    ...(options.adjustments ?? [])
+      .filter((step) => step.end <= date)
+      .map((step, index) => ({ step, rank: 2, index })),
   ].sort(
     (a, b) => a.step.end.getTime() - b.step.end.getTime() || a.rank - b.rank || a.index - b.index,
   )

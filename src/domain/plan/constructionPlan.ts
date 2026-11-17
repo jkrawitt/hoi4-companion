@@ -7,7 +7,8 @@
  * joining the end of the queue on its focus's completion date. Every day:
  *
  * - the spare civilian factories are the civilian factories built so far minus the consumer goods
- *   (`consumerGoodsFor`, worked out again from the factories of that day);
+ *   (`consumerGoodsFor`, worked out again from the factories of that day), plus the civs received
+ *   from trade and minus what the country's imports cost (`TradePoint`);
  * - the projects take them in queue order, up to `civCapPerProject` each, until none are left;
  * - a project adds `civs x per-civ speed x (1 + building speeds) x infrastructure` a day to its
  *   current level, done at the building's `base_cost`. The level counts as built from the next day,
@@ -33,7 +34,7 @@ import type {
   ScheduledConstruction,
   ScheduledLevel,
 } from '../production'
-import { consumerGoodsFor } from '../production'
+import { consumerGoodsFor, tradeAt } from '../production'
 import { addDays, daysBetween } from '../calendar'
 
 const EPSILON = 1e-9
@@ -55,23 +56,28 @@ export const infraSpeedFactor = (infrastructure: number, defines: ProductionDefi
 /**
  * Whether the country has the energy for its factories, and the numbers behind it. Only checked
  * while powered (Romania in 1936, 5 per civ a day matches the game); the shortfall side is not:
- * produced is `BASE_COUNTRY_ENERGY_PRODUCTION` plus the coal times
+ * produced is `BASE_COUNTRY_ENERGY_PRODUCTION` plus the coal (imported coal too) times
  * `RESOURCE_TO_ENERGY_COEFFICIENT`, raised by `energy_gain_factor`. Used is every civilian,
  * military and naval factory at `BASE_ENERGY_COST` grown by `ENERGY_SCALING_COST_BY_FACTORY_COUNT`
  * per factory, capped at `ENERGY_COST_CAP`, lowered by `factory_energy_consumption`. Powered when
- * produced covers used.
+ * produced covers used. Civs received from trade count `ENERGY_SCALE_PER_TRADE_FACTORY_EXPORT` (a
+ * quarter) of a factory in the scaling.
  */
 export const isPowered = (
   factories: number,
   coal: number,
   factors: Pick<ConstructionFactors, 'energyGain' | 'energyConsumption'>,
   defines: ProductionDefines,
+  receivedCivs = 0,
 ): { powered: boolean; produced: number; used: number } => {
   const produced =
     (defines.baseEnergy + coal * defines.energyPerResource) * (1 + factors.energyGain)
   const each = Math.min(
     defines.energyCostCap,
-    defines.baseEnergyCost * (1 + defines.energyCostScaling * factories),
+    defines.baseEnergyCost *
+      (1 +
+        defines.energyCostScaling *
+          (factories + defines.energyScalePerTradeFactory * receivedCivs)),
   )
   const used = factories * each * (1 + factors.energyConsumption)
   return { powered: produced >= used, produced, used }
@@ -166,6 +172,10 @@ export const scheduleConstruction = (
     }
     return found ?? noFactors(startDate)
   }
+  const tradeByDay = (env.trade ?? []).map((p) => ({
+    ...p,
+    date: addDays(startDate, dayOf(p.date)),
+  }))
   const events = env.events
     .map((e) => ({ day: dayOf(e.date), event: e }))
     .sort((a, b) => a.day - b.day)
@@ -243,12 +253,17 @@ export const scheduleConstruction = (
       factors.stability,
       defines,
     )
-    let spare = Math.max(0, civ - goods.factories)
+    const trade = tradeAt(tradeByDay, addDays(startDate, day))
+    let spare = Math.max(
+      0,
+      civ - goods.factories + (trade?.received ?? 0) - (trade?.importCost ?? 0),
+    )
     const { powered } = isPowered(
       civ + (totals[MILITARY] ?? 0) + (totals[NAVAL] ?? 0),
-      coal,
+      coal + (trade?.coal ?? 0),
       factors,
       defines,
+      trade?.received ?? 0,
     )
     const perCiv = powered ? defines.poweredFactorySpeed : defines.baseFactorySpeed
     const finished: { entry: Entry; state: StateNow }[] = []
