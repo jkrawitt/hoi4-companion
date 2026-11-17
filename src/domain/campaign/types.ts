@@ -165,6 +165,11 @@ export interface CountryStateOptions {
    * on the same day): the planned political power purchases.
    */
   extraSteps?: Step[]
+  /**
+   * What the player saw in game (stability, event modifiers; see `adjustments.ts`), applied after
+   * the focuses and purchases of the same day.
+   */
+  adjustments?: Step[]
   /** What the country starts with, applied first like a reward; see `parsers/countryStart.ts`. */
   start?: EffectLine[]
   /**

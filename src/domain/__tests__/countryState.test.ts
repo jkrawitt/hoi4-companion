@@ -3,6 +3,7 @@ import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
 import { schedulePlan } from '../plan/focusPlan'
+import { adjustmentSteps, emptyAdjustments } from '../adjustments'
 
 const focus = (id: string, effects: EffectLine[], days = 70): Focus => ({
   id,
@@ -603,5 +604,67 @@ describe('countryStateAt with purchases', () => {
     const bare = stateWith([f], [], 70, { ownedDlc: { Owned: false } })
     // No start yet, so war support is unknown and the branch stays conditional.
     expect(bare.ideas.map((i) => i.id)).toEqual(['rom'])
+  })
+})
+
+describe('adjustments from the game', () => {
+  const startLines = [modifier(0, 'add_stability', '0.6')]
+  const plusFocus = (id: string, value: string) => focus(id, [modifier(0, 'add_stability', value)])
+  const iso = (n: number) => day(n).toISOString().slice(0, 10)
+  const withAdjustments = (focuses: Focus[], days: number, adj = emptyAdjustments()) =>
+    countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(days),
+      { tag: 'ROM', start: startLines, startDate: start, adjustments: adjustmentSteps(adj) },
+    )
+  const stabilityAdj = (n: number, value: number) => ({
+    ...emptyAdjustments(),
+    stability: [{ id: 's', date: iso(n), value }],
+  })
+
+  it('makes stability the entered value on its date', () => {
+    expect(withAdjustments([], 20).stability).toBeCloseTo(0.6)
+    expect(withAdjustments([], 20, stabilityAdj(20, 0.45)).stability).toBeCloseTo(0.45)
+    expect(withAdjustments([], 19, stabilityAdj(20, 0.45)).stability).toBeCloseTo(0.6)
+  })
+
+  it('keeps the target when the plan before it changes', () => {
+    const adj = stabilityAdj(100, 0.45)
+    expect(withAdjustments([], 100, adj).stability).toBeCloseTo(0.45)
+    expect(withAdjustments([plusFocus('a', '0.1')], 100, adj).stability).toBeCloseTo(0.45)
+  })
+
+  it('moves on from the target with a later reward', () => {
+    const focuses = [plusFocus('a', '0.1'), plusFocus('b', '0.05')]
+    const adj = stabilityAdj(100, 0.45)
+    expect(withAdjustments(focuses, 100, adj).stability).toBeCloseTo(0.45)
+    expect(withAdjustments(focuses, 140, adj).stability).toBeCloseTo(0.5)
+  })
+
+  it('adds a timed modifier to the totals and drops it when it runs out', () => {
+    const adj = {
+      ...emptyAdjustments(),
+      modifiers: [
+        {
+          id: 'm',
+          date: iso(10),
+          name: 'Boom',
+          key: 'consumer_goods_factor',
+          value: 0.1,
+          days: 30,
+        },
+      ],
+    }
+    const total = (n: number) =>
+      withAdjustments([], n, adj).modifierTotals.find((t) => t.key === 'consumer_goods_factor')
+        ?.total
+    expect(total(9)).toBeUndefined()
+    expect(total(20)).toBeCloseTo(0.1)
+    expect(withAdjustments([], 20, adj).ideas.map((i) => i.name)).toEqual(['Boom'])
+    expect(total(45)).toBeUndefined()
   })
 })

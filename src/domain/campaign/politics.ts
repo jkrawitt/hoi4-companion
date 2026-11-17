@@ -23,7 +23,6 @@ import { evaluateCheck, type ConditionContext } from './conditions'
 import { countryStateAt } from './countryState'
 import type { CountryState, CountryStateOptions } from './types'
 
-
 export interface PoliticsPlanInput {
   focusSchedule: FocusSchedule
   /** What `countryStateAt` takes (tag, start, leaders, ownedDlc, hasTech). */
@@ -130,6 +129,8 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
   const nextChange = (): Date | undefined => {
     const times = [
       ...(state.next ? [state.next.end] : []),
+      // What the player entered from the game changes the gain on its day.
+      ...(options.adjustments ?? []).map((step) => step.end),
       ...state.ideas.flatMap((idea) => (idea.until && idea.until > t ? [idea.until] : [])),
     ].filter((d) => d > t && d <= until)
     return times.length > 0 ? new Date(Math.min(...times.map((d) => d.getTime()))) : undefined

@@ -21,8 +21,16 @@ export interface ProductionData {
   sharedSlotBuildings: string[]
   /** The buildings that can be queued in a state (every building with a `state_max`). */
   buildings: BuildingData[]
+  /**
+   * What a unit of each resource costs to trade, in civilian factories (`cic` in
+   * `common/resources`): 0.125, one civ per 8 units, for all of them.
+   */
+  resourceCost: Record<string, number>
   defines: ProductionDefines
 }
+
+/** What the game charges for a resource whose `cic` is not read. */
+export const DEFAULT_RESOURCE_COST = 0.125
 
 /** One state-level building from `common/buildings`. */
 export interface BuildingData {
@@ -60,6 +68,11 @@ export interface ProductionDefines {
   baseEnergyCost: number
   energyCostScaling: number
   energyCostCap: number
+  /**
+   * `ENERGY_SCALE_PER_TRADE_FACTORY_EXPORT`: the share of the civs received from trade that count
+   * as factories in the energy cost scaling.
+   */
+  energyScalePerTradeFactory: number
   /** `BASE_STABILITY_PARTY_POPULARITY_FACTOR`: stability from the ruling party's popularity. */
   partyPopularityStability: number
   /**
@@ -82,6 +95,7 @@ export const DEFAULT_DEFINES: ProductionDefines = {
   baseEnergyCost: 0.25,
   energyCostScaling: 0.0225,
   energyCostCap: 6.6,
+  energyScalePerTradeFactory: 0.25,
   partyPopularityStability: 0.15,
   stabilityConsumerGoods: -0.2,
 }
@@ -133,17 +147,35 @@ export interface FocusConstruction {
   item: ConstructionItem
 }
 
+/**
+ * What trade does to construction from a date on, until the next point: civs received from other
+ * countries, the civs the country's own imports cost, and the energy resource imported.
+ */
+export interface TradePoint {
+  date: Date
+  received: number
+  importCost: number
+  coal: number
+}
+
+/** The trade in force on a date: the last point on or before it (none before the first). */
+export const tradeAt = (points: TradePoint[], date: Date): TradePoint | undefined =>
+  [...points].reverse().find((p) => p.date <= date)
+
 /** The dated inputs the campaign hands the construction planner. */
 export interface ConstructionEnvironment {
   factors: ConstructionFactors[]
   events: ConstructionEvent[]
   focusBuilds: FocusConstruction[]
+  /** Change points of the trade, sorted by date. */
+  trade: TradePoint[]
 }
 
 export const emptyConstructionEnvironment = (): ConstructionEnvironment => ({
   factors: [],
   events: [],
   focusBuilds: [],
+  trade: [],
 })
 
 export interface ConstructionOptions {

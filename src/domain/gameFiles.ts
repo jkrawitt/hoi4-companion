@@ -39,6 +39,8 @@ export const GAME_PATHS = {
   states: 'history/states',
   stateCategories: 'common/state_category',
   buildings: 'common/buildings',
+  /** What trading each resource costs (`cic`), for the trade planner. */
+  resources: 'common/resources',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',

@@ -20,12 +20,13 @@ export const addTo = (
 const DEFAULT_STAT = 0.5
 
 /**
- * The country's actual stability or war support (0 to 1), as the game works it out: the scripted
+ * The country's actual stability or war support before it is kept between 0 and 1 (`countryStat`
+ * does that), as the game works it out: the scripted
  * value (the start's `set_*`, or 50% when it has none, plus the changes since) plus `<key>_factor`
  * modifiers, and for stability the ruling party's popularity times `partyStability`. War
  * (`BASE_STABILITY_WAR_FACTOR`) is not modelled.
  */
-export const countryStat = (
+export const rawCountryStat = (
   key: 'stability' | 'war_support',
   start: EffectLine[],
   changes: number,
@@ -35,11 +36,14 @@ export const countryStat = (
 ): number => {
   const set = start.some((l) => l.depth === 0 && l.key === `add_${key}`)
   const party = key === 'stability' ? rulingPopularity * partyStability : 0
-  const value = (set ? 0 : DEFAULT_STAT) + changes + modifiers(`${key}_factor`) + party
-  return Math.min(1, Math.max(0, round(value)))
+  return round((set ? 0 : DEFAULT_STAT) + changes + modifiers(`${key}_factor`) + party)
 }
 
-export const isNumeric =(value: string | undefined): value is string =>
+/** `rawCountryStat` kept between 0 and 1, which is what the game shows. */
+export const countryStat = (...args: Parameters<typeof rawCountryStat>): number =>
+  Math.min(1, Math.max(0, rawCountryStat(...args)))
+
+export const isNumeric = (value: string | undefined): value is string =>
   value !== undefined && value !== '' && Number.isFinite(Number(value))
 
 /**

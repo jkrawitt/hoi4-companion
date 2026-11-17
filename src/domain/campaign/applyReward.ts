@@ -13,7 +13,7 @@ import { addDays } from '../plan/focusPlan'
 import { resolveConditions } from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import { activeModifiers, addTo, countryStat, isNumeric, round } from './totals'
+import { activeModifiers, addTo, countryStat, isNumeric, rawCountryStat, round } from './totals'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
 import type {
   ActiveIdea,
@@ -274,6 +274,35 @@ const statChange: Handler = (c, e, i) => {
 }
 
 /**
+ * `set_actual_stability` (what the player saw in game): moves the `add_stability` total by the
+ * difference between the target and the stability now, so the actual stability is the target on
+ * that day whatever the plan did before. The current value is not kept between 0 and 1, so a value
+ * pinned at the edge does not throw the difference off.
+ */
+const setActualStability: Handler = (c, e) => {
+  if (e.key !== 'set_actual_stability' || !isNumeric(e.value)) return false
+  const { w, step, options } = c
+  const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > step.end)
+  const { totals } = activeModifiers(active, w.leader?.traits ?? [])
+  const current = rawCountryStat(
+    'stability',
+    options.start ?? [],
+    w.statChanges.get('add_stability')?.total ?? 0,
+    (k) => totals.get(k)?.total ?? 0,
+    w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
+    (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
+  )
+  const stat = w.statChanges.get('add_stability')?.stat ?? {
+    key: 'add_stability',
+    label: 'Stability',
+    kind: 'percent' as const,
+    goodWhen: 'positive' as const,
+  }
+  addTo(w.statChanges, 'add_stability', stat, Number(e.value) - current)
+  return true
+}
+
+/**
  * Technologies handed out and research bonuses. The bonuses of a reward are numbered in the order
  * they happen, which stays the same when a `has_tech` condition settles the other way (the
  * branches that give a bonus give the same one).
@@ -311,6 +340,7 @@ const HANDLERS: Handler[] = [
   popularity,
   leaders,
   politics,
+  setActualStability,
   statChange,
 ]
 

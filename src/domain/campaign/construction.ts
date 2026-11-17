@@ -16,6 +16,7 @@ import type {
   ProductionDefines,
 } from '../production'
 import { stabilityOf } from '../production'
+import { tradeOverTime, type Adjustments } from '../adjustments'
 import { scheduleConstruction } from '../plan/constructionPlan'
 import { techModifierTotals } from './research'
 import { placeBatches, sharedBuildings, startingRows } from './industry'
@@ -89,6 +90,8 @@ export interface ConstructionPlanInput {
   research: ResearchSchedule
   techs: Technology[]
   queue: ConstructionItem[]
+  /** What the player entered from the game; its trade changes the civs available. */
+  adjustments?: Adjustments
   startDate: Date
   until: Date
 }
@@ -100,7 +103,7 @@ export interface PlannedConstruction {
 
 /** Schedules the construction queue against the focus plan and the research schedule. */
 export const planConstruction = (input: ConstructionPlanInput): PlannedConstruction => {
-  const { production, finalState, research, techs, queue, startDate, until } = input
+  const { production, finalState, research, techs, queue, adjustments, startDate, until } = input
   const researchEnds = research.items.filter((i) => i.slot >= 0).map((i) => i.end)
   const factors = constructionFactors(
     finalState,
@@ -137,7 +140,10 @@ export const planConstruction = (input: ConstructionPlanInput): PlannedConstruct
     events.push({ date: batch.date, state: stateId, built, slots: batch.slots, resources })
   }
 
-  const environment: ConstructionEnvironment = { factors, events, focusBuilds }
+  const trade = adjustments
+    ? tradeOverTime(adjustments, production.resourceCost ?? {}, production.defines.energyResource)
+    : []
+  const environment: ConstructionEnvironment = { factors, events, focusBuilds, trade }
   return {
     environment,
     schedule: scheduleConstruction(queue, production, environment, { startDate, until }),

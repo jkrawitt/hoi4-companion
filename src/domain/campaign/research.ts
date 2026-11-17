@@ -57,7 +57,7 @@ const signature = (schedule: ResearchSchedule): string =>
 export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   const { focusSchedule, options, queue, data, startDate, until } = input
   // The environment is read once everything is done: the last focus, or a later purchase.
-  const finish = (options.extraSteps ?? []).reduce(
+  const finish = [...(options.extraSteps ?? []), ...(options.adjustments ?? [])].reduce(
     (latest, step) => (step.end > latest ? step.end : latest),
     focusSchedule.finish,
   )

@@ -11,6 +11,7 @@ const campaign = useCampaign()
     <h1>HoI4 Companion</h1>
     <nav>
       <RouterLink to="/">Overview</RouterLink>
+      <RouterLink to="/timeline">Timeline</RouterLink>
       <RouterLink to="/focus">Focus plan</RouterLink>
       <RouterLink to="/research">Research plan</RouterLink>
       <RouterLink to="/production">Production</RouterLink>

@@ -253,3 +253,50 @@ describe('isPowered', () => {
     ).toBe(66000)
   })
 })
+
+describe('trade', () => {
+  const trade = (...points: [number, number, number, number][]) =>
+    points.map(([n, received, importCost, coal]) => ({ date: day(n), received, importCost, coal }))
+
+  it('speeds a project up with the civs received', () => {
+    // 20 civs, cap 15: a project is capped, so use 5 spare with 5 on goods to see the change.
+    const prod = production({ states: [stateOf(1, { industrial_complex: 10 })] })
+    const factorsWithGoods = [factors({ consumerExpected: 0.5 })]
+    const days = (t: ConstructionEnvironment['trade']) =>
+      run([item('arms_factory')], prod, env({ factors: factorsWithGoods, trade: t })).items[0]
+        .levels[0].days
+    // 5 spare civs x 5 = 25 a day: 40 days. Five received: 50 a day: 20 days.
+    expect(days([])).toBe(40)
+    expect(days(trade([0, 5, 0, 0]))).toBe(20)
+  })
+
+  it('slows a project down by what imports cost, until they end', () => {
+    const prod = production({ states: [stateOf(1, { industrial_complex: 10 })] })
+    const levels = (t: ConstructionEnvironment['trade']) =>
+      run([item('arms_factory')], prod, env({ trade: t })).items[0].levels[0]
+    // 10 spare x 5 = 50 a day: 20 days. Importing 4 civs' worth for 10 days: 30 a day for 10 days
+    // (300), then 50 a day for the other 700: 14 days.
+    expect(levels([]).days).toBe(20)
+    expect(levels(trade([0, 0, 4, 0], [10, 0, 0, 0])).days).toBe(24)
+  })
+
+  it('powers a country with imported coal', () => {
+    const prod = production({ states: [stateOf(1, { industrial_complex: 39 })] })
+    const defines = DEFAULT_DEFINES
+    const dry = isPowered(40, 0, factors(), defines)
+    expect(dry.powered).toBe(false)
+    expect(isPowered(40, 5, factors(), defines).powered).toBe(true)
+    const days = (t: ConstructionEnvironment['trade']) =>
+      run([item('arms_factory')], prod, env({ trade: t })).items[0].levels[0].days
+    // 15 civs on the project: unpowered 4 a civ (60 a day, 17 days), powered 5 (75 a day, 14).
+    expect(days([])).toBe(17)
+    expect(days(trade([0, 0, 0, 5]))).toBe(14)
+  })
+
+  it('counts received civs a quarter in the energy scaling', () => {
+    const plain = isPowered(40, 0, factors(), DEFAULT_DEFINES)
+    const received = isPowered(40, 0, factors(), DEFAULT_DEFINES, 20)
+    expect(received.used).toBeCloseTo(40 * 0.25 * (1 + 0.0225 * (40 + 0.25 * 20)))
+    expect(received.used).toBeGreaterThan(plain.used)
+  })
+})
