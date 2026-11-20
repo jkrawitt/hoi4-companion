@@ -6,7 +6,9 @@
 export type StatGroupId =
   | 'politics'
   | 'diplomacy'
-  | 'industry'
+  | 'economy'
+  | 'construction'
+  | 'production'
   | 'resources'
   | 'research'
   | 'manpower'
@@ -26,7 +28,9 @@ export interface StatGroup {
 export const STAT_GROUPS: StatGroup[] = [
   { id: 'politics', name: 'Politics and stability' },
   { id: 'diplomacy', name: 'Diplomacy' },
-  { id: 'industry', name: 'Industry and construction' },
+  { id: 'economy', name: 'Economy and trade' },
+  { id: 'construction', name: 'Construction' },
+  { id: 'production', name: 'Production' },
   { id: 'resources', name: 'Resources, energy and fuel' },
   { id: 'research', name: 'Research' },
   { id: 'manpower', name: 'Manpower' },
@@ -49,9 +53,14 @@ const RULES: [StatGroupId, RegExp][] = [
     'diplomacy',
     /_tension|guarantee|embargo|faction|volunteer|relations|license|opinion|justify_war_goal|lend_lease|^can_access_market/,
   ],
+  // What decides the civilian factories left over: consumer goods and what goes to the market.
+  ['economy', /consumer_goods|^min_export/],
+  // Building, converting and the slots to build in.
+  ['construction', /^production_speed_|building_slots|conversion_cost|^cic_/],
+  // What the factories and dockyards turn out.
   [
-    'industry',
-    /^production_|^industrial_capacity|consumer_goods|conversion_cost|building_slots|line_change_production|equipment_conversion|^industry_|^cic_|^min_export|^nuclear_|^thermonuclear_/,
+    'production',
+    /^production_|^industrial_capacity|line_change_production|equipment_conversion|^industry_|^nuclear_|^thermonuclear_/,
   ],
   ['resources', /^local_resources|^resource|fuel|energy/],
   ['air', /^tech_air|^air_|^experience_gain_air|static_anti_air/],
