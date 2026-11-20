@@ -2,6 +2,7 @@ import { computed, watch, type Ref } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countryStateAt } from '@/domain/campaign/countryState'
+import { previewFocusEffects } from '@/domain/campaign/preview'
 import { planCampaign } from '@/domain/campaign/plan'
 import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
 import { adjustmentSteps, tradeOverTime } from '@/domain/adjustments'
@@ -180,6 +181,34 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
       : undefined,
   )
 
+  /** Each planned focus's reward with the branches that apply or not marked. */
+  const plannedFocusEffects = computed(() => finalState.value.focusEffects)
+
+  /**
+   * What a focus not in the plan would do if taken next (see `previewFocusEffects`), worked out on
+   * first ask and kept until the plan, the data or the campaign changes.
+   */
+  const previewFocus = computed(() => {
+    const input = {
+      plan: plan.value,
+      focuses: focuses.value,
+      scheduleOptions: {
+        startDate: parseDate(startDate.value),
+        speedBonus: speedBonusPercent.value / 100,
+      },
+      stateOptions: {
+        ...stateOptions.value,
+        hasTech: planned.value.hasTech,
+        extraSteps: planned.value.politics.steps,
+      },
+    }
+    const cache = new Map<string, ReturnType<typeof previewFocusEffects>>()
+    return (id: string) => {
+      if (!cache.has(id)) cache.set(id, previewFocusEffects(id, input))
+      return cache.get(id)
+    }
+  })
+
   const timeline = computed(() =>
     buildTimeline({
       focusSchedule: schedule.value,
@@ -206,6 +235,8 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     lastChange,
     lastPurchase,
     finalState,
+    plannedFocusEffects,
+    previewFocus,
     plannedConstruction,
     constructionSchedule,
     planEnd,

@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { effectTone, formatEffect } from '../focusEffects'
 import { parseIdeas } from '../parsers/ideas'
-import { formatStatValue, parseStatDocs, resolveStat, statTone, tidyLabel } from '../stats'
+import {
+  formatStatValue,
+  parseStatDocs,
+  parseTooltipFormat,
+  resolveStat,
+  statTone,
+  tidyLabel,
+} from '../stats'
+import { nameLines, type NameContext } from '../nameLines'
 
 describe('stats', () => {
   it('colours popularity gains green and losses red', () => {
@@ -82,5 +90,105 @@ describe('stats', () => {
     expect(tidyLabel('')).toBeUndefined()
     expect(tidyLabel(undefined)).toBeUndefined()
     expect(resolveStat('k', 'Cap: ', {}, {}).label).toBe('Cap')
+  })
+})
+
+describe('tooltip formats', () => {
+  it('reads colour, percent and decimals out of the value template', () => {
+    expect(parseTooltipFormat(' $MODIFIER_X$: $RIGHT|+=%1$')).toEqual({
+      goodWhen: 'positive',
+      kind: 'percent',
+      decimals: 1,
+    })
+    expect(parseTooltipFormat('$X$: $RIGHT|-=%0$')).toMatchObject({ goodWhen: 'negative' })
+    expect(parseTooltipFormat('$X$: $RIGHT|Y=%1$')).toEqual({
+      goodWhen: undefined,
+      kind: 'percent',
+      decimals: 1,
+    })
+    expect(parseTooltipFormat('$X$ $RIGHT|+=2$')).toEqual({
+      goodWhen: 'positive',
+      kind: 'number',
+      decimals: 2,
+    })
+    expect(parseTooltipFormat('$X$: $RIGHT|G=0$')).toMatchObject({ kind: 'number', decimals: 0 })
+  })
+
+  it('marks values already in percentage points', () => {
+    expect(parseTooltipFormat('$X$: $RIGHT|-=%%1$')).toEqual({
+      goodWhen: 'negative',
+      kind: 'percent',
+      percentPoints: true,
+      decimals: 1,
+    })
+    const stat = { key: 'x', kind: 'percent' as const, percentPoints: true as const }
+    expect(formatStatValue(stat, '20')).toBe('+20%')
+  })
+
+  it('gives nothing without a template', () => {
+    expect(parseTooltipFormat(undefined)).toEqual({})
+    expect(parseTooltipFormat('Just a name')).toEqual({})
+  })
+
+  it('ranks overrides over the tooltip over docs over guesses', () => {
+    const docs = parseStatDocs('## a_cost_factor\n\n* Number with 2 decimal places\n')
+    const tooltip = parseTooltipFormat('$A$: $RIGHT|+=%1$')
+    const guessed = { goodWhen: 'negative' as const }
+    expect(resolveStat('a_cost_factor', 'A', docs, {}, guessed, tooltip)).toMatchObject({
+      decimals: 1,
+      kind: 'percent',
+      goodWhen: 'positive',
+    })
+    expect(
+      resolveStat(
+        'a_cost_factor',
+        'A',
+        docs,
+        { a_cost_factor: { goodWhen: 'negative' } },
+        {},
+        tooltip,
+      ),
+    ).toMatchObject({ goodWhen: 'negative', decimals: 1 })
+    // A neutral colour clears a guessed direction.
+    const neutral = resolveStat(
+      'a_cost_factor',
+      'A',
+      {},
+      {},
+      guessed,
+      parseTooltipFormat('$A$ $R|Y=%$'),
+    )
+    expect(neutral.goodWhen).toBeUndefined()
+  })
+
+  it('keeps a rule a flag whatever its tooltip format says', () => {
+    const stat = resolveStat('r', 'R', {}, {}, { kind: 'flag' }, parseTooltipFormat('$R$ $V|+=%1$'))
+    expect(stat).toMatchObject({ kind: 'flag', goodWhen: 'positive' })
+  })
+
+  it('names conscription and conscription_factor apart from their tooltips', () => {
+    const ctx = {
+      country: { name: 'Romania' },
+      names: {
+        MODIFIER_CONSCRIPTION_FACTOR: 'Recruitable Population',
+        MODIFIER_CONSCRIPTION_TOTAL_FACTOR: 'Recruitable Population Factor',
+        conscription_tt: ' Recruitable Population: $RIGHT|Y=%1$',
+        conscription_factor_tt: ' Recruitable Population Factor: $RIGHT|+=%1$',
+      },
+      rawNames: {},
+      rulingParties: {},
+      factionTemplates: {},
+      factionNames: {},
+      eventTitles: {},
+      ideaAliases: {},
+      opinions: {},
+      statDocs: {},
+      statOverrides: {},
+    } as NameContext
+    const line = (key: string) => ({ depth: 0, key, value: '0.05', isModifier: true })
+    const [plain, factor] = nameLines([line('conscription'), line('conscription_factor')], ctx)
+    expect(plain.stat?.label).toBe('Recruitable Population')
+    expect(factor.stat?.label).toBe('Recruitable Population Factor')
+    expect(factor.stat?.goodWhen).toBe('positive')
   })
 })

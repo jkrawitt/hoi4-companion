@@ -73,7 +73,8 @@ export const countryStateAt = (
   for (const option of options.politics?.options ?? []) {
     if (option.recruited && option.character) w.recruited.add(option.character)
   }
-  for (const step of steps) applyReward(w, step, options)
+  const planned = new Set(completed.map((item) => item.focus.id))
+  for (const step of steps) applyReward(w, step, options, planned.has(step.focus.id))
 
   const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
 
@@ -102,6 +103,7 @@ export const countryStateAt = (
     buildingSlots: w.buildingSlots,
     construction: w.construction,
     conditional: w.conditional,
+    focusEffects: w.focusEffects,
     snapshots: w.research.snapshots,
     politics: {
       held: heldBySlot(active),

@@ -34,6 +34,7 @@ export {
   unwrapEventConditions,
 } from './effects/passes'
 export { foldConditions } from './effects/conditions'
+export { onlyWhatHappens } from './effects/onlyWhatHappens'
 export { effectTone, formatEffect } from './effects/format'
 export {
   ideaIdsOf,
@@ -41,4 +42,9 @@ export {
   removedIdeaLineIndexes,
   reverseModifier,
 } from './effects/ideaLines'
-export { defaultGoodWhen, isBuildingSpeedModifier, modifierNameKeys } from './effects/statKeys'
+export {
+  defaultGoodWhen,
+  isBuildingSpeedModifier,
+  modifierNameKeys,
+  modifierTooltipKeys,
+} from './effects/statKeys'

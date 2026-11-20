@@ -97,6 +97,8 @@ const createCampaign = () => {
     planEnd: planning.planEnd,
     blockedIds: queues.blockedIds,
     state: planning.state,
+    plannedFocusEffects: planning.plannedFocusEffects,
+    previewFocus: planning.previewFocus,
     researchPlan: queues.researchPlan,
     researchSchedule: planning.researchSchedule,
     politicsPlan: queues.politicsPlan,

@@ -1,8 +1,8 @@
 /**
  * Universal handling of stat changes (modifiers like `guarantee_cost = -0.5`). A stat's
  * definition says how its raw script value is shown; where definitions come from, in priority
- * order: hand-written overrides (`src/data/statOverrides.ts`), the game's modifier documentation,
- * then a guess from the key and value.
+ * order: hand-written overrides (`src/data/statOverrides.ts`), the game's own tooltip text for the
+ * modifier (`<key>_tt`), its modifier documentation, then a guess from the key and value.
  */
 export type StatKind = 'percent' | 'number' | 'flag'
 export type StatTone = 'good' | 'bad' | 'neutral'
@@ -18,6 +18,8 @@ export interface StatDefinition {
   fixedDecimals?: boolean
   /** Put a `+` before positive values. On by default; turn off where the colour says it. */
   showPlus?: boolean
+  /** The raw value is already in percentage points (`20` is `20%`), so it is not multiplied. */
+  percentPoints?: true
   /** Which direction of change is good for the player; neutral when unset. */
   goodWhen?: 'positive' | 'negative'
 }
@@ -57,7 +59,32 @@ export const tidyLabel = (label: string | undefined): string | undefined =>
     .replace(/[:\s]+$/, '')
     .trim() || undefined
 
-/** Combines the three sources into one definition. */
+/**
+ * Reads the value template of the game's own tooltip text for a modifier (`<key>_tt`, e.g.
+ * ` $MODIFIER_RESEARCH_SPEED_FACTOR$: $RIGHT|+=%1$`). Its format says how the value is written:
+ * the first letter is the colour (`+` positive is good, `-` negative is good, any other letter
+ * neutral), `%` percent (`%%`: the value is already in percentage points), no `%` a plain number,
+ * and a digit the decimals.
+ */
+export const parseTooltipFormat = (text: string | undefined): Partial<StatDefinition> => {
+  const format = text ? /\$[A-Za-z_]+\|([^$]*)\$/.exec(text)?.[1] : undefined
+  if (format === undefined) return {}
+  const result: Partial<StatDefinition> = {}
+  const colour = /^[A-Za-z+-]/.exec(format)?.[0]
+  if (colour === '+') result.goodWhen = 'positive'
+  else if (colour === '-') result.goodWhen = 'negative'
+  else if (colour) result.goodWhen = undefined
+  const percents = format.split('%').length - 1
+  if (percents >= 2) {
+    result.kind = 'percent'
+    result.percentPoints = true
+  } else result.kind = percents === 1 ? 'percent' : 'number'
+  const decimals = /\d/.exec(format)?.[0]
+  if (decimals !== undefined) result.decimals = Number(decimals)
+  return result
+}
+
+/** Combines the sources into one definition. */
 export const resolveStat = (
   key: string,
   label: string | undefined,
@@ -65,13 +92,22 @@ export const resolveStat = (
   overrides: StatOverrides,
   /** Fallbacks below the docs, e.g. `{ kind: 'flag' }` for yes/no rules. */
   defaults: Partial<StatDefinition> = {},
-): StatDefinition => ({
-  key,
-  label: tidyLabel(label),
-  ...defaults,
-  ...docs[key],
-  ...overrides[key],
-})
+  /** What the game's tooltip text for the modifier says (`parseTooltipFormat`). */
+  tooltip: Partial<StatDefinition> = {},
+): StatDefinition => {
+  // A yes/no rule stays one whatever its tooltip format says about the value.
+  const isFlag = (docs[key]?.kind ?? defaults.kind) === 'flag'
+  const colour =
+    tooltip.goodWhen === undefined && !('goodWhen' in tooltip) ? {} : { goodWhen: tooltip.goodWhen }
+  return {
+    key,
+    label: tidyLabel(label),
+    ...defaults,
+    ...docs[key],
+    ...(isFlag ? colour : tooltip),
+    ...overrides[key],
+  }
+}
 
 const trimmed = (n: number, decimals: number) => String(Number(n.toFixed(decimals)))
 
@@ -90,7 +126,7 @@ export const formatStatValue = (stat: StatDefinition, raw: string): string => {
   const digits = (value: number, decimals: number) =>
     stat.fixedDecimals ? value.toFixed(decimals) : trimmed(value, decimals)
   return kind === 'percent'
-    ? `${sign}${digits(n * 100, Math.max(stat.decimals ?? 1, 1))}%`
+    ? `${sign}${digits(stat.percentPoints ? n : n * 100, Math.max(stat.decimals ?? 1, 1))}%`
     : `${sign}${digits(n, stat.decimals ?? 2)}`
 }
 

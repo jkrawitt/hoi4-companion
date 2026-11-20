@@ -10,7 +10,7 @@ import { START_ID, type EffectLine } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
-import { resolveConditions } from './conditions'
+import { annotateConditions, resolveConditions, type ConditionContext } from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
 import {
@@ -47,6 +47,8 @@ export interface Working {
   statChanges: Map<string, StatTotal>
   popularity: Map<string, PopularityChange>
   conditional: ConditionalEffects[]
+  /** The planned focuses' rewards with the branches marked, by focus id. */
+  focusEffects: Record<string, EffectLine[]>
   buildings: Map<string, BuildingTotal>
   buildingSlots: number
   construction: ConstructionBatch[]
@@ -71,6 +73,7 @@ export const newWorking = (): Working => ({
   statChanges: new Map(),
   popularity: new Map(),
   conditional: [],
+  focusEffects: {},
   buildings: new Map(),
   buildingSlots: 0,
   construction: [],
@@ -489,11 +492,17 @@ const ownedLines = (effects: EffectLine[], owners: number[]): Set<number> => {
   return owned
 }
 
-export const applyReward = (w: Working, step: Step, options: CountryStateOptions) => {
+export const applyReward = (
+  w: Working,
+  step: Step,
+  options: CountryStateOptions,
+  /** Whether this is a planned focus, whose reward is kept with its branches marked. */
+  annotate = false,
+) => {
   const { focus } = step
   // Conditions about what the country has by now (ideas, focuses, government, popularity) are
   // settled, so the branch that applies counts like any other lines.
-  const effects = resolveConditions(focus.effects, {
+  const ctx: ConditionContext = {
     hasIdea: (id) => {
       const idea = w.ideas.get(id)
       return idea !== undefined && (!idea.until || idea.until > step.end)
@@ -510,7 +519,9 @@ export const applyReward = (w: Working, step: Step, options: CountryStateOptions
     // The actual stat: only known once the start has set it, like popularity.
     stat: (key) =>
       options.start?.length ? clampStat(rawStatNow(w, options, key, step.end)) : undefined,
-  })
+  }
+  const effects = resolveConditions(focus.effects, ctx)
+  if (annotate) w.focusEffects[focus.id] = annotateConditions(focus.effects, ctx)
 
   const { applied, conditional: skipped, states } = classify(effects, options.tag)
   const built: EffectLine[] = []

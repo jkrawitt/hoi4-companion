@@ -6,6 +6,7 @@ import GameDataImport from '../GameDataImport.vue'
 import { formatDate, useCampaign } from '@/stores/campaign'
 import { useShowOnOverview } from '../overviewLink'
 import { yearBanners } from '../yearBanners'
+import { showHiddenEffects, showSkippedBranches, simplifyEffects } from './effectDisplay'
 
 const showOnOverview = useShowOnOverview()
 const {
@@ -15,6 +16,8 @@ const {
   startDate: startDateInput,
   speedBonusPercent,
   schedule,
+  plannedFocusEffects,
+  previewFocus,
   blockedIds,
   toggle,
   reset,
@@ -38,6 +41,18 @@ const rows = computed(() => {
       Focus speed bonus (%)
       <input type="number" min="0" step="5" v-model.number="speedBonusPercent" />
     </label>
+    <label title="Also show the if/else branches of a focus's reward that do not apply, dimmed">
+      <input type="checkbox" v-model="showSkippedBranches" :disabled="simplifyEffects" /> Show
+      branches that do not apply
+    </label>
+    <label
+      title="Show the effects inside hidden_effect blocks: they happen, but the game does not tell the player"
+    >
+      <input type="checkbox" v-model="showHiddenEffects" /> Show hidden effects
+    </label>
+    <label title="Show only what will happen: no if/else headers, no branches that do not apply">
+      <input type="checkbox" v-model="simplifyEffects" /> Simplify
+    </label>
     <button v-if="hasData" :disabled="plan.length === 0" @click="reset">Reset plan</button>
   </div>
 
@@ -48,7 +63,14 @@ const rows = computed(() => {
       Click a focus to add it to the plan along with any prerequisites it needs. Click it again to
       remove it and anything that depends on it. Greyed-out focuses conflict with your current plan.
     </p>
-    <FocusTreeGraph :focuses="focuses" :plan="plan" :blocked-ids="blockedIds" @toggle="toggle" />
+    <FocusTreeGraph
+      :focuses="focuses"
+      :plan="plan"
+      :blocked-ids="blockedIds"
+      :planned-effects="plannedFocusEffects"
+      :preview="previewFocus"
+      @toggle="toggle"
+    />
 
     <section>
       <h2>Plan</h2>
@@ -70,7 +92,10 @@ const rows = computed(() => {
               </div>
               <div class="muted">{{ formatDays(item.durationDays) }} days</div>
             </div>
-            <EffectList :effects="item.focus.effects" empty-text="No direct effects." />
+            <EffectList
+              :effects="plannedFocusEffects[item.focus.id] ?? item.focus.effects"
+              empty-text="No direct effects."
+            />
           </li>
         </template>
       </ol>

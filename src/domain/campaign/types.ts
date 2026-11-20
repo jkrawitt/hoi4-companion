@@ -145,6 +145,11 @@ export interface CountryState {
   /** The same builds block by block, in order, for placing them in states. */
   construction: ConstructionBatch[]
   conditional: ConditionalEffects[]
+  /**
+   * Each completed focus's reward as of its completion, with the branches that apply or not
+   * marked (`EffectLine.branch`). Only the plan's focuses, by focus id.
+   */
+  focusEffects: Record<string, EffectLine[]>
   /** The ideas and leader traits in force after each reward, to work out the modifiers on any date. */
   snapshots: StateSnapshot[]
   /** What fills the politics slots, and which characters can be hired. */
