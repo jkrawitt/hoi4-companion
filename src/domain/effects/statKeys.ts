@@ -7,6 +7,13 @@ export const modifierNameKeys = (key: string): string[] => [
   key,
 ]
 
+/**
+ * The game's own tooltip text for a modifier (` $MODIFIER_X$: $RIGHT|+=%1$`): the name it uses
+ * when it shows the stat, and how the value is written. Looked up before the other name keys;
+ * a few are written `modifier_<key>_tt`.
+ */
+export const modifierTooltipKeys = (key: string): string[] => [`${key}_tt`, `modifier_${key}_tt`]
+
 /** Construction speed of one kind of building, e.g. `production_speed_nuclear_reactor_factor`. */
 export const isBuildingSpeedModifier = (key: string): boolean =>
   /^production_speed_.+_factor$/.test(key)

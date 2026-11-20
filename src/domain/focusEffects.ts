@@ -41,4 +41,9 @@ export {
   removedIdeaLineIndexes,
   reverseModifier,
 } from './effects/ideaLines'
-export { defaultGoodWhen, isBuildingSpeedModifier, modifierNameKeys } from './effects/statKeys'
+export {
+  defaultGoodWhen,
+  isBuildingSpeedModifier,
+  modifierNameKeys,
+  modifierTooltipKeys,
+} from './effects/statKeys'

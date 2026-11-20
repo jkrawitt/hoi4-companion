@@ -8,9 +8,11 @@ import AdjustmentsPanel from '@/components/overview/AdjustmentsPanel.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
 import StatTotals from '@/components/overview/StatTotals.vue'
 import type { StatTotal } from '@/domain/campaign/countryState'
+import { combineModifiers, type ModifierRow } from '@/domain/campaign/modifiers'
 import { START_ID } from '@/domain/focus'
 import { capitalize, humanize } from '@/domain/effects/lines'
 import { POLITICS_GROUPS } from '@/domain/politics'
+import { formatStatValue } from '@/domain/stats'
 import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
 const {
@@ -31,8 +33,6 @@ const techNames = computed(
 )
 const techName = (id: string) => techNames.value.get(id) ?? id
 
-const asItems = (totals: StatTotal[]) =>
-  totals.map((t) => ({ key: t.key, stat: t.stat, value: String(t.total) }))
 /** Values that are the country's actual level (stability 65%), so no `+` in front. */
 const asLevels = (totals: StatTotal[]) =>
   totals.map((t) => ({
@@ -42,9 +42,28 @@ const asLevels = (totals: StatTotal[]) =>
   }))
 
 const stats = computed(() => asLevels(state.value.statChanges))
-const techModifiers = computed(() => asItems(researchTotals.value))
-const modifiers = computed(() => asItems(state.value.modifierTotals))
-const rules = computed(() => state.value.rules)
+/** The modifiers by group, with where a stat comes from when more than one source adds to it. */
+const modifierGroups = computed(() =>
+  combineModifiers({
+    spirits: state.value.modifierTotals,
+    technology: researchTotals.value,
+    rules: state.value.rules,
+  }).map((group) => ({
+    ...group,
+    items: group.rows.map((row) => ({
+      key: row.key,
+      stat: row.stat,
+      value: row.value,
+      note: sourcesNote(row),
+    })),
+  })),
+)
+const sourcesNote = (row: ModifierRow) => {
+  const { spirits, technology } = row.sources
+  if (spirits === undefined || technology === undefined) return undefined
+  const part = (n: number) => formatStatValue(row.stat, String(n))
+  return `(spirits and leader ${part(spirits)}, technology ${part(technology)})`
+}
 const popularity = computed(() =>
   asLevels(state.value.popularity).map((p, i) => ({
     ...p,
@@ -163,19 +182,17 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
         </ul>
       </section>
 
-      <section v-if="modifiers.length > 0 || rules.length > 0">
-        <h3>Modifiers from leader traits and national spirits</h3>
-        <StatTotals :items="modifiers" />
-        <StatTotals :items="rules" />
-      </section>
-
-      <section v-if="techModifiers.length > 0">
-        <h3>Modifiers from technology</h3>
+      <section v-if="modifierGroups.length > 0">
+        <h3>Modifiers</h3>
         <p class="muted">
-          From the technologies the country has on this date: the ones it starts with, the ones
-          focuses hand out and the research planned by then.
+          The sum of the leader's traits, national spirits, laws and staff, and the technologies the
+          country has on this date: the ones it starts with, the ones focuses hand out and the
+          research planned by then.
         </p>
-        <StatTotals :items="techModifiers" />
+        <div v-for="group in modifierGroups" :key="group.id" class="group">
+          <h4>{{ group.name }}</h4>
+          <StatTotals :items="group.items" />
+        </div>
       </section>
 
       <section v-if="stats.length > 0">

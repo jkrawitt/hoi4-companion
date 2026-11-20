@@ -4,7 +4,7 @@ import type { StatDefinition } from '@/domain/stats'
 import { formatStatValue, statLabel, statTone } from '@/domain/stats'
 
 defineProps<{
-  items: { key: string; stat: StatDefinition; value: string }[]
+  items: { key: string; stat: StatDefinition; value: string; note?: string }[]
 }>()
 </script>
 
@@ -12,6 +12,7 @@ defineProps<{
   <ul class="totals">
     <li v-for="item in items" :key="item.key" :class="statTone(item.stat, item.value)">
       {{ statLabel(item.stat) }}: {{ formatStatValue(item.stat, item.value) }}
+      <span v-if="item.note" class="note">{{ item.note }}</span>
     </li>
   </ul>
 </template>
@@ -29,5 +30,8 @@ defineProps<{
 }
 .bad {
   color: #b3261e;
+}
+.note {
+  color: #666;
 }
 </style>

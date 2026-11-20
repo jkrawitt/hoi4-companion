@@ -85,4 +85,39 @@ export const statOverrides: StatOverrides = {
     showPlus: false,
     goodWhen: 'positive',
   },
+  // Not in the game's tooltips or localisation, or shown wrong there: our own direction and format.
+  // The game's `%0` format would show a flat cap of 6 as 600%.
+  special_forces_cap_flat: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  special_forces_no_supply_grace: {
+    label: 'Special Forces Supply Grace (hours)',
+    kind: 'number',
+    decimals: 0,
+    goodWhen: 'positive',
+  },
+  // The share of factories the game puts on consumer goods: fewer is better.
+  consumer_goods_expected_value: { kind: 'percent', goodWhen: 'negative' },
+  energy_gain_factor: { goodWhen: 'positive' },
+  fuel_gain_factor_from_states: { kind: 'percent', goodWhen: 'positive' },
+  conversion_cost_mil_to_civ_factor: { goodWhen: 'negative' },
+  improve_relations_maintain_cost_factor: { goodWhen: 'negative' },
+  license_armor_purchase_cost: { goodWhen: 'negative' },
+  critical_receive_chance: { label: 'Critical hit chance received', goodWhen: 'negative' },
+  naval_critical_effect_factor: { goodWhen: 'negative' },
+  naval_invasion_prep_days: {
+    label: 'Naval invasion preparation days',
+    kind: 'number',
+    decimals: 0,
+    goodWhen: 'negative',
+  },
+  naval_invasion_plan_cap: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  naval_invasion_division_cap: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  naval_retreat_speed: { goodWhen: 'positive' },
+  encryption: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  decryption: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  // `Troop convoy requirements`: fewer convoys needed is better.
+  transport_capacity: { goodWhen: 'negative' },
+  // The game's own misspelling is the key.
+  foreign_subversive_activites: { label: 'Foreign subversive activities', goodWhen: 'negative' },
+  bunker_max_level_terrain_limit: { kind: 'number', decimals: 0, goodWhen: 'positive' },
+  coastal_bunker_max_level_terrain_limit: { kind: 'number', decimals: 0, goodWhen: 'positive' },
 }

@@ -14,9 +14,10 @@ import {
   isCountryTag,
   isOwnScope,
   modifierNameKeys,
+  modifierTooltipKeys,
 } from './focusEffects'
 import { resolveEventText } from './parsers/localisation'
-import { resolveStat } from './stats'
+import { parseTooltipFormat, resolveStat, tidyLabel } from './stats'
 import type { StatDefinition, StatDocs, StatOverrides } from './stats'
 
 /** The two ideologies of `communism > party_popularity@fascism`, for looking up their names. */
@@ -57,7 +58,7 @@ export const nameKeysOf = (e: EffectLine, ideaAliases: Record<string, string>): 
   ...(popularityComparison(e) ?? []),
   ...(isCharacterScope(e) ? [e.key!] : []),
   ...(e.value && ideaAliases[e.value] ? [ideaAliases[e.value]] : []),
-  ...(e.isModifier && e.key ? modifierNameKeys(e.key) : []),
+  ...(e.isModifier && e.key ? [...modifierTooltipKeys(e.key), ...modifierNameKeys(e.key)] : []),
 ]
 
 /** What the naming needs to have been read from the game. */
@@ -151,6 +152,12 @@ export const nameLines = (effects: EffectLine[], ctx: NameContext): EffectLine[]
       }),
     }
 
+  /** The game's tooltip text for a modifier, if it has one. */
+  const tooltipOf = (key: string) =>
+    modifierTooltipKeys(key)
+      .map((k) => names[k])
+      .find(Boolean)
+
   /** How a modifier line is displayed: label, percent or number, and which way is good. */
   const statOf = (e: EffectLine): StatDefinition | undefined => {
     if (!e.isModifier || !e.key) return undefined
@@ -159,12 +166,20 @@ export const nameLines = (effects: EffectLine[], ctx: NameContext): EffectLine[]
       ? `${names[e.subject] ?? humanize(e.subject)} popularity`
       : titleCaseIf(
           isBuildingSpeedModifier(e.key),
-          modifierNameKeys(e.key)
-            .map((key) => names[key])
+          // The game's tooltip name first: `MODIFIER_CONSCRIPTION_FACTOR` is not `conscription_factor`.
+          [...modifierTooltipKeys(e.key), ...modifierNameKeys(e.key)]
+            .map((key) => tidyLabel(names[key]))
             .find(Boolean),
         )
     const fallbacks = e.isRule ? { kind: 'flag' as const } : { goodWhen: defaultGoodWhen(e.key) }
-    return resolveStat(e.key, label, ctx.statDocs, ctx.statOverrides, fallbacks)
+    return resolveStat(
+      e.key,
+      label,
+      ctx.statDocs,
+      ctx.statOverrides,
+      fallbacks,
+      parseTooltipFormat(tooltipOf(e.key)),
+    )
   }
 
   return foldConditions(
