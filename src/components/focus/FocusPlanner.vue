@@ -15,6 +15,8 @@ const {
   startDate: startDateInput,
   speedBonusPercent,
   schedule,
+  plannedFocusEffects,
+  previewFocus,
   blockedIds,
   toggle,
   reset,
@@ -48,7 +50,14 @@ const rows = computed(() => {
       Click a focus to add it to the plan along with any prerequisites it needs. Click it again to
       remove it and anything that depends on it. Greyed-out focuses conflict with your current plan.
     </p>
-    <FocusTreeGraph :focuses="focuses" :plan="plan" :blocked-ids="blockedIds" @toggle="toggle" />
+    <FocusTreeGraph
+      :focuses="focuses"
+      :plan="plan"
+      :blocked-ids="blockedIds"
+      :planned-effects="plannedFocusEffects"
+      :preview="previewFocus"
+      @toggle="toggle"
+    />
 
     <section>
       <h2>Plan</h2>
@@ -70,7 +79,10 @@ const rows = computed(() => {
               </div>
               <div class="muted">{{ formatDays(item.durationDays) }} days</div>
             </div>
-            <EffectList :effects="item.focus.effects" empty-text="No direct effects." />
+            <EffectList
+              :effects="plannedFocusEffects[item.focus.id] ?? item.focus.effects"
+              empty-text="No direct effects."
+            />
           </li>
         </template>
       </ol>

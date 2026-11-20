@@ -112,6 +112,11 @@ export interface EffectLine {
   condition?: string
   /** For `if`/`else_if` headers whose `limit` was folded in: the condition as data. */
   check?: Check
+  /**
+   * Set by the campaign, never the importer: on an `if` / `else_if` / `else` header, `applies` when
+   * its branch is the one that runs; on every line of a branch that does not run, `skipped`.
+   */
+  branch?: 'applies' | 'skipped'
   /** For `create_country_leader` lines: the leader's own `id`, which `has_country_leader` can ask for. */
   leaderId?: string
   /** For `create_country_leader` lines: the ids of the leader's traits. */

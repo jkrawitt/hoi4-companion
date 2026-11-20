@@ -12,6 +12,13 @@ defineProps<{
   emptyText?: string
 }>()
 
+/** What a branch header says about itself, once the campaign has settled which branch runs. */
+const note = (effect: EffectLine): string | undefined => {
+  if (effect.branch === 'applies') return '(applies)'
+  const header = effect.value === undefined && /^(if|else|else_if)$/.test(effect.key ?? '')
+  return effect.branch === 'skipped' && header ? '(does not apply)' : undefined
+}
+
 /** One grid level of nesting, in px. */
 const INDENT = 12
 </script>
@@ -21,10 +28,11 @@ const INDENT = 12
     <li
       v-for="(effect, i) in effects"
       :key="i"
-      :class="[effectTone(effect), { hidden: effect.hidden }]"
+      :class="[effectTone(effect), { hidden: effect.hidden, skipped: effect.branch === 'skipped' }]"
       :style="{ paddingLeft: `${effect.depth * INDENT}px` }"
     >
       {{ formatEffect(effect) }}
+      <span v-if="note(effect)" class="muted">{{ note(effect) }}</span>
     </li>
     <li v-if="effects.length === 0 && emptyText" class="muted">{{ emptyText }}</li>
   </ul>
@@ -43,6 +51,10 @@ const INDENT = 12
 }
 .bad {
   color: #b3261e;
+}
+/* A branch of an `if` chain that does not run. */
+.skipped {
+  opacity: 0.45;
 }
 /* Effects inside a `hidden_effect` block: the game does not show them to the player. */
 .hidden {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Focus } from '@/domain/focus'
+import type { EffectLine, Focus } from '@/domain/focus'
 import { layoutFocuses } from '@/domain/plan/focusLayout'
 import EffectList from './EffectList.vue'
 
@@ -10,6 +10,10 @@ const props = defineProps<{
   plan: string[]
   /** Focuses that cannot be selected because they conflict with the current plan. */
   blockedIds: Set<string>
+  /** The rewards of planned focuses with the branches that apply marked, by focus id. */
+  plannedEffects: Record<string, EffectLine[]>
+  /** What a focus not in the plan would do if taken next; undefined when it cannot be taken. */
+  preview: (id: string) => { effects: EffectLine[]; added: string[] } | undefined
 }>()
 
 const emit = defineEmits<{ (event: 'toggle', id: string): void }>()
@@ -97,6 +101,16 @@ const showDetails = (focus: Focus, event: Event) => {
     top: Math.min(rect.top, Math.max(8, window.innerHeight - 320)),
   }
 }
+// Worked out only for the focus hovered: a planned one has its own, another is previewed.
+const tooltip = computed((): { effects: EffectLine[]; added?: string[] } | undefined => {
+  const focus = hovered.value?.focus
+  if (!focus) return undefined
+  if (props.plan.includes(focus.id)) {
+    return { effects: props.plannedEffects[focus.id] ?? focus.effects }
+  }
+  return props.preview(focus.id) ?? { effects: focus.effects }
+})
+
 const hideDetails = () => (hovered.value = null)
 
 const nameOf = (id: string) => props.focuses[id]?.name ?? id
@@ -164,9 +178,15 @@ const orderOf = computed(() => {
     <div v-if="hovered.focus.mutuallyExclusive.length > 0" class="meta">
       Excludes {{ hovered.focus.mutuallyExclusive.map(nameOf).join(', ') }}
     </div>
-    <template v-if="hovered.focus.effects.length > 0">
+    <template v-if="tooltip && tooltip.effects.length > 0">
       <div class="heading">Effects</div>
-      <EffectList :effects="hovered.focus.effects" />
+      <div v-if="tooltip.added" class="meta">
+        If added next<template v-if="tooltip.added.length > 0">
+          (with {{ tooltip.added.length }}
+          {{ tooltip.added.length === 1 ? 'prerequisite' : 'prerequisites' }} first)</template
+        >
+      </div>
+      <EffectList :effects="tooltip.effects" />
     </template>
   </div>
 </template>

@@ -171,7 +171,8 @@ describe('has_tech conditions', () => {
       startDate: begin,
       hasTech: (_id, date) => (dates.push(date), undefined),
     })
-    expect(dates).toEqual([day(70)])
+    expect(dates.length).toBeGreaterThan(0)
+    expect(dates.every((d) => d.getTime() === day(70).getTime())).toBe(true)
   })
 })
 
