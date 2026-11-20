@@ -34,6 +34,7 @@ export {
   unwrapEventConditions,
 } from './effects/passes'
 export { foldConditions } from './effects/conditions'
+export { onlyWhatHappens } from './effects/onlyWhatHappens'
 export { effectTone, formatEffect } from './effects/format'
 export {
   ideaIdsOf,

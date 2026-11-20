@@ -6,6 +6,7 @@ import GameDataImport from '../GameDataImport.vue'
 import { formatDate, useCampaign } from '@/stores/campaign'
 import { useShowOnOverview } from '../overviewLink'
 import { yearBanners } from '../yearBanners'
+import { showHiddenEffects, showSkippedBranches, simplifyEffects } from './effectDisplay'
 
 const showOnOverview = useShowOnOverview()
 const {
@@ -39,6 +40,18 @@ const rows = computed(() => {
     <label>
       Focus speed bonus (%)
       <input type="number" min="0" step="5" v-model.number="speedBonusPercent" />
+    </label>
+    <label title="Also show the if/else branches of a focus's reward that do not apply, dimmed">
+      <input type="checkbox" v-model="showSkippedBranches" :disabled="simplifyEffects" /> Show
+      branches that do not apply
+    </label>
+    <label
+      title="Show the effects inside hidden_effect blocks: they happen, but the game does not tell the player"
+    >
+      <input type="checkbox" v-model="showHiddenEffects" /> Show hidden effects
+    </label>
+    <label title="Show only what will happen: no if/else headers, no branches that do not apply">
+      <input type="checkbox" v-model="simplifyEffects" /> Simplify
     </label>
     <button v-if="hasData" :disabled="plan.length === 0" @click="reset">Reset plan</button>
   </div>

@@ -135,6 +135,9 @@ const FORMATTERS: Record<string, Formatter> = {
   ),
   country_event: (e) => (e.value === undefined ? null : `Event: ${e.eventTitle ?? e.value}`),
   news_event: (e) => (e.value === undefined ? null : `News: ${e.eventTitle ?? e.value}`),
+  // Made by `onlyWhatHappens` from a `swap_ideas` that takes an idea away and puts it back.
+  replace_idea: (e) => `Replace idea ${valueOf(e)} with ${e.subjectName ?? valueOf(e)}:`,
+  net_change: (e) => (e.value === 'none' ? 'Net change: none' : 'Net change:'),
   add_timed_idea: (e) =>
     e.value === undefined ? null : `Add timed idea: ${e.valueName ?? e.value} (${e.days} days)`,
   diplomatic_relation: (e) =>
