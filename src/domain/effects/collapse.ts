@@ -6,7 +6,7 @@
  * are built by `aboutSubject` or `namedBy` rather than written out.
  */
 import type { EffectLine } from '../focus'
-import { blockEnd, childrenOf, opensBlock, unquote } from './lines'
+import { blockEnd, childrenOf, opensBlock, outdent, unquote } from './lines'
 
 /**
  * `key = number` effects that are stat changes (`add_stability = -0.05`). They are shown through
@@ -14,6 +14,7 @@ import { blockEnd, childrenOf, opensBlock, unquote } from './lines'
  */
 const STAT_EFFECT_KEYS = new Set([
   'add_stability',
+  'add_war_support',
   'add_political_power',
   'add_research_slot',
   'army_experience',
@@ -28,6 +29,24 @@ const BOOKKEEPING_KEYS = new Set([
   'set_state_flag',
   'clr_country_flag',
   'log', // writes to the game's debug log
+  // The AI's own priorities; a player is never shown them.
+  'add_ai_strategy',
+  // Script variables are the game's working numbers (a cost a decision tooltip shows, a counter).
+  'set_variable',
+  'add_to_variable',
+  'subtract_from_variable',
+  'multiply_variable',
+  'divide_variable',
+  'modulo_variable',
+  'clamp_variable',
+  'round_variable',
+  'set_temp_variable',
+  'add_to_temp_variable',
+  'subtract_from_temp_variable',
+  'multiply_temp_variable',
+  'divide_temp_variable',
+  'clamp_temp_variable',
+  'round_temp_variable',
 ])
 
 /**
@@ -111,6 +130,14 @@ const withTraits = (line: EffectLine, fields: EffectLine[]): EffectLine => {
   return traits.length > 0 ? { ...line, traits } : line
 }
 
+/** `key = { path = { 3025 3009 } }` as one line whose value is the number of provinces. */
+const railway: Collapser = (line, _field, _count, fields) => {
+  const at = fields.findIndex((f) => opensBlock(f, 'path'))
+  return at === -1
+    ? null
+    : { depth: line.depth, key: line.key, value: String(childrenOf(fields, at).length) }
+}
+
 const COLLAPSERS: Record<string, Collapser> = {
   // `Communist popularity: +10%`, formatted like any other stat change.
   add_popularity: aboutSubject('popularity', 'ideology', { extra: { isModifier: true } }),
@@ -130,6 +157,16 @@ const COLLAPSERS: Record<string, Collapser> = {
   set_autonomy: aboutSubject('autonomy_state', 'target'),
   // `Nuclear Research breakthrough progress: +75%`.
   add_breakthrough_progress: aboutSubject('value', 'specialization', { numeric: true }),
+  // `Add 50 light tank equipment to stockpile`; the producer is not shown.
+  add_equipment_to_stockpile: aboutSubject('amount', 'type', { exact: false }),
+  // `Equipment subsidy: 1000 CIC from ...`; the sellers are not shown.
+  add_equipment_subsidy: aboutSubject('cic', 'equipment_type', { exact: false }),
+  add_trait: aboutSubject('trait', 'slot', { exact: false }),
+  remove_trait: aboutSubject('trait', 'slot', { exact: false }),
+  swap_country_leader_traits: aboutSubject('add', 'remove'),
+  add_power_balance_value: aboutSubject('value', 'id', { numeric: true }),
+  activate_targeted_decision: aboutSubject('decision', 'target'),
+  build_railway: railway,
   // `Create corps commander: Barbu Paraianu`; the skills and traits are not shown.
   create_corps_commander: namedBy(),
   // `Create design: IAR 80`; the modules are not shown.
@@ -321,7 +358,7 @@ const COLLAPSERS: Record<string, Collapser> = {
 
 /** Whether a line is a bookkeeping effect the game shows nothing for. */
 const isBookkeeping = (line: EffectLine): boolean =>
-  line.key !== null && line.value !== undefined && BOOKKEEPING_KEYS.has(line.key)
+  line.key !== null && BOOKKEEPING_KEYS.has(line.key)
 
 /**
  * Replaces compound effects with the single line they read as, drops the ones a player never
@@ -331,9 +368,19 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]
-    if (isBookkeeping(line)) continue
+    if (isBookkeeping(line)) {
+      i = blockEnd(effects, i) - 1
+      continue
+    }
     if (opensBlock(line) && DROPPED_BLOCKS.has(line.key)) {
       i = blockEnd(effects, i) - 1
+      continue
+    }
+    // The game shows what is inside an `effect_tooltip` as if it happened, without doing it for real.
+    if (opensBlock(line, 'effect_tooltip')) {
+      const end = blockEnd(effects, i)
+      result.push(...collapseEffects(outdent(effects.slice(i + 1, end))))
+      i = end - 1
       continue
     }
     const collapse = opensBlock(line) ? COLLAPSERS[line.key] : undefined

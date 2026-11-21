@@ -21,6 +21,7 @@
 import type { EffectLine, ImportedCountry } from './focus'
 import type { MioData, Technology } from './research'
 import { parseFocusTreeFile } from './parsers/focusTree'
+import { readScriptedEffects } from './parsers/scriptedEffectsImport'
 import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
 import { listModifiersUnderLines } from './effects/modifierLines'
 import { readCountryHistory, readCountryHistoryText, readDefinitions } from './definitions'
@@ -241,7 +242,7 @@ export const importCountryFocuses = async (
 
   // 1. Pick the branch that applies to the DLCs we know about before anything is looked up, so
   // names and idea modifiers are only read for what will be shown.
-  const tree = parseFocusTreeFile(treeText).map((f) => ({
+  const tree = parseFocusTreeFile(treeText, await readScriptedEffects(files)).map((f) => ({
     ...f,
     effects: resolveDlcConditions(f.effects, ownedDlc),
   }))

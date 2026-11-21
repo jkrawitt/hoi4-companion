@@ -15,8 +15,9 @@ import {
   parseScript,
   type ScriptBlock,
 } from './paradoxScript'
+import { expandEffects, type ScriptedEffects } from './scriptedEffects'
 
-const parseFocus = (block: ScriptBlock): Focus | null => {
+const parseFocus = (block: ScriptBlock, scripted: ScriptedEffects): Focus | null => {
   const id = getString(block, 'id')
   if (!id) return null
   const cost = Number(getString(block, 'cost') ?? 10)
@@ -39,7 +40,9 @@ const parseFocus = (block: ScriptBlock): Focus | null => {
       pruneEmptyBlocks(
         simplifyRandomStates(
           unwrapEventConditions(
-            collapseEffects(flattenEffects(getBlock(block, 'completion_reward') ?? [])),
+            collapseEffects(
+              flattenEffects(expandEffects(getBlock(block, 'completion_reward') ?? [], scripted)),
+            ),
           ),
         ),
       ),
@@ -47,14 +50,17 @@ const parseFocus = (block: ScriptBlock): Focus | null => {
   }
 }
 
-/** Extracts the focuses of every `focus_tree` in a `common/national_focus` file. */
-export const parseFocusTreeFile = (text: string): Focus[] => {
+/**
+ * Extracts the focuses of every `focus_tree` in a `common/national_focus` file, with the
+ * scripted effects they call written out.
+ */
+export const parseFocusTreeFile = (text: string, scripted: ScriptedEffects = {}): Focus[] => {
   const focuses: Focus[] = []
   for (const tree of getAll(parseScript(text), 'focus_tree')) {
     if (typeof tree.value !== 'object') continue
     for (const entry of getAll(tree.value, 'focus')) {
       if (typeof entry.value !== 'object') continue
-      const focus = parseFocus(entry.value)
+      const focus = parseFocus(entry.value, scripted)
       if (focus) focuses.push(focus)
     }
   }

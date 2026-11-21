@@ -218,3 +218,51 @@ describe('research, building and design effects', () => {
     ).toEqual(['Create design: IAR 80'])
   })
 })
+
+describe('Finnish-style effects', () => {
+  const run = (text: string) => collapseEffects(flattenEffects(parseScript(text)))
+  const lines = (text: string) => run(text).map((e) => formatEffect(e))
+
+  it('drops the AI strategy and script variable bookkeeping, plain or in a block', () => {
+    expect(
+      run(`add_ai_strategy = { type = befriend id = SOV value = 40 }
+        set_variable = { x = 1 } add_to_variable = { x = -1 } divide_variable = { x = 2 }
+        add_stability = 0.05`).map((e) => e.key),
+    ).toEqual(['add_stability'])
+  })
+
+  it('reads stockpiles, subsidies, traits, railways, decisions and power balance', () => {
+    expect(
+      lines(`add_equipment_to_stockpile = { type = light_tank_equipment_1 amount = 50 producer = PREV }
+        add_equipment_subsidy = { cic = 1000 equipment_type = small_plane_airframe seller_tags = { ENG } }
+        add_trait = { trait = technocrat slot = political_advisor }
+        remove_trait = { trait = old_one slot = political_advisor }
+        swap_country_leader_traits = { remove = a_trait add = b_trait }
+        build_railway = { path = { 1 2 3 } }
+        activate_targeted_decision = { target = SWE decision = FIN_pressure }
+        add_power_balance_value = { id = FIN_power_balance value = 0.05 }
+        add_core_of = ROOT
+        add_mio_size = 1`),
+    ).toEqual([
+      'Add 50 light tank equipment 1 to the stockpile',
+      'Equipment subsidy: 1000 CIC of small plane airframe',
+      'Add trait: technocrat',
+      'Remove trait: old one',
+      'Leader trait a trait becomes b trait',
+      'Build a railway (3 provinces)',
+      'Unlocks decision against SWE: FIN pressure',
+      'Balance of power (power balance): +0.05',
+      'Gain a core on this state',
+      'Organization size: +1',
+    ])
+  })
+
+  it('shows what an effect_tooltip describes as if it happened', () => {
+    const effects = run('effect_tooltip = { add_stability = 0.05 }')
+    expect(effects).toEqual([{ depth: 0, key: 'add_stability', value: '0.05', isModifier: true }])
+  })
+
+  it('treats add_war_support as a stat change', () => {
+    expect(run('add_war_support = 0.05')[0].isModifier).toBe(true)
+  })
+})
