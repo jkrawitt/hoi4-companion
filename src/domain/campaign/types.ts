@@ -122,6 +122,8 @@ export interface CountryState {
   /** Popularity per ideology (the start plus changes), as a fraction of 1 like the game scripts. */
   popularity: PopularityChange[]
   rulingParty?: string
+  /** The countries at war with ours, as the player entered them; unknown before the first entry. */
+  enemies?: string[]
   /** The ruling party's ideology id (`democratic`), which `popularity` entries are keyed by. */
   government?: string
   /**

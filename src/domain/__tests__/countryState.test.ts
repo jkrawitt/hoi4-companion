@@ -679,4 +679,33 @@ describe('adjustments from the game', () => {
     expect(withAdjustments([], 20, adj).ideas.map((i) => i.name)).toEqual(['Boom'])
     expect(total(45)).toBeUndefined()
   })
+
+  it('knows who the country is at war with from the entered date, and not before', () => {
+    const wars = (...entries: [number, string[]][]) => ({
+      ...emptyAdjustments(),
+      wars: entries.map(([n, enemies], i) => ({ id: `w${i}`, date: iso(n), enemies })),
+    })
+    expect(withAdjustments([], 50).enemies).toBeUndefined()
+    const adj = wars([30, ['SOV']], [90, []])
+    expect(withAdjustments([], 20, adj).enemies).toBeUndefined()
+    expect(withAdjustments([], 30, adj).enemies).toEqual(['SOV'])
+    expect(withAdjustments([], 90, adj).enemies).toEqual([])
+  })
+
+  it('settles has_war_with in a reward from the entered wars', () => {
+    const reward = (value: string): EffectLine[] => [
+      { depth: 0, key: 'if', check: { type: 'war_with', tag: 'SOV' } },
+      { depth: 1, key: 'add_stability', value, isModifier: true, stat: stat('add_stability') },
+    ]
+    const focuses = [focus('a', reward('0.1'), 7)]
+    const at = (adj: ReturnType<typeof emptyAdjustments>) =>
+      withAdjustments(focuses, 10, adj).conditional.length
+    const atWar = { ...emptyAdjustments(), wars: [{ id: 'w', date: iso(0), enemies: ['SOV'] }] }
+    const atPeace = { ...emptyAdjustments(), wars: [{ id: 'w', date: iso(0), enemies: ['GER'] }] }
+    // Unknown: the branch stays conditional. Known: it applies, or is dropped.
+    expect(at(emptyAdjustments())).toBe(1)
+    expect(at(atWar)).toBe(0)
+    expect(withAdjustments(focuses, 10, atWar).stability).toBeCloseTo(0.7)
+    expect(withAdjustments(focuses, 10, atPeace).stability).toBeCloseTo(0.6)
+  })
 })

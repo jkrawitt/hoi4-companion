@@ -47,6 +47,8 @@ export type Check =
   | { type: 'const'; value: boolean }
   /** `has_war = yes` (`atWar: true`) or `has_war = no`. */
   | { type: 'war'; atWar: boolean }
+  /** `has_war_with = SOV`: at war with that country. */
+  | { type: 'war_with'; tag: string }
   | { type: 'not'; of: Check }
   | { type: 'all' | 'any'; of: Check[] }
   | { type: 'unknown' }

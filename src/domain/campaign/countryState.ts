@@ -93,6 +93,7 @@ export const countryStateAt = (
     rules: [...rules.values()],
     popularity: [...w.popularity.values()],
     rulingParty: w.rulingParty,
+    enemies: w.enemies,
     government: w.government,
     stability: actual('stability'),
     stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),

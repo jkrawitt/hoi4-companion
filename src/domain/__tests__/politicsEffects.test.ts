@@ -304,3 +304,12 @@ describe('state scopes with a limit', () => {
     expect(show('random_core_state = { add_stability = 1 }')[0]).toBe('A random core state:')
   })
 })
+
+describe('has_war_with', () => {
+  it('is read as a check on the enemy tag', () => {
+    const [header] = foldConditions(
+      collapseEffects(flattenEffects(parseScript('if = { limit = { has_war_with = SOV } a = b }'))),
+    )
+    expect(header.check).toEqual({ type: 'war_with', tag: 'SOV' })
+  })
+})

@@ -195,6 +195,7 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
   if (key === 'has_war' && (value === 'yes' || value === 'no')) {
     return { type: 'war', atWar: value === 'yes' }
   }
+  if (key === 'has_war_with' && /^[A-Z]{3}$/.test(value)) return { type: 'war_with', tag: value }
   if (key === 'always' && (value === 'yes' || value === 'no')) {
     return { type: 'const', value: value === 'yes' }
   }

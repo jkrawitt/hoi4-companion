@@ -3,7 +3,7 @@ import type { FocusSchedule } from '../plan/types'
 import type { PoliticalOption, PoliticsSchedule } from '../politics'
 import type { ConstructionSchedule, ProductionData } from '../production'
 import type { ResearchSchedule, Technology } from '../research'
-import { adjustableStat, importCost, type Adjustments } from '../adjustments'
+import { adjustableStat, importCost, warText, type Adjustments } from '../adjustments'
 import { formatStatValue, statLabel } from '../stats'
 
 export type TimelineKind = 'focus' | 'research' | 'construction' | 'politics' | 'adjustment'
@@ -207,6 +207,14 @@ export const buildTimeline = (input: TimelineInput): Timeline => {
           (m.days ? ` for ${m.days} days` : ''),
       },
       100 + i,
+    )
+  }
+  for (const [i, w] of (adj?.wars ?? []).entries()) {
+    add(
+      parseDay(w.date),
+      'done',
+      { id: `adjustment:${w.id}`, kind: 'adjustment', text: warText(w) },
+      50 + i,
     )
   }
   for (const [i, r] of (adj?.received ?? []).entries()) {

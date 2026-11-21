@@ -13,6 +13,21 @@ const cost = { steel: 0.125, coal: 0.125 }
 const at = (date: string) => new Date(`${date}T00:00:00Z`)
 
 describe('adjustmentSteps', () => {
+  it('makes a war entry a set_enemies line', () => {
+    const steps = adjustmentSteps(
+      adj({
+        wars: [
+          { id: 'a', date: '1939-11-30', enemies: ['SOV', 'EST'] },
+          { id: 'b', date: '1940-03-13', enemies: [] },
+        ],
+      }),
+    )
+    expect(steps.map((s) => s.focus.effects)).toEqual([
+      [{ depth: 0, key: 'set_enemies', value: 'SOV EST' }],
+      [{ depth: 0, key: 'set_enemies', value: 'none' }],
+    ])
+  })
+
   it('makes a stability entry one set_actual_stability line on its date', () => {
     const [step] = adjustmentSteps(
       adj({ stability: [{ id: 'a', date: '1936-03-01', value: 0.6 }] }),
