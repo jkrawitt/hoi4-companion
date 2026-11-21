@@ -14,6 +14,7 @@ import { START_ID } from '../focus'
 import type { FocusSchedule } from '../plan/types'
 import { applyReward, newWorking, rawStatNow, stabilityBeforeModifiersNow } from './applyReward'
 import type { Step } from './applyReward'
+import { accrueDrift } from './drift'
 import { activeModifiers, clampStat } from './totals'
 import { researchEnvironment } from './researchEvents'
 import type { ActiveIdea, CountryState, CountryStateOptions } from './types'
@@ -74,7 +75,14 @@ export const countryStateAt = (
     if (option.recruited && option.character) w.recruited.add(option.character)
   }
   const planned = new Set(completed.map((item) => item.focus.id))
-  for (const step of steps) applyReward(w, step, options, planned.has(step.focus.id))
+  // The popularity drifts day by day from the start on, with what is active in between rewards.
+  let driftFrom: Date | undefined
+  for (const step of steps) {
+    if (driftFrom) accrueDrift(w, driftFrom, step.end)
+    applyReward(w, step, options, planned.has(step.focus.id))
+    driftFrom = step.end
+  }
+  if (driftFrom) accrueDrift(w, driftFrom, date)
 
   const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
 
@@ -86,6 +94,7 @@ export const countryStateAt = (
   return {
     date,
     completed,
+    bypassed: [...w.bypassed],
     next,
     ideas: active,
     statChanges: [...w.statChanges.values()],

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { EffectLine, Focus } from '@/domain/focus'
 import { layoutFocuses } from '@/domain/plan/focusLayout'
 import EffectList from './EffectList.vue'
+import { formatDate } from '@/stores/campaign'
 
 const props = defineProps<{
   focuses: Record<string, Focus>
@@ -10,6 +11,8 @@ const props = defineProps<{
   plan: string[]
   /** Focuses that cannot be selected because they conflict with the current plan. */
   blockedIds: Set<string>
+  /** Why a blocked focus is not available: the focus whose `available` fails, and the day. */
+  availabilityBlocks: Map<string, { focusId: string; start: Date }>
   /** The rewards of planned focuses with the branches that apply marked, by focus id. */
   plannedEffects: Record<string, EffectLine[]>
   /** What a focus not in the plan would do if taken next; undefined when it cannot be taken. */
@@ -122,6 +125,31 @@ const orderOf = computed(() => {
   })
   return order
 })
+
+/** Why the hovered focus cannot be added, when it cannot. */
+const blockReason = computed(() => {
+  const focus = hovered.value?.focus
+  if (!focus || props.plan.includes(focus.id) || !props.blockedIds.has(focus.id)) return undefined
+  const failed = props.availabilityBlocks.get(focus.id)
+  if (failed) {
+    const blocker = props.focuses[failed.focusId]
+    const when = formatDate(failed.start)
+    const text = blocker?.availableText ?? 'its availability condition'
+    return blocker?.id === focus.id
+      ? `Not available when it would start (${when}): ${text}`
+      : `${nameOf(failed.focusId)} is needed first and is not available when it would start (${when}): ${text}`
+  }
+  const planned = new Set(props.plan)
+  const excluding = props.plan.filter(
+    (id) =>
+      focus.mutuallyExclusive.includes(id) ||
+      props.focuses[id]?.mutuallyExclusive.includes(focus.id),
+  )
+  if (excluding.length > 0) return `Excluded by ${excluding.map(nameOf).join(', ')} in your plan`
+  return planned.size > 0
+    ? 'A prerequisite it needs is excluded by your plan'
+    : 'It cannot be taken'
+})
 </script>
 
 <template>
@@ -147,8 +175,8 @@ const orderOf = computed(() => {
           width: `${CARD_W}px`,
           height: `${CARD_H}px`,
         }"
-        :disabled="blockedIds.has(box.focus.id)"
-        @click="emit('toggle', box.focus.id)"
+        :aria-disabled="blockedIds.has(box.focus.id)"
+        @click="!blockedIds.has(box.focus.id) && emit('toggle', box.focus.id)"
         @mouseenter="showDetails(box.focus, $event)"
         @mouseleave="hideDetails"
         @focus="showDetails(box.focus, $event)"
@@ -178,6 +206,7 @@ const orderOf = computed(() => {
     <div v-if="hovered.focus.mutuallyExclusive.length > 0" class="meta">
       Excludes {{ hovered.focus.mutuallyExclusive.map(nameOf).join(', ') }}
     </div>
+    <div v-if="blockReason" class="blocked-reason">{{ blockReason }}</div>
     <template v-if="tooltip && tooltip.effects.length > 0">
       <div class="heading">Effects</div>
       <div v-if="tooltip.added" class="meta">
@@ -215,6 +244,11 @@ const orderOf = computed(() => {
   margin: 6px 0;
   font-style: italic;
   white-space: pre-line;
+}
+.tooltip .blocked-reason {
+  margin-top: 6px;
+  color: #a33;
+  font-weight: 600;
 }
 .tooltip .heading {
   margin-top: 6px;

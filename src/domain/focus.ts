@@ -159,6 +159,18 @@ export interface Focus {
   prerequisites: string[][]
   /** Taking any of these makes this focus unavailable. */
   mutuallyExclusive: string[]
+  /**
+   * The focus's `available` trigger, when it asks about something the campaign can answer
+   * (popularity, stability, government, focuses completed, ...): it must hold when the focus
+   * starts. Left out when every term is unknown to us, so it never blocks anything.
+   */
+  available?: Check
+  /** The focus's `bypass` trigger: when it holds as the focus starts, its reward is skipped. */
+  bypass?: Check
+  /** `available` as the raw lines the importer words in English; replaced by `availableText`. */
+  availableLines?: EffectLine[]
+  /** `available` in English, for saying why a focus cannot be taken. */
+  availableText?: string
   /** Grid position from the game files; relative to `relativeTo` when that is set. */
   x: number
   y: number

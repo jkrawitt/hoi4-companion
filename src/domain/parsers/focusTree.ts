@@ -1,4 +1,5 @@
-import { DAYS_PER_WEEK, type Focus } from '../focus'
+import { DAYS_PER_WEEK, type Check, type EffectLine, type Focus } from '../focus'
+import { checkOfLines } from '../effects/conditions'
 import {
   collapseEffects,
   flattenEffects,
@@ -17,9 +18,41 @@ import {
 } from './paradoxScript'
 import { expandEffects, type ScriptedEffects } from './scriptedEffects'
 
+/** Whether a check has a term the campaign can answer (not just unknown ones and constants). */
+const answerable = (check: Check): boolean => {
+  switch (check.type) {
+    case 'not':
+      return answerable(check.of)
+    case 'all':
+    case 'any':
+      return check.of.some(answerable)
+    case 'unknown':
+    case 'const':
+    case 'tag':
+    case 'dlc':
+      return false
+    default:
+      return true
+  }
+}
+
+/** A focus's `available` or `bypass` block as a check, or nothing when we could never answer it. */
+const triggerCheck = (
+  block: ScriptBlock | undefined,
+): { check: Check; lines: EffectLine[] } | undefined => {
+  if (!block || block.length === 0) return undefined
+  const lines = flattenEffects(block)
+  const check = checkOfLines(lines)
+  return check && answerable(check) ? { check, lines } : undefined
+}
+
+const optional = <K extends string, V>(key: K, value: V | undefined) =>
+  value ? { [key]: value } : {}
+
 const parseFocus = (block: ScriptBlock, scripted: ScriptedEffects): Focus | null => {
   const id = getString(block, 'id')
   if (!id) return null
+  const available = triggerCheck(getBlock(block, 'available'))
   const cost = Number(getString(block, 'cost') ?? 10)
   const coordinate = (key: string) => {
     const n = Number(getString(block, key) ?? 0)
@@ -33,6 +66,9 @@ const parseFocus = (block: ScriptBlock, scripted: ScriptedEffects): Focus | null
       typeof e.value === 'object' ? [getStrings(e.value, 'focus')] : [],
     ),
     mutuallyExclusive: getStrings(getBlock(block, 'mutually_exclusive') ?? [], 'focus'),
+    ...optional('available', available?.check),
+    ...optional('availableLines', available?.lines),
+    ...optional('bypass', triggerCheck(getBlock(block, 'bypass'))?.check),
     x: coordinate('x'),
     y: coordinate('y'),
     relativeTo: getString(block, 'relative_position_id'),

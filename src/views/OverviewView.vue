@@ -93,6 +93,15 @@ const power = computed(() => ({
 }))
 const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
 const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
+/** Stability and war support on the date (known once the start has set them), as percentages. */
+const levels = computed(() =>
+  [
+    { label: 'Stability', value: state.value.stability },
+    { label: 'War support', value: state.value.warSupport },
+  ].flatMap((l) =>
+    l.value === undefined ? [] : [{ label: l.label, text: `${round(l.value * 100, 1)}%` }],
+  ),
+)
 const hasGovernment = computed(() => state.value.rulingParty || popularity.value.length > 0)
 </script>
 
@@ -115,6 +124,15 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
       </p>
       <DateScrubber />
       <AdjustmentsPanel />
+
+      <section v-if="levels.length > 0">
+        <h3>Stability and war support</h3>
+        <ul class="levels">
+          <li v-for="l in levels" :key="l.label">
+            {{ l.label }}: <strong>{{ l.text }}</strong>
+          </li>
+        </ul>
+      </section>
 
       <section v-if="hasGovernment">
         <h3>Government</h3>
@@ -264,6 +282,13 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
 </template>
 
 <style scoped>
+.levels {
+  display: flex;
+  gap: 2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .ideas {
   padding: 0;
   list-style: none;

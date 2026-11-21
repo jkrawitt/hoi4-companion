@@ -95,7 +95,9 @@ const createCampaign = () => {
     viewDate,
     schedule: planning.schedule,
     planEnd: planning.planEnd,
-    blockedIds: queues.blockedIds,
+    blockedIds: planning.blockedFocusIds,
+    availabilityBlocks: planning.availabilityBlocks,
+    bypassedFocusIds: planning.bypassedFocusIds,
     state: planning.state,
     plannedFocusEffects: planning.plannedFocusEffects,
     previewFocus: planning.previewFocus,
@@ -133,7 +135,7 @@ const createCampaign = () => {
     setTechDesignTeam: queues.setTechDesignTeam,
     resetResearch: queues.resetResearch,
     runImport: data.runImport,
-    toggle: queues.toggle,
+    toggle: planning.toggleFocus,
     reset: queues.reset,
   }
 }

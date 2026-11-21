@@ -6,11 +6,16 @@
  * below in turn; the first that recognises it takes it. Each handler changes only its own part of
  * `Working`, so a new kind of effect is a new handler.
  */
-import { START_ID, type EffectLine } from '../focus'
+import { START_ID, type Check, type EffectLine } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
-import { annotateConditions, resolveConditions, type ConditionContext } from './conditions'
+import {
+  annotateConditions,
+  evaluateCheck,
+  resolveConditions,
+  type ConditionContext,
+} from './conditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
 import {
@@ -37,7 +42,7 @@ import type {
 
 /** A reward and when it is finished. */
 export interface Step {
-  focus: { id: string; name: string; effects: EffectLine[] }
+  focus: { id: string; name: string; effects: EffectLine[]; bypass?: Check }
   end: Date
 }
 
@@ -57,6 +62,8 @@ export interface Working {
   /** The ruling ideology group as the scripts name it (`communism`), for conditions. */
   government?: string
   doneFocuses: Set<string>
+  /** The focuses whose `bypass` held as they started: they are skipped, with no reward. */
+  bypassed: Set<string>
   /** Who leads, for conditions: unknown again after `retire_country_leader`, as the game picks next. */
   identity?: { id?: string; character?: string }
   /** The ideology group the leader leads for, when known (a new leader, not a bare role). */
@@ -83,6 +90,7 @@ export const newWorking = (): Working => ({
   construction: [],
   resources: new Map(),
   doneFocuses: new Set(),
+  bypassed: new Set(),
   retiredLeaders: new Set(),
   research: newResearchWorking(),
   recruited: new Set(),
@@ -181,6 +189,9 @@ export const stabilityBeforeModifiersNow = (w: Working, options: CountryStateOpt
 // --- Handlers, one per kind of effect. ---
 
 const ideas: Handler = (c, e, i) => {
+  // `show_ideas_tooltip` only shows an idea in the tooltip (a focus unlocking an advisor, say):
+  // nothing is added. What it unlocks is bought through the political power plan.
+  if (e.key === 'show_ideas_tooltip') return c.added.has(i)
   if (c.added.has(i) && e.value) {
     // A country has one law per category: a new one replaces the old.
     const law = c.options.laws?.[e.value]
@@ -232,15 +243,46 @@ const construction: Handler = (c, e) => {
   return true
 }
 
-const popularity: Handler = ({ w }, e) => {
+/**
+ * Moves one party's popularity by `delta` (a fraction) and keeps the total at 100%: the others
+ * share the change in proportion to what they have (evenly if they have none), and the party
+ * itself stays between 0 and 100%. Only the parties already in `w.popularity` take part, which is
+ * all of them once the start has set them.
+ */
+export const shiftPopularity = (w: Working, subject: string, delta: number): void => {
+  const mine = w.popularity.get(subject)
+  if (!mine) return
+  const others = [...w.popularity.values()].filter((p) => p.subject !== subject)
+  const next = others.length === 0 ? mine.total + delta : clamp01(mine.total + delta)
+  w.popularity.set(subject, { ...mine, total: round(next) })
+  const rest = others.reduce((sum, p) => sum + p.total, 0)
+  for (const other of others) {
+    const share = rest > 0 ? other.total / rest : 1 / others.length
+    w.popularity.set(other.subject, { ...other, total: round((1 - next) * share) })
+  }
+}
+
+const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
+
+/**
+ * The parties' popularity always adds up to 100%: the start sets each one, and a later change to
+ * one party is taken from the others in proportion to their share (`shiftPopularity`). Without the
+ * start there is only the changes, which are added as they are.
+ */
+const popularity: Handler = ({ w, step, options }, e) => {
   if (e.key !== 'add_popularity' || !e.subject || !isNumeric(e.value) || !e.stat) return false
-  w.popularity.set(e.subject, {
-    key: e.key,
-    stat: e.stat,
-    total: round((w.popularity.get(e.subject)?.total ?? 0) + Number(e.value)),
-    subject: e.subject,
-    subjectName: e.subjectName ?? e.subject,
-  })
+  const known = w.popularity.has(e.subject)
+  if (step.focus.id === START_ID || !options.start?.length || !known) {
+    w.popularity.set(e.subject, {
+      key: e.key,
+      stat: e.stat,
+      total: round((w.popularity.get(e.subject)?.total ?? 0) + Number(e.value)),
+      subject: e.subject,
+      subjectName: e.subjectName ?? e.subject,
+    })
+  } else {
+    shiftPopularity(w, e.subject, Number(e.value))
+  }
   return true
 }
 
@@ -546,6 +588,13 @@ export const applyReward = (
     // The actual stat: only known once the start has set it, like popularity.
     stat: (key) =>
       options.start?.length ? clampStat(rawStatNow(w, options, key, step.end)) : undefined,
+  }
+  // A focus whose `bypass` holds as it starts is skipped: it gives no reward (assumed to still
+  // count as done for what needs it; its duration is not changed).
+  if (focus.bypass && annotate && evaluateCheck(focus.bypass, ctx) === true) {
+    w.bypassed.add(focus.id)
+    w.doneFocuses.add(focus.id)
+    return
   }
   const effects = resolveConditions(focus.effects, ctx)
   if (annotate) w.focusEffects[focus.id] = annotateConditions(focus.effects, ctx)

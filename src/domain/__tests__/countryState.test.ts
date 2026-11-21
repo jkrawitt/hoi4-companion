@@ -152,6 +152,71 @@ describe('countryStateAt', () => {
     expect(s.rulingParty).toBe('Fascism')
   })
 
+  it('keeps the popularity at 100%, taking a gain from the other parties in proportion', () => {
+    const pop = (subject: string, value: string): EffectLine => ({
+      ...modifier(0, 'add_popularity', value),
+      subject,
+      subjectName: subject,
+    })
+    const startLines = [pop('d', '0.4'), pop('f', '0.3'), pop('c', '0.2'), pop('n', '0.1')]
+    const after = (days: number) =>
+      countryStateAt(
+        schedulePlan(
+          ['a', 'b'],
+          { a: focus('a', [pop('f', '0.15')]), b: focus('b', [pop('f', '-0.45')]) },
+          { startDate: start, speedBonus: 0 },
+        ),
+        day(days),
+        { tag: 'ROM', start: startLines },
+      ).popularity
+    const share = (days: number) => Object.fromEntries(after(days).map((p) => [p.subject, p.total]))
+    // Fascism gains 15 points; the 55% left is split 4:2:1 among the others.
+    expect(share(80)).toMatchObject({ f: 0.45, d: 0.314286, c: 0.157143, n: 0.078571 })
+    // Losing all 45 points gives them back in the same proportion: fascism is 0.
+    expect(share(140).f).toBe(0)
+    for (const days of [80, 140]) {
+      expect(after(days).reduce((sum, p) => sum + p.total, 0)).toBeCloseTo(1, 5)
+    }
+  })
+
+  it('drifts the popularity every day a drift modifier is active, from the other parties', () => {
+    const pop = (subject: string, value: string): EffectLine => ({
+      ...modifier(0, 'add_popularity', value),
+      subject,
+      subjectName: subject,
+    })
+    const startLines = [
+      pop('democratic', '0.5'),
+      pop('fascism', '0.2'),
+      pop('communism', '0.2'),
+      pop('neutrality', '0.1'),
+    ]
+    const f = focus(
+      'a',
+      [
+        { depth: 0, key: 'add_ideas', value: 'demagogue', valueName: 'Demagogue' },
+        modifier(1, 'fascism_drift', '0.1'),
+      ],
+      10,
+    )
+    const at = (days: number) =>
+      Object.fromEntries(
+        countryStateAt(
+          schedulePlan(['a'], { a: f }, { startDate: start, speedBonus: 0 }),
+          day(days),
+          { tag: 'ROM', start: startLines },
+        ).popularity.map((p) => [p.subject, p.total]),
+      )
+    // The focus ends on day 10; the drift then adds 0.1 points a day.
+    expect(at(10).fascism).toBeCloseTo(0.2, 5)
+    const later = at(110)
+    // 100 days at +0.1 points a day: ten points.
+    expect(later.fascism).toBeCloseTo(0.3, 5)
+    expect(later.democratic + later.fascism + later.communism + later.neutrality).toBeCloseTo(1, 5)
+    // The others lose in proportion: 5 : 2 : 1.
+    expect(later.democratic / later.communism).toBeCloseTo(2.5, 2)
+  })
+
   it('lists conditional effects without applying them', () => {
     const s = stateAt(
       [

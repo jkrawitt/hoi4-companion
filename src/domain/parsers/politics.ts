@@ -210,19 +210,55 @@ export const parseDesigners = (
 
 const LEDGERS = new Set(['army', 'navy', 'air'])
 
+/**
+ * An advisor's `is_country_leader = yes` / `no` asks about the advisor's own character (that is
+ * the scope an `available` block runs in), so it is written as `has_country_leader` for them.
+ */
+const askAboutCharacter = (
+  block: ScriptBlock | undefined,
+  character: string,
+): ScriptBlock | undefined =>
+  block?.map((e) => {
+    if (typeof e.value !== 'string') return { ...e, value: askAboutCharacter(e.value, character)! }
+    if (e.key?.toLowerCase() !== 'is_country_leader' || (e.value !== 'yes' && e.value !== 'no')) {
+      return e
+    }
+    const leads: ScriptBlock[number] = {
+      key: 'has_country_leader',
+      operator: '=',
+      value: [{ key: 'character', operator: '=', value: character }],
+    }
+    return e.value === 'yes' ? leads : { key: 'NOT', operator: '=', value: [leads] }
+  })
+
 /** The advisors of a `common/characters` file: every character with an `advisor` block. */
 export const parseAdvisors = (text: string, triggers: ScriptedTriggers = {}): RawOption[] =>
   (getBlock(parseScript(text), 'characters') ?? []).flatMap((character) => {
     if (character.key === null || typeof character.value === 'string') return []
-    return getAll(character.value, 'advisor').flatMap((entry): RawOption[] => {
+    // A character is one `advisor` block, or several `instance` blocks (a DLC variant each) with
+    // their own `allowed`, which is read together with the advisor's.
+    const instances = getAll(character.value, 'instance').flatMap((i) =>
+      typeof i.value === 'string' ? [] : [i.value],
+    )
+    const sources = [character.value, ...instances].flatMap((owner) =>
+      getAll(owner, 'advisor').map((entry) => ({ owner, entry })),
+    )
+    return sources.flatMap(({ owner, entry }): RawOption[] => {
       if (typeof entry.value === 'string') return []
       const advisor = entry.value
       const slot = getString(advisor, 'slot')
       if (!slot) return []
       const cost = Number(getString(advisor, 'cost'))
       const ledger = getString(advisor, 'ledger') ?? slot.replace(/_chief$/, '')
-      const allowed = getBlock(advisor, 'allowed')
-      const available = triggerOf(getBlock(advisor, 'available'), triggers)
+      const allowedTerms = [
+        ...(owner === character.value ? [] : (getBlock(owner, 'allowed') ?? [])),
+        ...(getBlock(advisor, 'allowed') ?? []),
+      ]
+      const allowed = allowedTerms.length > 0 ? allowedTerms : undefined
+      const available = triggerOf(
+        askAboutCharacter(getBlock(advisor, 'available'), character.key!),
+        triggers,
+      )
       const traits = getBlock(advisor, 'traits') ?? []
       return [
         {

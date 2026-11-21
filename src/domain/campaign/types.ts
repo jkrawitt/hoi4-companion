@@ -110,6 +110,8 @@ export interface CountryState {
   date: Date
   /** Focuses finished by `date`, in order. */
   completed: ScheduledFocus[]
+  /** The completed focuses that were bypassed (their `bypass` held), so gave no reward. */
+  bypassed: string[]
   /** The first focus not finished yet. */
   next?: ScheduledFocus
   ideas: ActiveIdea[]

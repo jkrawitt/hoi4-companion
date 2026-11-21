@@ -147,6 +147,20 @@ describe('simple effects', () => {
   })
 })
 
+describe('custom modifier tooltips', () => {
+  it("shows the game's text for a custom_modifier_tooltip in an idea's modifiers", () => {
+    expect(
+      formatEffect({
+        depth: 1,
+        key: 'custom_modifier_tooltip',
+        value: 'X_tt',
+        valueName: 'Support Companies: HP: +5',
+        isModifier: true,
+      }),
+    ).toBe('Support Companies: HP: +5')
+  })
+})
+
 describe('doctrine cost reductions', () => {
   const [line] = collapseEffects(
     flattenEffects(

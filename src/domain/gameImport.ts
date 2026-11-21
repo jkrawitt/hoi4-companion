@@ -270,6 +270,7 @@ export const importCountryFocuses = async (
   const rawMios = await readMios(files, country.tag, ownedDlc)
   const lists = [
     ...focuses.map((f) => f.effects),
+    ...focuses.map((f) => availabilityLines(f)),
     start,
     candidatesListed,
     ...research.techs.map((t) => t.modifiers),
@@ -348,8 +349,11 @@ export const importCountryFocuses = async (
   return {
     mios,
     laws,
-    focuses: focuses.map((f) => ({
+    focuses: focuses.map(({ availableLines, ...f }) => ({
       ...f,
+      ...(availableLines && {
+        availableText: named(availabilityLines({ availableLines }))[0]?.condition,
+      }),
       name: names[f.id] ?? f.id,
       description: names[`${f.id}_desc`],
       effects: annotated(named(f.effects)),

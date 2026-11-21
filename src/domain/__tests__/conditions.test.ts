@@ -102,12 +102,12 @@ describe('conditions on the country state', () => {
       }),
       politics(1, 'communism'),
     ])
-    const start = [popularity('democratic', '0.2'), popularity('communism', '0.3')]
+    const start = [popularity('democratic', '0.4'), popularity('communism', '0.6')]
     const s = stateOf([pick], start)
     expect(s.rulingParty).toBe('communism')
     expect(s.conditional).toEqual([])
     // A later change in popularity flips it.
-    const swing = focus('swing', [popularity('democratic', '0.2')])
+    const swing = focus('swing', [popularity('democratic', '0.3')])
     expect(stateOf([swing, pick], start).rulingParty).toBe('democratic')
   })
 
