@@ -193,6 +193,12 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'unknown' }
   }
   const value = line.value
+  if (
+    (key === 'controls_state' || key === 'has_full_control_of_state' || key === 'owns_state') &&
+    /^\d+$/.test(value)
+  ) {
+    return { type: 'state', id: value }
+  }
   if (key === 'has_country_flag') return { type: 'flag', id: value }
   if (key === 'has_idea') return { type: 'idea', id: value }
   if (key === 'has_completed_focus') return { type: 'focus', id: value }

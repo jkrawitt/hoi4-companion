@@ -750,3 +750,33 @@ describe('country flags and ROOT in conditions', () => {
     ).toBeUndefined()
   })
 })
+
+describe('controls_state from the starting states', () => {
+  const ask = focus(
+    'ask',
+    [
+      { depth: 0, key: 'if', check: { type: 'state', id: '46' } },
+      {
+        depth: 1,
+        key: 'add_stability',
+        value: '0.1',
+        isModifier: true,
+        stat: stat('add_stability'),
+      },
+    ],
+    7,
+  )
+  const stateOf = (ownedStates?: number[]) =>
+    countryStateAt(schedulePlan(['ask'], { ask }, { startDate: start, speedBonus: 0 }), day(10), {
+      tag: 'FIN',
+      ownedStates,
+    })
+
+  it('is true for a state held at the start, and unknown otherwise', () => {
+    expect(stateOf([46, 7]).conditional).toHaveLength(0)
+    expect(stateOf([46]).statChanges.find((c) => c.key === 'add_stability')?.total).toBeCloseTo(0.1)
+    // Claims and wars can change hands, so a state not held at the start is not ruled out.
+    expect(stateOf([7]).conditional).toHaveLength(1)
+    expect(stateOf(undefined).conditional).toHaveLength(1)
+  })
+})

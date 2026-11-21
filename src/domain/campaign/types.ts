@@ -194,6 +194,8 @@ export interface CountryStateOptions {
    * conditions. Without it they are listed as conditional.
    */
   hasTech?: (id: string, date: Date) => boolean | undefined
+  /** The ids of the states the country owns at the start, which settle `controls_state`. */
+  ownedStates?: number[]
   /** The law category of every law idea; a law added replaces the active law of its category. */
   laws?: Record<string, string>
 }

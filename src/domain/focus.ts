@@ -47,6 +47,8 @@ export type Check =
   | { type: 'const'; value: boolean }
   /** `has_war = yes` (`atWar: true`) or `has_war = no`. */
   | { type: 'war'; atWar: boolean }
+  /** `controls_state` / `has_full_control_of_state` / `owns_state = 46`: a state the country has. */
+  | { type: 'state'; id: string }
   /** `has_country_flag = X`: a flag the plan's rewards have set (and not cleared since). */
   | { type: 'flag'; id: string }
   /** `has_war_with = SOV`: at war with that country. */

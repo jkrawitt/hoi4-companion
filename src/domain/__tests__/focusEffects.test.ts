@@ -291,6 +291,10 @@ describe('country flags and ROOT conditions', () => {
       type: 'government',
       id: 'fascism',
     })
+    expect(run('if = { limit = { has_full_control_of_state = 46 } a = b }')[0].check).toEqual({
+      type: 'state',
+      id: '46',
+    })
     // Anything else about the flag (it was set N days ago) cannot be answered.
     expect(
       run('if = { limit = { has_country_flag = { flag = X days > 5 } } a = b }')[0].check,

@@ -537,6 +537,9 @@ export const applyReward = (
     hasTech: (id) => options.hasTech?.(id, step.end),
     tag: options.tag,
     hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
+    controlsState: options.ownedStates
+      ? (id) => (options.ownedStates!.includes(Number(id)) ? true : undefined)
+      : undefined,
     hasFlag: (id) => w.flags.get(id),
     atWar: () => w.enemies && w.enemies.length > 0,
     atWarWith: (tag) => w.enemies?.includes(tag),

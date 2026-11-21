@@ -32,6 +32,11 @@ export interface ConditionContext {
    */
   atWar?: () => boolean | undefined
   /** Whether a country flag is set: known once a reward of the plan has set or cleared it. */
+  /**
+   * Whether the country has a state (owns and controls it). Known to be so for the states it starts
+   * with; otherwise `undefined`, since claims and wars can change hands.
+   */
+  controlsState?: (id: string) => boolean | undefined
   hasFlag?: (id: string) => boolean | undefined
   /**
    * Whether the country is at war with `tag`. Wars are only known from what the player enters
@@ -91,6 +96,8 @@ export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | un
       const atWar = ctx.atWar?.()
       return atWar === undefined ? undefined : atWar === check.atWar
     }
+    case 'state':
+      return ctx.controlsState?.(check.id)
     case 'flag':
       return ctx.hasFlag?.(check.id)
     case 'war_with':
