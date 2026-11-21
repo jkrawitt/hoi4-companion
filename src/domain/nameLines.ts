@@ -124,6 +124,8 @@ export const nameLines = (effects: EffectLine[], ctx: NameContext): EffectLine[]
     }
     const comparison = popularityComparison(e)
     if (comparison) return names[comparison[1]]
+    // A `custom_modifier_tooltip` is the game's own text for something it cannot show as a stat.
+    if (e.key === 'custom_modifier_tooltip' && e.value) return names[e.value]?.trim()
     if (e.value && !e.isModifier) return names[e.value] ?? names[ideaAliases[e.value]]
     return undefined
   }
@@ -160,7 +162,7 @@ export const nameLines = (effects: EffectLine[], ctx: NameContext): EffectLine[]
 
   /** How a modifier line is displayed: label, percent or number, and which way is good. */
   const statOf = (e: EffectLine): StatDefinition | undefined => {
-    if (!e.isModifier || !e.key) return undefined
+    if (!e.isModifier || !e.key || e.key === 'custom_modifier_tooltip') return undefined
     // An `add_popularity` line is about an ideology, which names the stat ("Communist popularity").
     const label = e.subject
       ? `${names[e.subject] ?? humanize(e.subject)} popularity`

@@ -266,6 +266,47 @@ describe('parseAdvisors', () => {
   })
 })
 
+describe('parseAdvisors with instances', () => {
+  const advisors = parseAdvisors(`characters = {
+    FIN_paavo = {
+      instance = {
+        allowed = { has_dlc = "Arms Against Tyranny" }
+        advisor = {
+          slot = political_advisor idea_token = FIN_paavo cost = 100
+          available = { has_completed_focus = FIN_right_wing_policies }
+        }
+      }
+      instance = {
+        allowed = { NOT = { has_dlc = "Arms Against Tyranny" } }
+        advisor = { slot = political_advisor idea_token = FIN_paavo }
+      }
+    }
+  }`)
+
+  it('reads an advisor inside each instance, with the instance allowed and available', () => {
+    expect(advisors).toHaveLength(2)
+    expect(advisors[0]).toMatchObject({ id: 'FIN_paavo', cost: 100, character: 'FIN_paavo' })
+    expect(advisors[0].allowed).toBeDefined()
+    expect(advisors[0].available).toBeDefined()
+    expect(advisors[1].available).toBeUndefined()
+  })
+})
+
+describe('parseAdvisors is_country_leader', () => {
+  it('reads is_country_leader as the advisor being the leader', () => {
+    const [annala] = parseAdvisors(`characters = {
+      FIN_annala = {
+        advisor = {
+          slot = political_advisor idea_token = FIN_annala
+          available = { is_country_leader = no has_completed_focus = FIN_unity }
+        }
+      }
+    }`)
+    expect(JSON.stringify(annala.available)).toContain('"character":"FIN_annala"')
+    expect(JSON.stringify(annala.available)).not.toContain('unknown')
+  })
+})
+
 describe('parsePoliticsDefines', () => {
   it('reads the base gain and the cap, with fallbacks', () => {
     const text = `NDefines.NCountry = {

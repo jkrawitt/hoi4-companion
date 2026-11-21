@@ -198,6 +198,7 @@ const FORMATTERS: Record<string, Formatter> = {
       : `Organization research bonus: ${signed(percentOf(Number(e.value)))}%`,
   // The game shows this text instead of describing the effect itself, so we show it as is.
   custom_effect_tooltip: (e) => (e.value === undefined ? null : (e.valueName ?? e.value).trim()),
+  custom_modifier_tooltip: (e) => (e.value === undefined ? null : (e.valueName ?? e.value).trim()),
 }
 
 /**

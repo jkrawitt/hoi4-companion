@@ -3,6 +3,8 @@ import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { previewFocusEffects } from '@/domain/campaign/preview'
+import { blockedByAvailability, unavailableInPlan } from '@/domain/campaign/availability'
+import { removeWithDependents } from '@/domain/plan/focusSelection'
 import { planCampaign } from '@/domain/campaign/plan'
 import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
 import { adjustmentSteps, tradeOverTime } from '@/domain/adjustments'
@@ -185,30 +187,57 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   /** Each planned focus's reward with the branches that apply or not marked. */
   const plannedFocusEffects = computed(() => finalState.value.focusEffects)
 
+  /** What the focus previews and availability checks work from: the plan and how the country is. */
+  const focusInput = computed(() => ({
+    plan: plan.value,
+    focuses: focuses.value,
+    scheduleOptions: {
+      startDate: parseDate(startDate.value),
+      speedBonus: speedBonusPercent.value / 100,
+    },
+    stateOptions: {
+      ...stateOptions.value,
+      hasTech: planned.value.hasTech,
+      extraSteps: planned.value.politics.steps,
+    },
+  }))
+
   /**
    * What a focus not in the plan would do if taken next (see `previewFocusEffects`), worked out on
    * first ask and kept until the plan, the data or the campaign changes.
    */
   const previewFocus = computed(() => {
-    const input = {
-      plan: plan.value,
-      focuses: focuses.value,
-      scheduleOptions: {
-        startDate: parseDate(startDate.value),
-        speedBonus: speedBonusPercent.value / 100,
-      },
-      stateOptions: {
-        ...stateOptions.value,
-        hasTech: planned.value.hasTech,
-        extraSteps: planned.value.politics.steps,
-      },
-    }
+    const input = focusInput.value
     const cache = new Map<string, ReturnType<typeof previewFocusEffects>>()
     return (id: string) => {
       if (!cache.has(id)) cache.set(id, previewFocusEffects(id, input))
       return cache.get(id)
     }
   })
+
+  /**
+   * The focuses that cannot be added: those that conflict with the plan (exclusivity), and those
+   * whose `available` would not hold when they start (popularity or stability too low, ...).
+   */
+  const availabilityBlocks = computed(() => blockedByAvailability(focusInput.value))
+  const blockedFocusIds = computed(
+    () => new Set([...queues.blockedIds.value, ...availabilityBlocks.value.keys()]),
+  )
+
+  /** The planned focuses skipped because their `bypass` holds as they start. */
+  const bypassedFocusIds = computed(() => new Set(finalState.value.bypassed))
+
+  /** Adds or removes a focus; a blocked one is not added, and removing drops what it made unavailable. */
+  const toggleFocus = (id: string) => {
+    if (!plan.value.includes(id) && blockedFocusIds.value.has(id)) return
+    queues.toggle(id)
+    for (;;) {
+      const bad = unavailableInPlan(focusInput.value)
+      const first = plan.value.find((p) => bad.has(p))
+      if (!first) return
+      plan.value = removeWithDependents(first, plan.value, focuses.value)
+    }
+  }
 
   const timeline = computed(() =>
     buildTimeline({
@@ -238,6 +267,10 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     finalState,
     plannedFocusEffects,
     previewFocus,
+    blockedFocusIds,
+    availabilityBlocks,
+    bypassedFocusIds,
+    toggleFocus,
     plannedConstruction,
     constructionSchedule,
     planEnd,

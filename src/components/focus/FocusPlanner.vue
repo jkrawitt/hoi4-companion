@@ -19,6 +19,8 @@ const {
   plannedFocusEffects,
   previewFocus,
   blockedIds,
+  availabilityBlocks,
+  bypassedFocusIds,
   toggle,
   reset,
 } = useCampaign()
@@ -61,12 +63,14 @@ const rows = computed(() => {
   <template v-else>
     <p class="hint">
       Click a focus to add it to the plan along with any prerequisites it needs. Click it again to
-      remove it and anything that depends on it. Greyed-out focuses conflict with your current plan.
+      remove it and anything that depends on it. Greyed-out focuses conflict with your current plan
+      or are not available yet when they would start (for example popularity or stability too low).
     </p>
     <FocusTreeGraph
       :focuses="focuses"
       :plan="plan"
       :blocked-ids="blockedIds"
+      :availability-blocks="availabilityBlocks"
       :planned-effects="plannedFocusEffects"
       :preview="previewFocus"
       @toggle="toggle"
@@ -92,7 +96,11 @@ const rows = computed(() => {
               </div>
               <div class="muted">{{ formatDays(item.durationDays) }} days</div>
             </div>
+            <p v-if="bypassedFocusIds.has(item.focus.id)" class="muted">
+              Bypassed: the focus's bypass condition holds when it starts, so it gives no reward.
+            </p>
             <EffectList
+              v-else
               :effects="plannedFocusEffects[item.focus.id] ?? item.focus.effects"
               empty-text="No direct effects."
             />
