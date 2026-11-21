@@ -63,7 +63,19 @@ const conditionTerms = (nodes: ConditionNode[]): string[] | null => {
 }
 
 /** Headers that take a `limit`, which is folded into the header as its condition. */
-const CONDITIONAL_KEYS = new Set(['if', 'else_if', 'every_other_country'])
+const CONDITIONAL_KEYS = new Set([
+  'if',
+  'else_if',
+  'every_other_country',
+  'every_core_state',
+  'random_core_state',
+  'every_controlled_state',
+  'random_controlled_state',
+  'every_owned_state',
+  'random_owned_state',
+  'every_state',
+  'random_state',
+])
 
 /** The terms of one condition as a single phrase; a lone `or` group needs no brackets of its own. */
 const asPhrase = (terms: string[]): string =>
@@ -161,8 +173,15 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     }
     return { type: 'unknown' }
   }
+  if (line.value === undefined && key === 'has_country_flag') {
+    // `has_country_flag = { flag = X days > 5 }`: with anything besides the flag we cannot tell.
+    const flag = kids.length === 1 && kids[0].line.key === 'flag' ? kids[0].line.value : undefined
+    return flag ? { type: 'flag', id: flag } : { type: 'unknown' }
+  }
   if (line.value === undefined) {
     const inner = checksOfNodes(kids)
+    // `ROOT` is the country taking the focus, whatever scope the condition sits in.
+    if (key === 'root') return allOf(inner)
     if (key === 'not') return { type: 'not', of: allOf(inner) }
     if (key === 'or') return { type: 'any', of: inner }
     if (key === 'and') return { type: 'all', of: inner }
@@ -174,6 +193,13 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'unknown' }
   }
   const value = line.value
+  if (
+    (key === 'controls_state' || key === 'has_full_control_of_state' || key === 'owns_state') &&
+    /^\d+$/.test(value)
+  ) {
+    return { type: 'state', id: value }
+  }
+  if (key === 'has_country_flag') return { type: 'flag', id: value }
   if (key === 'has_idea') return { type: 'idea', id: value }
   if (key === 'has_completed_focus') return { type: 'focus', id: value }
   if (key === 'has_tech') return { type: 'tech', id: value }
@@ -183,6 +209,7 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
   if (key === 'has_war' && (value === 'yes' || value === 'no')) {
     return { type: 'war', atWar: value === 'yes' }
   }
+  if (key === 'has_war_with' && /^[A-Z]{3}$/.test(value)) return { type: 'war_with', tag: value }
   if (key === 'always' && (value === 'yes' || value === 'no')) {
     return { type: 'const', value: value === 'yes' }
   }
@@ -217,6 +244,31 @@ const checkOf = (limit: EffectLine[]): Check | undefined => {
 }
 
 /**
+ * A `limit` anywhere among a header's own lines (`random_select_amount = 2` can come first)
+ * moved to the front, where the fold looks for it. It means the same wherever it sits.
+ */
+const limitFirst = (lines: EffectLine[]): EffectLine[] => {
+  let effects = lines
+  for (let i = 0; i < effects.length; i++) {
+    const line = effects[i]
+    if (!opensBlock(line) || !CONDITIONAL_KEYS.has(line.key)) continue
+    const end = blockEnd(effects, i)
+    const at = effects.findIndex(
+      (l, j) => j > i + 1 && j < end && l.depth === line.depth + 1 && opensBlock(l, 'limit'),
+    )
+    if (at === -1) continue
+    const limitEnd = blockEnd(effects, at)
+    effects = [
+      ...effects.slice(0, i + 1),
+      ...effects.slice(at, limitEnd),
+      ...effects.slice(i + 1, at),
+      ...effects.slice(limitEnd),
+    ]
+  }
+  return effects
+}
+
+/**
  * Folds a `limit` into the header it belongs to: `if` / `limit` / `France:` / `is in faction
  * with: Britain` becomes `If France is in faction with: Britain:`. Run after names are resolved,
  * since the condition is written with them. `NOT`, `OR` and `AND` are written out
@@ -224,7 +276,8 @@ const checkOf = (limit: EffectLine[]): Check | undefined => {
  * empty limit always applies, so it is dropped and its body shown (with its `else` branches
  * removed, since they never apply).
  */
-export const foldConditions = (effects: EffectLine[]): EffectLine[] => {
+export const foldConditions = (input: EffectLine[]): EffectLine[] => {
+  const effects = limitFirst(input)
   const result: EffectLine[] = []
   for (let i = 0; i < effects.length; i++) {
     const line = effects[i]

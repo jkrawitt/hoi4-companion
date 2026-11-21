@@ -20,6 +20,8 @@ export const GAME_PATHS = {
   ideas: 'common/ideas',
   /** Named conditions (`PHI_SEA`) that the politics options' conditions use. */
   scriptedTriggers: 'common/scripted_triggers',
+  /** Named effects (`FIN_bop_low_effect = yes`) that focus rewards call, written out where called. */
+  scriptedEffects: 'common/scripted_effects',
   /** The idea categories: which slots the politics screen has and how many ideas each holds. */
   ideaTags: 'common/idea_tags',
   opinionModifiers: 'common/opinion_modifiers',

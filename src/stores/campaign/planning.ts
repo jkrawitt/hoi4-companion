@@ -50,6 +50,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     laws: laws.value,
     startDate: parseDate(startDate.value),
     ownedDlc,
+    ownedStates: production.value?.states.map((st) => st.id),
     // Slot sizes and the party stability define: every view of the country needs them, so they
     // are here rather than passed by each caller.
     politics: politics.value,

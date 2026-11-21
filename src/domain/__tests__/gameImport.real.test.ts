@@ -35,6 +35,30 @@ const importRomania = () =>
   )
 
 describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
+  it('imports the Finnish tree with its scripted effects written out', async () => {
+    const { focuses } = await importCountryFocuses(
+      {
+        readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
+        listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
+      },
+      {
+        tag: 'FIN',
+        name: 'Finland',
+        focusTreeFile: 'common/national_focus/finland.txt',
+        ideasFile: 'common/ideas/finland.txt',
+      },
+      statOverrides,
+      ownedDlc,
+    )
+    expect(focuses.length).toBeGreaterThan(100)
+    const keys = new Set(focuses.flatMap((f) => f.effects.map((e) => e.key)))
+    // A scripted effect (`FIN_bop_*_effect = yes`) is written out, and variables and AI are not shown.
+    expect(keys.has('add_power_balance_value')).toBe(true)
+    expect([...keys].some((k) => k?.startsWith('FIN_bop_'))).toBe(false)
+    expect(keys.has('add_ai_strategy')).toBe(false)
+    expect(keys.has('set_variable')).toBe(false)
+  })
+
   it('imports the research tree', async () => {
     const { research, start } = await importRomania()
     const techs = Object.fromEntries(research.techs.map((t) => [t.id, t]))
@@ -208,7 +232,11 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       '    Create unit: Royal Guards Division',
     ])
     const yugoslavia = focuses.find((f) => f.id === 'ROM_divide_yugoslavia')
-    expect(yugoslavia?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
+    expect(
+      yugoslavia?.effects
+        .filter((e) => !e.bookkeeping)
+        .map((e) => '  '.repeat(e.depth) + formatEffect(e)),
+    ).toEqual([
       'If Yugoslavia (has war: yes or is subject: yes):',
       '  Gain Annex wargoal on Yugoslavia',
       'Otherwise:',

@@ -66,6 +66,10 @@ export interface Working {
   research: ResearchWorking
   /** The characters recruited so far, whom advisors need to be hired. */
   recruited: Set<string>
+  /** The countries at war with ours, from the player's entries; unknown before the first one. */
+  enemies?: string[]
+  /** Country flags the plan's rewards set (true) or cleared (false). */
+  flags: Map<string, boolean>
 }
 
 export const newWorking = (): Working => ({
@@ -82,6 +86,7 @@ export const newWorking = (): Working => ({
   retiredLeaders: new Set(),
   research: newResearchWorking(),
   recruited: new Set(),
+  flags: new Map(),
 })
 
 /** What a handler needs to know about the reward it is part of. */
@@ -338,6 +343,20 @@ const setActualStability: Handler = (c, e) => {
   return true
 }
 
+/** `set_country_flag = X` and `clr_country_flag = X`, which conditions about the flag read. */
+const countryFlags: Handler = (c, e) => {
+  if ((e.key !== 'set_country_flag' && e.key !== 'clr_country_flag') || !e.value) return false
+  c.w.flags.set(e.value, e.key === 'set_country_flag')
+  return true
+}
+
+/** `set_enemies = SOV GER` (or `none`): the player's entry of who the country is at war with. */
+const setEnemies: Handler = (c, e) => {
+  if (e.key !== 'set_enemies' || e.value === undefined) return false
+  c.w.enemies = e.value === 'none' ? [] : e.value.split(/\s+/).filter(Boolean)
+  return true
+}
+
 /**
  * Technologies handed out and research bonuses. The bonuses of a reward are numbered in the order
  * they happen, which stays the same when a `has_tech` condition settles the other way (the
@@ -377,6 +396,8 @@ const HANDLERS: Handler[] = [
   leaders,
   politics,
   setActualStability,
+  setEnemies,
+  countryFlags,
   statChange,
 ]
 
@@ -516,6 +537,12 @@ export const applyReward = (
     hasTech: (id) => options.hasTech?.(id, step.end),
     tag: options.tag,
     hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
+    controlsState: options.ownedStates
+      ? (id) => (options.ownedStates!.includes(Number(id)) ? true : undefined)
+      : undefined,
+    hasFlag: (id) => w.flags.get(id),
+    atWar: () => w.enemies && w.enemies.length > 0,
+    atWarWith: (tag) => w.enemies?.includes(tag),
     // The actual stat: only known once the start has set it, like popularity.
     stat: (key) =>
       options.start?.length ? clampStat(rawStatNow(w, options, key, step.end)) : undefined,

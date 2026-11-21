@@ -7,8 +7,14 @@ export interface Country {
   ideasFile: string
 }
 
-/** Countries available in the selector. Only Romania for now; more (ideally auto-detected) later. */
+/** Countries available in the selector. Finland (the default, listed first) and Romania; more (ideally auto-detected) later. */
 export const countries: Country[] = [
+  {
+    tag: 'FIN',
+    name: 'Finland',
+    focusTreeFile: 'common/national_focus/finland.txt',
+    ideasFile: 'common/ideas/finland.txt',
+  },
   {
     tag: 'ROM',
     name: 'Romania',

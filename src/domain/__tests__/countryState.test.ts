@@ -679,4 +679,104 @@ describe('adjustments from the game', () => {
     expect(withAdjustments([], 20, adj).ideas.map((i) => i.name)).toEqual(['Boom'])
     expect(total(45)).toBeUndefined()
   })
+
+  it('knows who the country is at war with from the entered date, and not before', () => {
+    const wars = (...entries: [number, string[]][]) => ({
+      ...emptyAdjustments(),
+      wars: entries.map(([n, enemies], i) => ({ id: `w${i}`, date: iso(n), enemies })),
+    })
+    expect(withAdjustments([], 50).enemies).toBeUndefined()
+    const adj = wars([30, ['SOV']], [90, []])
+    expect(withAdjustments([], 20, adj).enemies).toBeUndefined()
+    expect(withAdjustments([], 30, adj).enemies).toEqual(['SOV'])
+    expect(withAdjustments([], 90, adj).enemies).toEqual([])
+  })
+
+  it('settles has_war_with in a reward from the entered wars', () => {
+    const reward = (value: string): EffectLine[] => [
+      { depth: 0, key: 'if', check: { type: 'war_with', tag: 'SOV' } },
+      { depth: 1, key: 'add_stability', value, isModifier: true, stat: stat('add_stability') },
+    ]
+    const focuses = [focus('a', reward('0.1'), 7)]
+    const at = (adj: ReturnType<typeof emptyAdjustments>) =>
+      withAdjustments(focuses, 10, adj).conditional.length
+    const atWar = { ...emptyAdjustments(), wars: [{ id: 'w', date: iso(0), enemies: ['SOV'] }] }
+    const atPeace = { ...emptyAdjustments(), wars: [{ id: 'w', date: iso(0), enemies: ['GER'] }] }
+    // Unknown: the branch stays conditional. Known: it applies, or is dropped.
+    expect(at(emptyAdjustments())).toBe(1)
+    expect(at(atWar)).toBe(0)
+    expect(withAdjustments(focuses, 10, atWar).stability).toBeCloseTo(0.7)
+    expect(withAdjustments(focuses, 10, atPeace).stability).toBeCloseTo(0.6)
+  })
+})
+
+describe('country flags and ROOT in conditions', () => {
+  const flagLine = (key: string, value: string): EffectLine => ({
+    depth: 0,
+    key,
+    value,
+    bookkeeping: true,
+  })
+  const ifFlag = (id: string): EffectLine[] => [
+    { depth: 0, key: 'if', check: { type: 'flag', id } },
+    { depth: 1, key: 'add_stability', value: '0.1', isModifier: true, stat: stat('add_stability') },
+  ]
+  const stateOf = (focuses: Focus[], days: number) =>
+    countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(days),
+      { tag: 'FIN' },
+    )
+
+  it('answers has_country_flag from the flags earlier rewards set and cleared', () => {
+    const set = focus('set', [flagLine('set_country_flag', 'F')], 7)
+    const clear = focus('clear', [flagLine('clr_country_flag', 'F')], 7)
+    const ask = focus('ask', ifFlag('F'), 7)
+    // Never set: unknown, so the branch stays conditional.
+    expect(stateOf([ask], 20).conditional).toHaveLength(1)
+    // Set earlier: the branch applies.
+    expect(stateOf([set, ask], 20).conditional).toHaveLength(0)
+    // Cleared again: it does not.
+    expect(stateOf([set, clear, ask], 30).conditional).toHaveLength(0)
+    expect(
+      stateOf([set, ask], 20).statChanges.find((c) => c.key === 'add_stability')?.total,
+    ).toBeCloseTo(0.1)
+    expect(
+      stateOf([set, clear, ask], 30).statChanges.find((c) => c.key === 'add_stability'),
+    ).toBeUndefined()
+  })
+})
+
+describe('controls_state from the starting states', () => {
+  const ask = focus(
+    'ask',
+    [
+      { depth: 0, key: 'if', check: { type: 'state', id: '46' } },
+      {
+        depth: 1,
+        key: 'add_stability',
+        value: '0.1',
+        isModifier: true,
+        stat: stat('add_stability'),
+      },
+    ],
+    7,
+  )
+  const stateOf = (ownedStates?: number[]) =>
+    countryStateAt(schedulePlan(['ask'], { ask }, { startDate: start, speedBonus: 0 }), day(10), {
+      tag: 'FIN',
+      ownedStates,
+    })
+
+  it('is true for a state held at the start, and unknown otherwise', () => {
+    expect(stateOf([46, 7]).conditional).toHaveLength(0)
+    expect(stateOf([46]).statChanges.find((c) => c.key === 'add_stability')?.total).toBeCloseTo(0.1)
+    // Claims and wars can change hands, so a state not held at the start is not ruled out.
+    expect(stateOf([7]).conditional).toHaveLength(1)
+    expect(stateOf(undefined).conditional).toHaveLength(1)
+  })
 })

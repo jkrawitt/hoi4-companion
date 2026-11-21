@@ -4,7 +4,7 @@
  * from random events. Each entry is dated; everything downstream follows from it.
  */
 import { computed, ref } from 'vue'
-import { ADJUSTABLE_STATS, adjustableStat } from '@/domain/adjustments'
+import { ADJUSTABLE_STATS, adjustableStat, warText } from '@/domain/adjustments'
 import { formatStatValue, statLabel } from '@/domain/stats'
 import { useCampaign } from '@/stores/campaign'
 
@@ -49,6 +49,20 @@ const addModifier = () => {
   modifierName.value = ''
 }
 
+const warDate = ref(viewDate.value)
+const warEnemies = ref('')
+const addWar = () => {
+  if (warDate.value === '') return
+  addAdjustment('wars', {
+    date: warDate.value,
+    enemies: warEnemies.value
+      .split(/[\s,]+/)
+      .map((t) => t.toUpperCase())
+      .filter((t) => /^[A-Z]{3}$/.test(t)),
+  })
+  warEnemies.value = ''
+}
+
 const percent = (n: number) => `${Math.round(n * 1000) / 10}%`
 const describe = (m: (typeof adjustments.value.modifiers)[number]) => {
   const stat = adjustableStat(m.key)
@@ -63,6 +77,12 @@ const entries = computed(() =>
       id: s.id,
       date: s.date,
       text: `Stability was ${percent(s.value)}`,
+    })),
+    ...adjustments.value.wars.map((w) => ({
+      kind: 'wars' as const,
+      id: w.id,
+      date: w.date,
+      text: warText(w),
     })),
     ...adjustments.value.modifiers.map((m) => ({
       kind: 'modifiers' as const,
@@ -95,6 +115,17 @@ const entries = computed(() =>
       %
       <span v-if="expected !== undefined" class="muted">the plan has {{ percent(expected) }}</span>
       <button type="submit" :disabled="!canAddStability">Add</button>
+    </form>
+    <form @submit.prevent="addWar">
+      <strong>War from</strong>
+      <input v-model="warDate" type="date" aria-label="Date" />
+      <input
+        v-model="warEnemies"
+        type="text"
+        placeholder="Enemy tags, e.g. SOV (empty: at peace)"
+        aria-label="Enemies"
+      />
+      <button type="submit" :disabled="warDate === ''">Add</button>
     </form>
     <form @submit.prevent="addModifier">
       <strong>Event modifier</strong>

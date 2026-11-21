@@ -3,6 +3,7 @@ import {
   collapseEffects,
   effectTone,
   flattenEffects,
+  foldConditions,
   formatEffect,
   ideaIdsOf,
   markHidden,
@@ -102,11 +103,12 @@ describe('simple effects', () => {
     expect(pp).toMatchObject({ key: 'add_political_power', isModifier: true })
   })
 
-  it('drops bookkeeping flags, and a hidden_effect left empty by that', () => {
+  it('drops bookkeeping flags (a country flag is kept unseen), and a hidden_effect left empty', () => {
+    const shown = (text: string) => run(text).filter((e) => !e.bookkeeping)
     expect(
-      run('set_country_flag = x hidden_effect = { set_state_flag = y } add_ideas = I'),
+      shown('set_country_flag = x hidden_effect = { set_state_flag = y } add_ideas = I'),
     ).toEqual([{ depth: 0, key: 'add_ideas', value: 'I' }])
-    expect(run('hidden_effect = { set_country_flag = x news_event = { id = n.1 } }')).toEqual([
+    expect(shown('hidden_effect = { set_country_flag = x news_event = { id = n.1 } }')).toEqual([
       { depth: 0, key: 'hidden_effect' },
       { depth: 1, key: 'news_event', value: 'n.1' },
     ])
@@ -216,5 +218,86 @@ describe('research, building and design effects', () => {
     expect(
       lines('create_equipment_variant = { name = "IAR 80" type = x modules = { a = b } }'),
     ).toEqual(['Create design: IAR 80'])
+  })
+})
+
+describe('Finnish-style effects', () => {
+  const run = (text: string) => collapseEffects(flattenEffects(parseScript(text)))
+  const lines = (text: string) => run(text).map((e) => formatEffect(e))
+
+  it('drops the AI strategy and script variable bookkeeping, plain or in a block', () => {
+    expect(
+      run(`add_ai_strategy = { type = befriend id = SOV value = 40 }
+        set_variable = { x = 1 } add_to_variable = { x = -1 } divide_variable = { x = 2 }
+        add_stability = 0.05`).map((e) => e.key),
+    ).toEqual(['add_stability'])
+  })
+
+  it('reads stockpiles, subsidies, traits, railways, decisions and power balance', () => {
+    expect(
+      lines(`add_equipment_to_stockpile = { type = light_tank_equipment_1 amount = 50 producer = PREV }
+        add_equipment_subsidy = { cic = 1000 equipment_type = small_plane_airframe seller_tags = { ENG } }
+        add_trait = { trait = technocrat slot = political_advisor }
+        remove_trait = { trait = old_one slot = political_advisor }
+        swap_country_leader_traits = { remove = a_trait add = b_trait }
+        build_railway = { path = { 1 2 3 } }
+        activate_targeted_decision = { target = SWE decision = FIN_pressure }
+        add_power_balance_value = { id = FIN_power_balance value = 0.05 }
+        add_core_of = ROOT
+        add_mio_size = 1`),
+    ).toEqual([
+      'Add 50 light tank equipment 1 to the stockpile',
+      'Equipment subsidy: 1000 CIC of small plane airframe',
+      'Add trait: technocrat',
+      'Remove trait: old one',
+      'Leader trait a trait becomes b trait',
+      'Build a railway (3 provinces)',
+      'Unlocks decision against SWE: FIN pressure',
+      'Balance of power (power balance): +0.05',
+      'Gain a core on this state',
+      'Organization size: +1',
+    ])
+  })
+
+  it('shows what an effect_tooltip describes as if it happened', () => {
+    const effects = run('effect_tooltip = { add_stability = 0.05 }')
+    expect(effects).toEqual([{ depth: 0, key: 'add_stability', value: '0.05', isModifier: true }])
+  })
+
+  it('treats add_war_support as a stat change', () => {
+    expect(run('add_war_support = 0.05')[0].isModifier).toBe(true)
+  })
+})
+
+describe('country flags and ROOT conditions', () => {
+  const run = (text: string) => foldConditions(collapseEffects(flattenEffects(parseScript(text))))
+
+  it('keeps a country flag for the campaign but marks it as not shown', () => {
+    const lines = run(
+      'set_country_flag = X set_country_flag = { flag = Y days = 5 } set_state_flag = Z',
+    )
+    expect(lines).toEqual([
+      { depth: 0, key: 'set_country_flag', value: 'X', bookkeeping: true },
+      { depth: 0, key: 'set_country_flag', value: 'Y', bookkeeping: true },
+    ])
+  })
+
+  it('reads has_country_flag and a ROOT scope as checks', () => {
+    expect(run('if = { limit = { has_country_flag = X } a = b }')[0].check).toEqual({
+      type: 'flag',
+      id: 'X',
+    })
+    expect(run('if = { limit = { ROOT = { has_government = fascism } } a = b }')[0].check).toEqual({
+      type: 'government',
+      id: 'fascism',
+    })
+    expect(run('if = { limit = { has_full_control_of_state = 46 } a = b }')[0].check).toEqual({
+      type: 'state',
+      id: '46',
+    })
+    // Anything else about the flag (it was set N days ago) cannot be answered.
+    expect(
+      run('if = { limit = { has_country_flag = { flag = X days > 5 } } a = b }')[0].check,
+    ).toBe(undefined)
   })
 })

@@ -70,6 +70,26 @@ const named =
   (e) =>
     e.value === undefined ? null : `${prefix}: ${e.value}`
 
+/** Headers that go through a country's states, which read `Every core state where <limit>:`. */
+const STATE_SCOPES: Record<string, string> = {
+  every_core_state: 'Every core state',
+  random_core_state: 'A random core state',
+  every_controlled_state: 'Every controlled state',
+  random_controlled_state: 'A random controlled state',
+  every_owned_state: 'Every owned state',
+  random_owned_state: 'A random owned state',
+  every_state: 'Every state',
+  random_state: 'A random state',
+}
+
+const stateScopes = (): Record<string, Formatter> =>
+  Object.fromEntries(
+    Object.entries(STATE_SCOPES).map(([key, label]) => [
+      key,
+      header((c) => `${label} where ${c}:`, `${label}:`),
+    ]),
+  )
+
 const FORMATTERS: Record<string, Formatter> = {
   ...labelled(LABELLED_EFFECTS),
 
@@ -105,6 +125,9 @@ const FORMATTERS: Record<string, Formatter> = {
   else_if: header((c) => `Otherwise, if ${c}:`, 'Otherwise, if:'),
   else: (e) => (e.value === undefined ? 'Otherwise:' : null),
   every_other_country: header((c) => `Every other country where ${c}:`, 'Every other country:'),
+  ...stateScopes(),
+  random_select_amount: (e) =>
+    e.value === undefined ? null : `Only ${e.value} of them, picked at random`,
   hidden_effect: (e) => (e.value === undefined ? 'Hidden effect:' : null),
 
   set_politics: (e) =>
@@ -142,6 +165,37 @@ const FORMATTERS: Record<string, Formatter> = {
     e.value === undefined ? null : `Add timed idea: ${e.valueName ?? e.value} (${e.days} days)`,
   diplomatic_relation: (e) =>
     e.subject ? `${valueOf(e)} with ${whoOf(e)}: ${e.active === false ? 'no' : 'yes'}` : null,
+  add_equipment_to_stockpile: aboutSubject(
+    (e) => `Add ${e.value} ${subjectOf(e)} to the stockpile`,
+  ),
+  add_equipment_subsidy: aboutSubject(
+    (e) => `Equipment subsidy: ${e.value} CIC of ${subjectOf(e)}`,
+  ),
+  add_trait: (e) => (e.value === undefined ? null : `Add trait: ${valueOf(e)}`),
+  remove_trait: (e) => (e.value === undefined ? null : `Remove trait: ${valueOf(e)}`),
+  swap_country_leader_traits: aboutSubject(
+    (e) => `Leader trait ${humanize(e.subject!)} becomes ${valueOf(e)}`,
+  ),
+  add_power_balance_value: aboutSubject(
+    (e) =>
+      `Balance of power (${humanize(e.subject!.replace(/^[A-Z]{3}_/, ''))}): ${signed(Number(e.value))}`,
+  ),
+  activate_targeted_decision: aboutSubject(
+    (e) => `Unlocks decision against ${whoOf(e)}: ${humanize(e.value!)}`,
+  ),
+  build_railway: (e) => (e.value === undefined ? null : `Build a railway (${e.value} provinces)`),
+  add_core_of: (e) =>
+    e.value === undefined
+      ? null
+      : isOwnScope(e.value)
+        ? 'Gain a core on this state'
+        : `Core added for ${valueOf(e)}`,
+  add_mio_size: (e) =>
+    e.value === undefined ? null : `Organization size: ${signed(Number(e.value))}`,
+  add_mio_research_bonus: (e) =>
+    e.value === undefined
+      ? null
+      : `Organization research bonus: ${signed(percentOf(Number(e.value)))}%`,
   // The game shows this text instead of describing the effect itself, so we show it as is.
   custom_effect_tooltip: (e) => (e.value === undefined ? null : (e.valueName ?? e.value).trim()),
 }

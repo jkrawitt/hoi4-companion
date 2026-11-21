@@ -284,3 +284,32 @@ describe('politics and leader effects', () => {
     ).toEqual({ A_2: 'A', B: '' })
   })
 })
+
+describe('state scopes with a limit', () => {
+  const show = (script: string) =>
+    foldConditions(collapseEffects(flattenEffects(parseScript(script)))).map(
+      (e) => '  '.repeat(e.depth) + formatEffect(e),
+    )
+
+  it('folds the limit into the header, wherever it sits among the block', () => {
+    expect(
+      show(
+        'every_controlled_state = { random_select_amount = 2 limit = { has_resistance = yes } add_stability = 1 }',
+      ),
+    ).toEqual([
+      'Every controlled state where has resistance: yes:',
+      '  Only 2 of them, picked at random',
+      '  add stability: +1',
+    ])
+    expect(show('random_core_state = { add_stability = 1 }')[0]).toBe('A random core state:')
+  })
+})
+
+describe('has_war_with', () => {
+  it('is read as a check on the enemy tag', () => {
+    const [header] = foldConditions(
+      collapseEffects(flattenEffects(parseScript('if = { limit = { has_war_with = SOV } a = b }'))),
+    )
+    expect(header.check).toEqual({ type: 'war_with', tag: 'SOV' })
+  })
+})

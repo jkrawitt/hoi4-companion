@@ -122,6 +122,8 @@ export interface CountryState {
   /** Popularity per ideology (the start plus changes), as a fraction of 1 like the game scripts. */
   popularity: PopularityChange[]
   rulingParty?: string
+  /** The countries at war with ours, as the player entered them; unknown before the first entry. */
+  enemies?: string[]
   /** The ruling party's ideology id (`democratic`), which `popularity` entries are keyed by. */
   government?: string
   /**
@@ -192,6 +194,8 @@ export interface CountryStateOptions {
    * conditions. Without it they are listed as conditional.
    */
   hasTech?: (id: string, date: Date) => boolean | undefined
+  /** The ids of the states the country owns at the start, which settle `controls_state`. */
+  ownedStates?: number[]
   /** The law category of every law idea; a law added replaces the active law of its category. */
   laws?: Record<string, string>
 }

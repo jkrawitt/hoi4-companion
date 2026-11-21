@@ -47,11 +47,20 @@ export interface TradeReceived {
   civs: number
 }
 
+/** Who the country is at war with from this date on (none: at peace); replaces the entry before. */
+export interface WarAdjustment {
+  id: string
+  date: string
+  /** Country tags such as `SOV`. */
+  enemies: string[]
+}
+
 export interface Adjustments {
   stability: StabilityAdjustment[]
   modifiers: ModifierAdjustment[]
   imports: TradeImport[]
   received: TradeReceived[]
+  wars: WarAdjustment[]
 }
 
 export type AdjustmentKind = keyof Adjustments
@@ -62,6 +71,7 @@ export const emptyAdjustments = (): Adjustments => ({
   modifiers: [],
   imports: [],
   received: [],
+  wars: [],
 })
 
 /** Whether anything is entered. */
@@ -78,6 +88,7 @@ export const sanitizeAdjustments = (value: unknown): Adjustments => {
     modifiers: list('modifiers'),
     imports: list('imports'),
     received: list('received'),
+    wars: list('wars'),
   }
 }
 
@@ -99,6 +110,10 @@ export const adjustableStat = (key: string, overrides: StatOverrides = {}): Stat
   return resolveStat(key, known?.label, {}, overrides, known && { kind: known.kind })
 }
 
+/** `At war with SOV, GER` or `At peace`. */
+export const warText = (w: Pick<WarAdjustment, 'enemies'>): string =>
+  w.enemies.length > 0 ? `At war with ${w.enemies.join(', ')}` : 'At peace'
+
 /**
  * The adjustments as rewards for `countryStateAt`'s `adjustments`, the shape the political power
  * purchases have. A modifier is a national spirit (timed when it has `days`); stability is an
@@ -113,6 +128,22 @@ export const adjustmentSteps = (adj: Adjustments, overrides: StatOverrides = {})
         effects: [{ depth: 0, key: 'set_actual_stability', value: String(s.value) }],
       },
       end: parseDay(s.date),
+    }),
+  ),
+  ...adj.wars.map(
+    (w): Step => ({
+      focus: {
+        id: `adjust:${w.id}`,
+        name: warText(w),
+        effects: [
+          {
+            depth: 0,
+            key: 'set_enemies',
+            value: w.enemies.length > 0 ? w.enemies.join(' ') : 'none',
+          },
+        ],
+      },
+      end: parseDay(w.date),
     }),
   ),
   ...adj.modifiers.map((m): Step => {

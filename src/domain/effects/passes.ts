@@ -108,6 +108,7 @@ const holdsAnEffect = (body: EffectLine[]): boolean => {
       i = blockEnd(body, i) - 1
       continue
     }
+    if (body[i].bookkeeping) continue
     if (body[i].value !== undefined || body[i].research !== undefined) return true
   }
   return false
