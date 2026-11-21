@@ -19,7 +19,8 @@ const props = defineProps<{
  * branches that do not apply are left out, unless the toggle asks for them.
  */
 const shown = computed(() => {
-  const lines = showHiddenEffects.value ? props.effects : props.effects.filter((e) => !e.hidden)
+  const visible = props.effects.filter((e) => !e.bookkeeping)
+  const lines = showHiddenEffects.value ? visible : visible.filter((e) => !e.hidden)
   if (simplifyEffects.value) return onlyWhatHappens(lines)
   return showSkippedBranches.value ? lines : lines.filter((e) => e.branch !== 'skipped')
 })

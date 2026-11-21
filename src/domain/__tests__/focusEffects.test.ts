@@ -3,6 +3,7 @@ import {
   collapseEffects,
   effectTone,
   flattenEffects,
+  foldConditions,
   formatEffect,
   ideaIdsOf,
   markHidden,
@@ -102,11 +103,12 @@ describe('simple effects', () => {
     expect(pp).toMatchObject({ key: 'add_political_power', isModifier: true })
   })
 
-  it('drops bookkeeping flags, and a hidden_effect left empty by that', () => {
+  it('drops bookkeeping flags (a country flag is kept unseen), and a hidden_effect left empty', () => {
+    const shown = (text: string) => run(text).filter((e) => !e.bookkeeping)
     expect(
-      run('set_country_flag = x hidden_effect = { set_state_flag = y } add_ideas = I'),
+      shown('set_country_flag = x hidden_effect = { set_state_flag = y } add_ideas = I'),
     ).toEqual([{ depth: 0, key: 'add_ideas', value: 'I' }])
-    expect(run('hidden_effect = { set_country_flag = x news_event = { id = n.1 } }')).toEqual([
+    expect(shown('hidden_effect = { set_country_flag = x news_event = { id = n.1 } }')).toEqual([
       { depth: 0, key: 'hidden_effect' },
       { depth: 1, key: 'news_event', value: 'n.1' },
     ])
@@ -264,5 +266,34 @@ describe('Finnish-style effects', () => {
 
   it('treats add_war_support as a stat change', () => {
     expect(run('add_war_support = 0.05')[0].isModifier).toBe(true)
+  })
+})
+
+describe('country flags and ROOT conditions', () => {
+  const run = (text: string) => foldConditions(collapseEffects(flattenEffects(parseScript(text))))
+
+  it('keeps a country flag for the campaign but marks it as not shown', () => {
+    const lines = run(
+      'set_country_flag = X set_country_flag = { flag = Y days = 5 } set_state_flag = Z',
+    )
+    expect(lines).toEqual([
+      { depth: 0, key: 'set_country_flag', value: 'X', bookkeeping: true },
+      { depth: 0, key: 'set_country_flag', value: 'Y', bookkeeping: true },
+    ])
+  })
+
+  it('reads has_country_flag and a ROOT scope as checks', () => {
+    expect(run('if = { limit = { has_country_flag = X } a = b }')[0].check).toEqual({
+      type: 'flag',
+      id: 'X',
+    })
+    expect(run('if = { limit = { ROOT = { has_government = fascism } } a = b }')[0].check).toEqual({
+      type: 'government',
+      id: 'fascism',
+    })
+    // Anything else about the flag (it was set N days ago) cannot be answered.
+    expect(
+      run('if = { limit = { has_country_flag = { flag = X days > 5 } } a = b }')[0].check,
+    ).toBe(undefined)
   })
 })

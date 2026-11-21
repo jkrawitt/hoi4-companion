@@ -709,3 +709,44 @@ describe('adjustments from the game', () => {
     expect(withAdjustments(focuses, 10, atPeace).stability).toBeCloseTo(0.6)
   })
 })
+
+describe('country flags and ROOT in conditions', () => {
+  const flagLine = (key: string, value: string): EffectLine => ({
+    depth: 0,
+    key,
+    value,
+    bookkeeping: true,
+  })
+  const ifFlag = (id: string): EffectLine[] => [
+    { depth: 0, key: 'if', check: { type: 'flag', id } },
+    { depth: 1, key: 'add_stability', value: '0.1', isModifier: true, stat: stat('add_stability') },
+  ]
+  const stateOf = (focuses: Focus[], days: number) =>
+    countryStateAt(
+      schedulePlan(
+        focuses.map((f) => f.id),
+        Object.fromEntries(focuses.map((f) => [f.id, f])),
+        { startDate: start, speedBonus: 0 },
+      ),
+      day(days),
+      { tag: 'FIN' },
+    )
+
+  it('answers has_country_flag from the flags earlier rewards set and cleared', () => {
+    const set = focus('set', [flagLine('set_country_flag', 'F')], 7)
+    const clear = focus('clear', [flagLine('clr_country_flag', 'F')], 7)
+    const ask = focus('ask', ifFlag('F'), 7)
+    // Never set: unknown, so the branch stays conditional.
+    expect(stateOf([ask], 20).conditional).toHaveLength(1)
+    // Set earlier: the branch applies.
+    expect(stateOf([set, ask], 20).conditional).toHaveLength(0)
+    // Cleared again: it does not.
+    expect(stateOf([set, clear, ask], 30).conditional).toHaveLength(0)
+    expect(
+      stateOf([set, ask], 20).statChanges.find((c) => c.key === 'add_stability')?.total,
+    ).toBeCloseTo(0.1)
+    expect(
+      stateOf([set, clear, ask], 30).statChanges.find((c) => c.key === 'add_stability'),
+    ).toBeUndefined()
+  })
+})

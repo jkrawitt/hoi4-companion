@@ -173,8 +173,15 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     }
     return { type: 'unknown' }
   }
+  if (line.value === undefined && key === 'has_country_flag') {
+    // `has_country_flag = { flag = X days > 5 }`: with anything besides the flag we cannot tell.
+    const flag = kids.length === 1 && kids[0].line.key === 'flag' ? kids[0].line.value : undefined
+    return flag ? { type: 'flag', id: flag } : { type: 'unknown' }
+  }
   if (line.value === undefined) {
     const inner = checksOfNodes(kids)
+    // `ROOT` is the country taking the focus, whatever scope the condition sits in.
+    if (key === 'root') return allOf(inner)
     if (key === 'not') return { type: 'not', of: allOf(inner) }
     if (key === 'or') return { type: 'any', of: inner }
     if (key === 'and') return { type: 'all', of: inner }
@@ -186,6 +193,7 @@ const checkOfNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'unknown' }
   }
   const value = line.value
+  if (key === 'has_country_flag') return { type: 'flag', id: value }
   if (key === 'has_idea') return { type: 'idea', id: value }
   if (key === 'has_completed_focus') return { type: 'focus', id: value }
   if (key === 'has_tech') return { type: 'tech', id: value }

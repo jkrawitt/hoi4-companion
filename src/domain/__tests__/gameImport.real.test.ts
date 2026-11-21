@@ -232,7 +232,11 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       '    Create unit: Royal Guards Division',
     ])
     const yugoslavia = focuses.find((f) => f.id === 'ROM_divide_yugoslavia')
-    expect(yugoslavia?.effects.map((e) => '  '.repeat(e.depth) + formatEffect(e))).toEqual([
+    expect(
+      yugoslavia?.effects
+        .filter((e) => !e.bookkeeping)
+        .map((e) => '  '.repeat(e.depth) + formatEffect(e)),
+    ).toEqual([
       'If Yugoslavia (has war: yes or is subject: yes):',
       '  Gain Annex wargoal on Yugoslavia',
       'Otherwise:',

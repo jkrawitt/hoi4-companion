@@ -68,6 +68,8 @@ export interface Working {
   recruited: Set<string>
   /** The countries at war with ours, from the player's entries; unknown before the first one. */
   enemies?: string[]
+  /** Country flags the plan's rewards set (true) or cleared (false). */
+  flags: Map<string, boolean>
 }
 
 export const newWorking = (): Working => ({
@@ -84,6 +86,7 @@ export const newWorking = (): Working => ({
   retiredLeaders: new Set(),
   research: newResearchWorking(),
   recruited: new Set(),
+  flags: new Map(),
 })
 
 /** What a handler needs to know about the reward it is part of. */
@@ -340,6 +343,13 @@ const setActualStability: Handler = (c, e) => {
   return true
 }
 
+/** `set_country_flag = X` and `clr_country_flag = X`, which conditions about the flag read. */
+const countryFlags: Handler = (c, e) => {
+  if ((e.key !== 'set_country_flag' && e.key !== 'clr_country_flag') || !e.value) return false
+  c.w.flags.set(e.value, e.key === 'set_country_flag')
+  return true
+}
+
 /** `set_enemies = SOV GER` (or `none`): the player's entry of who the country is at war with. */
 const setEnemies: Handler = (c, e) => {
   if (e.key !== 'set_enemies' || e.value === undefined) return false
@@ -387,6 +397,7 @@ const HANDLERS: Handler[] = [
   politics,
   setActualStability,
   setEnemies,
+  countryFlags,
   statChange,
 ]
 
@@ -526,6 +537,7 @@ export const applyReward = (
     hasTech: (id) => options.hasTech?.(id, step.end),
     tag: options.tag,
     hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
+    hasFlag: (id) => w.flags.get(id),
     atWar: () => w.enemies && w.enemies.length > 0,
     atWarWith: (tag) => w.enemies?.includes(tag),
     // The actual stat: only known once the start has set it, like popularity.

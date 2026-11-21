@@ -47,6 +47,8 @@ export type Check =
   | { type: 'const'; value: boolean }
   /** `has_war = yes` (`atWar: true`) or `has_war = no`. */
   | { type: 'war'; atWar: boolean }
+  /** `has_country_flag = X`: a flag the plan's rewards have set (and not cleared since). */
+  | { type: 'flag'; id: string }
   /** `has_war_with = SOV`: at war with that country. */
   | { type: 'war_with'; tag: string }
   | { type: 'not'; of: Check }
@@ -129,6 +131,8 @@ export interface EffectLine {
   slot?: string
   /** For `add_ideas` lines of a designer: extra research speed per technology category. */
   researchBonus?: Record<string, number>
+  /** Kept for the campaign to read (a country flag), and not shown to the player. */
+  bookkeeping?: boolean
   /** Inside a `hidden_effect` block: the game does not show it to the player. */
   hidden?: boolean
   /** Set on lines from an idea's `modifier` block; they are shown through their `stat`. */

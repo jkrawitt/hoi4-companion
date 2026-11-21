@@ -25,9 +25,7 @@ const STAT_EFFECT_KEYS = new Set([
 
 /** Effects with nothing for a player to see; the game only uses them for its own bookkeeping. */
 const BOOKKEEPING_KEYS = new Set([
-  'set_country_flag',
   'set_state_flag',
-  'clr_country_flag',
   'log', // writes to the game's debug log
   // The AI's own priorities; a player is never shown them.
   'add_ai_strategy',
@@ -138,6 +136,12 @@ const railway: Collapser = (line, _field, _count, fields) => {
     : { depth: line.depth, key: line.key, value: String(childrenOf(fields, at).length) }
 }
 
+/** `set_country_flag = { flag = X days = 5 }` as the flag alone, for the campaign (not shown). */
+const countryFlag: Collapser = (line, field) => {
+  const flag = field('flag')
+  return flag ? { depth: line.depth, key: line.key, value: flag, bookkeeping: true } : null
+}
+
 const COLLAPSERS: Record<string, Collapser> = {
   // `Communist popularity: +10%`, formatted like any other stat change.
   add_popularity: aboutSubject('popularity', 'ideology', { extra: { isModifier: true } }),
@@ -157,6 +161,8 @@ const COLLAPSERS: Record<string, Collapser> = {
   set_autonomy: aboutSubject('autonomy_state', 'target'),
   // `Nuclear Research breakthrough progress: +75%`.
   add_breakthrough_progress: aboutSubject('value', 'specialization', { numeric: true }),
+  set_country_flag: countryFlag,
+  clr_country_flag: countryFlag,
   // `Add 50 light tank equipment to stockpile`; the producer is not shown.
   add_equipment_to_stockpile: aboutSubject('amount', 'type', { exact: false }),
   // `Equipment subsidy: 1000 CIC from ...`; the sellers are not shown.
@@ -397,6 +403,14 @@ export const collapseEffects = (effects: EffectLine[]): EffectLine[] => {
         i += fields.length
         continue
       }
+    }
+    // A country flag is not shown, but conditions about it are answered from it.
+    if (
+      line.value !== undefined &&
+      (line.key === 'set_country_flag' || line.key === 'clr_country_flag')
+    ) {
+      result.push({ ...line, bookkeeping: true })
+      continue
     }
     const isStatEffect =
       line.key !== null && line.value !== undefined && STAT_EFFECT_KEYS.has(line.key)

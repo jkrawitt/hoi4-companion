@@ -31,6 +31,8 @@ export interface ConditionContext {
    * answers it (with no: purchases are planned for peace); focus rewards leave it unknown.
    */
   atWar?: () => boolean | undefined
+  /** Whether a country flag is set: known once a reward of the plan has set or cleared it. */
+  hasFlag?: (id: string) => boolean | undefined
   /**
    * Whether the country is at war with `tag`. Wars are only known from what the player enters
    * (`WarAdjustment`), and `undefined` before the first entry.
@@ -89,6 +91,8 @@ export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | un
       const atWar = ctx.atWar?.()
       return atWar === undefined ? undefined : atWar === check.atWar
     }
+    case 'flag':
+      return ctx.hasFlag?.(check.id)
     case 'war_with':
       return ctx.atWarWith?.(check.tag)
     case 'not': {
