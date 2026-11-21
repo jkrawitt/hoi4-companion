@@ -70,6 +70,26 @@ const named =
   (e) =>
     e.value === undefined ? null : `${prefix}: ${e.value}`
 
+/** Headers that go through a country's states, which read `Every core state where <limit>:`. */
+const STATE_SCOPES: Record<string, string> = {
+  every_core_state: 'Every core state',
+  random_core_state: 'A random core state',
+  every_controlled_state: 'Every controlled state',
+  random_controlled_state: 'A random controlled state',
+  every_owned_state: 'Every owned state',
+  random_owned_state: 'A random owned state',
+  every_state: 'Every state',
+  random_state: 'A random state',
+}
+
+const stateScopes = (): Record<string, Formatter> =>
+  Object.fromEntries(
+    Object.entries(STATE_SCOPES).map(([key, label]) => [
+      key,
+      header((c) => `${label} where ${c}:`, `${label}:`),
+    ]),
+  )
+
 const FORMATTERS: Record<string, Formatter> = {
   ...labelled(LABELLED_EFFECTS),
 
@@ -105,6 +125,9 @@ const FORMATTERS: Record<string, Formatter> = {
   else_if: header((c) => `Otherwise, if ${c}:`, 'Otherwise, if:'),
   else: (e) => (e.value === undefined ? 'Otherwise:' : null),
   every_other_country: header((c) => `Every other country where ${c}:`, 'Every other country:'),
+  ...stateScopes(),
+  random_select_amount: (e) =>
+    e.value === undefined ? null : `Only ${e.value} of them, picked at random`,
   hidden_effect: (e) => (e.value === undefined ? 'Hidden effect:' : null),
 
   set_politics: (e) =>
