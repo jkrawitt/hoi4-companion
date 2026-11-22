@@ -6,6 +6,7 @@ import type { Check, EffectLine } from '../focus'
 import { formatEffect } from './format'
 import {
   blockEnd,
+  capitalize,
   humanize,
   isCountryTag,
   isElseBranch,
@@ -146,14 +147,31 @@ const checksOfNodes = (nodes: ConditionNode[]): Check[] => {
       checks.push(chainCheck(branches))
       i += used - 1
     } else if (isBranch(node)) {
-      checks.push({ type: 'unknown' })
+      checks.push({ type: 'unknown', text: nodeText(node) })
     } else checks.push(checkOfNode(node))
   }
   return checks
 }
 
-/** One term of a limit as a `Check`; anything we cannot answer is `unknown`. */
-const checkOfNode = ({ line, kids }: ConditionNode): Check => {
+/** A term as written, for an `unknown` check to show. */
+const nodeText = ({ line }: ConditionNode): string =>
+  line.key === null
+    ? ''
+    : capitalize(line.value !== undefined ? formatEffect(line) : humanize(line.key))
+
+/** One term of a limit as a `Check`; anything we cannot answer is `unknown`, with its text. */
+const checkOfNode = (node: ConditionNode): Check => {
+  const check = readNode(node)
+  if (check.type !== 'unknown' || check.text !== undefined) return check
+  const inner = node.line.value === undefined ? checksOfNodes(node.kids) : []
+  return {
+    type: 'unknown',
+    text: nodeText(node),
+    ...(inner.length > 0 && { of: inner }),
+  }
+}
+
+const readNode = ({ line, kids }: ConditionNode): Check => {
   const key = line.key?.toLowerCase() ?? ''
   if (line.value === undefined && key === 'has_country_leader') {
     // `has_country_leader = { id = 550 }` or `{ character = X }`; `ruling_only` changes nothing for

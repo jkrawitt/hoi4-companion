@@ -51,6 +51,8 @@ export const purchaseCost = (
   totals: Totals,
   current?: PoliticalOption,
 ): number => {
+  // A decision costs what it says, flat.
+  if (option.kind === 'decision') return Math.max(0, Math.round(option.cost))
   const ranks =
     option.level !== undefined && current?.level !== undefined
       ? Math.max(1, Math.abs(option.level - current.level))

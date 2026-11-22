@@ -45,6 +45,8 @@ export const GAME_PATHS = {
   buildings: 'common/buildings',
   /** What trading each resource costs (`cic`), for the trade planner. */
   resources: 'common/resources',
+  /** The decisions (and their categories) political power can buy. */
+  decisions: 'common/decisions',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',

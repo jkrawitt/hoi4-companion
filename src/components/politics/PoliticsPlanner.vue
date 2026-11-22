@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import EffectList from '../focus/EffectList.vue'
+import AvailabilityTree from './AvailabilityTree.vue'
 import GameDataImport from '../GameDataImport.vue'
 import { capitalize, humanize } from '@/domain/effects/lines'
 import { purchaseCost, replacedBy, totalsOf } from '@/domain/plan/politicsPlan'
@@ -20,6 +21,8 @@ const {
   hasData,
   viewDate,
   state,
+  availableOnViewDate,
+  availabilityOnViewDate,
   politicsPlan,
   politicsSchedule,
   addPurchase,
@@ -37,6 +40,7 @@ const REASONS: Record<UnscheduledPurchaseReason, string> = {
   'not-recruited': 'The character is never recruited.',
   unavailable: 'Never becomes available.',
   unaffordable: 'The political power gain is never enough.',
+  'already-taken': 'A decision that can only be taken once is already taken earlier in the queue.',
   'out-of-time': 'Not bought within the years the plan looks ahead.',
 }
 
@@ -51,26 +55,35 @@ const byId = computed(() => new Map(options.value.map((o) => [o.id, o])))
 /** The politics screen: each group with its slots, and the options that fill each slot. */
 const groups = computed(() =>
   POLITICS_GROUPS.map((group) => {
-    const slots = [
-      ...new Set(options.value.filter((o) => o.group === group.id).map((o) => o.slot)),
-    ].map((slot) => ({
-      slot,
-      title: capitalize(humanize(slot)),
-      size: politics.value?.slots[slot] ?? 1,
-      held: state.value.politics.held[slot] ?? [],
-      options: options.value.filter((o) => o.slot === slot),
-    }))
+    const shown = options.value.filter(
+      (o) => o.kind !== 'decision' || availableOnViewDate(o, false),
+    )
+    const slots = [...new Set(shown.filter((o) => o.group === group.id).map((o) => o.slot))].map(
+      (slot) => ({
+        slot,
+        title:
+          group.id === 'decisions'
+            ? (politics.value?.categoryNames[slot] ?? capitalize(humanize(slot)))
+            : capitalize(humanize(slot)),
+        size: politics.value?.slots[slot] ?? 1,
+        held: state.value.politics.held[slot] ?? [],
+        options: shown.filter((o) => o.slot === slot),
+      }),
+    )
     return { ...group, slots }
   }).filter((group) => group.slots.length > 0),
 )
 
 const totals = computed(() => totalsOf(state.value.modifierTotals))
 const costNow = (option: PoliticalOption) => {
+  if (option.kind === 'decision') return purchaseCost(option, totals.value)
   const held = (state.value.politics.held[option.slot] ?? []).map((idea) => idea.id)
   return purchaseCost(option, totals.value, replacedBy(option, held, politics.value?.options ?? []))
 }
 const isHeld = (option: PoliticalOption) =>
-  state.value.politics.held[option.slot]?.some((idea) => idea.id === option.id) ?? false
+  (option.kind !== 'decision' &&
+    state.value.politics.held[option.slot]?.some((idea) => idea.id === option.id)) ??
+  false
 const queued = (option: PoliticalOption) =>
   politicsPlan.value.some((item) => item.optionId === option.id && !item.dismiss)
 
@@ -112,10 +125,10 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 
   <template v-else>
     <p class="hint">
-      Click a law, designer or advisor to queue buying it. Each is bought the first day the
-      political power is there and it is available, in queue order: an item that cannot be afforded
-      yet holds up the ones behind it. The gain formula is a best guess and is not checked against
-      the game.
+      Click a law, designer, advisor or decision to queue buying it. Each is bought the first day
+      the political power is there and it is available, in queue order: an item that cannot be
+      afforded yet holds up the ones behind it. The gain formula is a best guess and is not checked
+      against the game.
     </p>
     <p>
       On {{ viewDate }}: <strong>{{ round(balance) }}</strong> political power, +{{
@@ -139,7 +152,7 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
           <div v-for="slot in group.slots" :key="slot.slot" class="slot">
             <div class="slot-head">
               <strong>{{ slot.title }}</strong>
-              <span class="muted">
+              <span v-if="group.id !== 'decisions'" class="muted">
                 {{ slot.held.length }}/{{ slot.size }} on {{ viewDate }}:
                 {{ slot.held.map((idea) => idea.name).join(', ') || 'empty' }}
               </span>
@@ -158,7 +171,15 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
                 >
                   {{ option.name }}
                 </button>
-                <span class="muted">{{ costNow(option) }} PP</span>
+                <span class="muted cost">{{ costNow(option) }} PP</span>
+                <span v-if="availabilityOnViewDate(option)" class="info" tabindex="0">
+                  i
+                  <div class="tip">
+                    <strong>Available on {{ viewDate }}</strong>
+                    <AvailabilityTree :view="availabilityOnViewDate(option)!" />
+                  </div>
+                </span>
+                <span v-else></span>
                 <button
                   v-if="isHeld(option) && option.kind === 'advisor'"
                   title="Queue dismissing this advisor"
@@ -171,12 +192,6 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
                 </span>
                 <div class="tip">
                   <strong>{{ option.name }}</strong>
-                  <div v-if="option.availableText" class="muted">
-                    Available: {{ option.availableText }}
-                  </div>
-                  <div v-else-if="option.available" class="muted">
-                    Has an availability condition.
-                  </div>
                   <div v-if="option.researchBonus" class="good">
                     Research bonus: {{ bonusText(option) }}
                   </div>
@@ -190,7 +205,9 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 
       <section class="queue">
         <h3>Queue</h3>
-        <p v-if="politicsPlan.length === 0">Add laws, designers or advisors to build a queue.</p>
+        <p v-if="politicsPlan.length === 0">
+          Add laws, designers, advisors or decisions to build a queue.
+        </p>
         <ol v-else class="plan">
           <template v-for="row in rows" :key="row.index">
             <li v-if="row.banner !== null" class="year-banner">{{ row.banner }}</li>
@@ -283,11 +300,24 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
   padding: 0;
   list-style: none;
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 0.75rem;
+  flex-direction: column;
+  gap: 0.25rem;
 }
 .option {
   position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 24rem) 4.5rem 1.25rem auto auto;
+  align-items: baseline;
+  gap: 0 0.75rem;
+  justify-content: start;
+}
+.option .pick {
+  text-align: left;
+  justify-self: start;
+}
+.option .cost {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 .option.held .pick {
   font-weight: 700;
@@ -309,7 +339,34 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-.option:hover .tip {
+.info {
+  position: relative;
+  justify-self: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1.1rem;
+  text-align: center;
+  border: 1px solid #888;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-style: italic;
+  color: #555;
+  cursor: help;
+}
+.info .tip {
+  top: 0;
+  left: 100%;
+  margin-left: 0.4rem;
+  font-size: 1rem;
+  font-style: normal;
+  line-height: normal;
+  text-align: left;
+  color: #222;
+  cursor: default;
+}
+.info:hover > .tip,
+.info:focus > .tip,
+.pick:hover ~ .tip {
   display: block;
 }
 .plan {

@@ -55,7 +55,11 @@ export type Check =
   | { type: 'war_with'; tag: string }
   | { type: 'not'; of: Check }
   | { type: 'all' | 'any'; of: Check[] }
-  | { type: 'unknown' }
+  /**
+   * `text` is the term as written, so it can be shown; `of` the conditions inside a block we cannot
+   * answer (`any_enemy_country = { ... }`), which are about another scope than ours.
+   */
+  | { type: 'unknown'; text?: string; of?: Check[] }
 
 /**
  * Who can lead a country, for when the game picks a new leader (a retired leader, or a change of

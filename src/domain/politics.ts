@@ -6,22 +6,28 @@
 import type { Check, EffectLine } from './focus'
 
 /** The four sections of the game's politics screen. */
-export type PoliticsGroup = 'laws' | 'government' | 'research_production' | 'military_staff'
+export type PoliticsGroup =
+  | 'laws'
+  | 'government'
+  | 'research_production'
+  | 'military_staff'
+  | 'decisions'
 
 export const POLITICS_GROUPS: { id: PoliticsGroup; name: string }[] = [
   { id: 'laws', name: 'Laws' },
   { id: 'government', name: 'Government' },
   { id: 'research_production', name: 'Research & production' },
   { id: 'military_staff', name: 'Military staff' },
+  { id: 'decisions', name: 'Decisions' },
 ]
 
-/** One thing political power can buy: a law, a designer or industrial concern, or an advisor. */
+/** One thing political power can buy: a law, a designer or industrial concern, an advisor or a decision. */
 export interface PoliticalOption {
   /** The idea id; for an advisor its `idea_token`, which is the character's id in practice. */
   id: string
   name: string
-  kind: 'law' | 'designer' | 'advisor'
-  /** The slot it fills: economy, trade_laws, political_advisor, theorist, tank_manufacturer, ... */
+  kind: 'law' | 'designer' | 'advisor' | 'decision'
+  /** The slot it fills (a decision: its category id): economy, trade_laws, political_advisor, theorist, tank_manufacturer, ... */
   slot: string
   group: PoliticsGroup
   /** Base cost in political power, before the cost factors. */
@@ -42,7 +48,12 @@ export interface PoliticalOption {
   available?: Check
   /** The `available` block in English, when it is simple enough to write out. */
   availableText?: string
-  /** Law and designer `modifier` and `rule` lines, or an advisor's `leader_trait` lines with stats. */
+  /** Decisions: it can be taken once (`fire_only_once`). */
+  fireOnce?: boolean
+  /**
+   * Law and designer `modifier` and `rule` lines, an advisor's `leader_trait` lines with stats, or
+   * a decision's `complete_effect` lines (the reward applied when it is taken).
+   */
   modifiers: EffectLine[]
   /** `research_bonus` of a designer: extra research speed per technology category. */
   researchBonus?: Record<string, number>
@@ -140,6 +151,8 @@ export type UnscheduledPurchaseReason =
   | 'unavailable'
   /** The political power gain is not enough, ever. */
   | 'unaffordable'
+  /** A decision with `fire_only_once` that an earlier item of the queue already took. */
+  | 'already-taken'
   | 'out-of-time'
 
 export interface UnscheduledPurchase {

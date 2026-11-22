@@ -138,7 +138,26 @@ describe('politics and leader effects', () => {
     // Terms we cannot answer stay in as unknown, beside the ones we can; all of them is nothing.
     expect(checkOf('if = { limit = { has_idea = X is_puppet = yes } a = b }')).toEqual({
       type: 'all',
-      of: [{ type: 'idea', id: 'X' }, { type: 'unknown' }],
+      of: [
+        { type: 'idea', id: 'X' },
+        { type: 'unknown', text: expect.stringContaining('puppet') },
+      ],
+    })
+    // A block we cannot answer keeps what it asks, to show.
+    expect(
+      checkOf(
+        'if = { limit = { has_idea = X any_enemy_country = { has_government = communism } } a = b }',
+      ),
+    ).toEqual({
+      type: 'all',
+      of: [
+        { type: 'idea', id: 'X' },
+        {
+          type: 'unknown',
+          text: 'Any enemy country',
+          of: [{ type: 'government', id: 'communism' }],
+        },
+      ],
     })
     expect(checkOf('if = { limit = { is_puppet = yes } a = b }')).toBeUndefined()
     expect(checkOf('if = { limit = { has_country_leader = { id = 550 } } a = b }')).toEqual({
