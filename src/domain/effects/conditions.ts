@@ -229,6 +229,13 @@ const readNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'war', atWar: value === 'yes' }
   }
   if (key === 'has_war_with' && /^[A-Z]{3}$/.test(value)) return { type: 'war_with', tag: value }
+  if ((key === 'is_subject' || key === 'has_civil_war') && (value === 'yes' || value === 'no')) {
+    return {
+      type: 'situation',
+      key: key === 'is_subject' ? 'subject' : 'civil_war',
+      value: value === 'yes',
+    }
+  }
   if (key === 'is_major' && (value === 'yes' || value === 'no')) {
     return { type: 'major', value: value === 'yes' }
   }

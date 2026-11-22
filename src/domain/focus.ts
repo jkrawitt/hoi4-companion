@@ -56,6 +56,8 @@ export type Check =
   | { type: 'war_with'; tag: string }
   /** `num_of_factories < 60`: civilian plus military factories (naval ones not counted). */
   | { type: 'factories'; op: '>' | '<' | '>=' | '<=' | '='; than: number }
+  /** `is_subject = yes` / `has_civil_war = yes` (`value: true`) or `no`. */
+  | { type: 'situation'; key: 'subject' | 'civil_war'; value: boolean }
   /** `is_major = yes` (`value: true`) or `no`. */
   | { type: 'major'; value: boolean }
   | { type: 'not'; of: Check }

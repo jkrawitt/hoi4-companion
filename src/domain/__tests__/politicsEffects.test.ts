@@ -347,3 +347,18 @@ describe('num_of_factories and is_major', () => {
     expect(check('is_major = no')).toEqual({ type: 'major', value: false })
   })
 })
+
+describe('is_subject and has_civil_war', () => {
+  it('are read as situations', () => {
+    const check = (limit: string) =>
+      foldConditions(
+        collapseEffects(flattenEffects(parseScript(`if = { limit = { ${limit} } a = b }`))),
+      )[0].check
+    expect(check('is_subject = no')).toEqual({ type: 'situation', key: 'subject', value: false })
+    expect(check('has_civil_war = no')).toEqual({
+      type: 'situation',
+      key: 'civil_war',
+      value: false,
+    })
+  })
+})

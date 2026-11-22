@@ -59,6 +59,8 @@ const termText = (check: Check, names: CheckNames): string => {
       return `At war with ${check.tag}`
     case 'factories':
       return `Factories ${check.op} ${check.than}`
+    case 'situation':
+      return `${check.key === 'subject' ? 'Is a subject' : 'In a civil war'}: ${check.value ? 'yes' : 'no'}`
     case 'major':
       return check.value ? 'Is a major power' : 'Is not a major power'
     case 'unknown':

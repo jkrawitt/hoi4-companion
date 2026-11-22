@@ -209,8 +209,13 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   const decisionListed = (option: PoliticalOption) =>
     availableOnViewDate(option, false) ||
     !option.visible ||
-    // No flag is known to be set (events set them too, which are not played), so none counts as set.
-    evaluateCheck(option.visible, { ...viewContext.value, hasFlag: () => false }) === true
+    // No flag is known to be set (events set them too, which are not played), so none counts as
+    // set, and the country is taken to be independent and at peace at home.
+    evaluateCheck(option.visible, {
+      ...viewContext.value,
+      hasFlag: () => false,
+      situation: () => false,
+    }) === true
   /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */
   const availabilityOnViewDate = (option: PoliticalOption) =>
     option.available

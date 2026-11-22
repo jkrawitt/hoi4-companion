@@ -40,6 +40,8 @@ export interface ConditionContext {
   hasFlag?: (id: string) => boolean | undefined
   /** Civilian plus military factories the country has. */
   factories?: () => number | undefined
+  /** Whether the country is a subject, or in a civil war: not planned, so only some contexts say. */
+  situation?: (key: 'subject' | 'civil_war') => boolean | undefined
   /** Whether the country is a major power. */
   isMajor?: () => boolean | undefined
   /**
@@ -109,6 +111,10 @@ export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | un
     case 'factories': {
       const count = ctx.factories?.()
       return count === undefined ? undefined : compare(count, check.op, check.than)
+    }
+    case 'situation': {
+      const now = ctx.situation?.(check.key)
+      return now === undefined ? undefined : now === check.value
     }
     case 'major': {
       const major = ctx.isMajor?.()
