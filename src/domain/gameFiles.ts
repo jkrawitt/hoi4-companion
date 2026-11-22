@@ -45,11 +45,15 @@ export const GAME_PATHS = {
   buildings: 'common/buildings',
   /** What trading each resource costs (`cic`), for the trade planner. */
   resources: 'common/resources',
+  /** The balances of power (`FIN.txt`: Finland's public trust) and what each range gives. */
+  bop: 'common/bop',
   /** The decisions (and their categories) political power can buy. */
   decisions: 'common/decisions',
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',
+  /** The starting fleets and armies (`set_naval_oob`), read for a ship that is the pride of the fleet. */
+  units: 'history/units',
   localisation: 'localisation/english',
   statDocs: 'documentation/modifiers_documentation.md',
 } as const

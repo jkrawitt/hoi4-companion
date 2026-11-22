@@ -108,6 +108,7 @@ export const countryStateAt = (
     stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
     warSupport: actual('war_support'),
     leader: w.leader,
+    balance: w.balance,
     resources: [...w.resources.values()],
     buildings: [...w.buildings.values()],
     buildingSlots: w.buildingSlots,

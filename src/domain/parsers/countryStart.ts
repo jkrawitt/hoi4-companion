@@ -5,7 +5,7 @@
  *
  * Read: starting ideas (`add_ideas`), stability, war support and research slots, the technologies
  * (`set_technology`, as an unlock line like the one a focus gives), the ruling party and the
- * popularities. Skipped: characters, orders of battle, and everything inside a dated block
+ * popularities, and a balance of power (`set_power_balance`). Skipped: characters, orders of battle, and everything inside a dated block
  * (`1939.1.1 = { ... }`), which is the later start.
  *
  * A top-level `if = { limit = { has_dlc = X } ... }` is kept or dropped by `ownedDlc`; a DLC
@@ -32,6 +32,22 @@ const dlcOf = (lines: EffectLine[], index: number): string | undefined => {
   return inside.length === 1 && inside[0].key === 'has_dlc' ? inside[0].value : undefined
 }
 
+/** Whether a block's `limit` asks only for the 1936 start (`has_start_date < 1936.01.02`). */
+const isStart1936 = (lines: EffectLine[], index: number): boolean => {
+  const limit = lines[index + 1]
+  if (!opensBlock(limit, 'limit')) return false
+  const inside = childrenOf(lines, index + 1)
+  return (
+    inside.length === 1 &&
+    inside[0].key === 'has_start_date' &&
+    inside[0].operator === '<' &&
+    inside[0].value === '1936.01.02'
+  )
+}
+
+const isNumeric = (value: string | undefined): value is string =>
+  value !== undefined && value !== '' && Number.isFinite(Number(value))
+
 const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < lines.length; i++) {
@@ -39,15 +55,39 @@ const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLin
     const end = blockEnd(lines, i)
     if (line.key === 'if' && opensBlock(line)) {
       const dlc = dlcOf(lines, i)
-      if (dlc !== undefined && ownedDlc[dlc]) {
+      if (isStart1936(lines, i)) {
+        // The 1936 start is the one this reads: the block applies (an `else` would be the later start).
+        const body = lines.slice(blockEnd(lines, i + 1), end)
+        const otherwise = body.findIndex((l) => l.depth === line.depth + 1 && l.key === 'else')
+        result.push(...pick(outdent(otherwise === -1 ? body : body.slice(0, otherwise)), ownedDlc))
+      } else if (dlc !== undefined && ownedDlc[dlc]) {
         const body = lines.slice(blockEnd(lines, i + 1), end)
         const otherwise = body.findIndex((l) => l.depth === line.depth + 1 && l.key === 'else')
         result.push(...pick(outdent(otherwise === -1 ? body : body.slice(0, otherwise)), ownedDlc))
       }
-    } else if (line.key === 'add_ideas') {
+    } else if (line.key === 'add_ideas' || opensBlock(line, 'set_power_balance')) {
       result.push(...lines.slice(i, end))
+    } else if (
+      (line.key === 'add_stability' || line.key === 'add_war_support') &&
+      isNumeric(line.value)
+    ) {
+      // A change to the default 50%: one start line holds the whole value (`scriptedStat`).
+      const existing = result.find((l) => l.depth === 0 && l.key === line.key)
+      if (existing)
+        existing.value = String(
+          Math.round((Number(existing.value) + Number(line.value)) * 1e6) / 1e6,
+        )
+      else {
+        const value = Math.round((0.5 + Number(line.value)) * 1e6) / 1e6
+        result.push({ depth: 0, key: line.key, value: String(value), isModifier: true })
+      }
     } else if (line.key !== null && line.value !== undefined && line.key in SET_STATS) {
-      result.push({ depth: 0, key: SET_STATS[line.key], value: line.value, isModifier: true })
+      const key = SET_STATS[line.key]
+      // A later `set_*` replaces what came before.
+      const before = result.findIndex((l) => l.depth === 0 && l.key === key)
+      if (before !== -1 && (key === 'add_stability' || key === 'add_war_support'))
+        result.splice(before, 1)
+      result.push({ depth: 0, key, value: line.value, isModifier: true })
     } else if (opensBlock(line, 'set_technology')) {
       const targets = childrenOf(lines, i).flatMap((l) => (l.key && l.value === '1' ? [l.key] : []))
       if (targets.length > 0) {
