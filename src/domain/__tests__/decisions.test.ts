@@ -102,3 +102,12 @@ describe('parseDecisionCategories', () => {
     expect(cats.b.allowed).toBeUndefined()
   })
 })
+
+describe('decision visibility in the list terms', () => {
+  it('reads a category visible block', () => {
+    const categories = parseDecisionCategories(
+      'cat = { allowed = { always = yes } visible = { original_tag = LIT } }',
+    )
+    expect(categories.cat.visible).toEqual({ type: 'tag', id: 'LIT' })
+  })
+})

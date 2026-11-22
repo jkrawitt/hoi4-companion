@@ -1,5 +1,6 @@
 import { computed, watch, type Ref } from 'vue'
 import { ownedDlc } from '@/data/dlc'
+import { MAJORS_1936 } from '@/data/majors'
 import { statOverrides } from '@/data/statOverrides'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { previewFocusEffects } from '@/domain/campaign/preview'
@@ -174,9 +175,19 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
 
   const state = computed(() => stateOn(parseDate(viewDate.value)))
   /** What the conditions ask about the country on the viewed date. */
-  const viewContext = computed(() =>
-    conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
-  )
+  const viewContext = computed(() => ({
+    ...conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
+    // The terms of a decision's `visible` that only the store can answer (assumed: the factory
+    // count is civilian plus military on the viewed date, and a country stays as it starts).
+    factories: () => {
+      const counts = industry.value?.factories
+      if (!counts) return undefined
+      return counts
+        .filter((f) => ['industrial_complex', 'arms_factory'].includes(f.type))
+        .reduce((n, f) => n + f.count, 0)
+    },
+    isMajor: () => MAJORS_1936.has(countryTag.value),
+  }))
   /**
    * Whether an option's `available` is known to hold in the country on the viewed date. With
    * `unknownCounts` a condition the campaign cannot answer counts as holding, like in the planner.
@@ -186,9 +197,16 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     const holds = evaluateCheck(option.available, viewContext.value)
     return holds === undefined ? unknownCounts : holds
   }
-  /** Whether a decision's `visible` fails on the viewed date: the game hides it then (unknown shows it). */
-  const hiddenOnViewDate = (option: PoliticalOption) =>
-    option.visible !== undefined && evaluateCheck(option.visible, viewContext.value) === false
+  /**
+   * Whether a decision is in the list on the viewed date: its `available` is known to hold, or its
+   * `visible` is (no `visible` block counts). The game also greys out what is visible but not
+   * available; one whose `visible` the planner cannot answer stays out, so the list stays short.
+   */
+  const decisionListed = (option: PoliticalOption) =>
+    availableOnViewDate(option, false) ||
+    !option.visible ||
+    // No flag is known to be set (events set them too, which are not played), so none counts as set.
+    evaluateCheck(option.visible, { ...viewContext.value, hasFlag: () => false }) === true
   /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */
   const availabilityOnViewDate = (option: PoliticalOption) =>
     option.available
@@ -323,7 +341,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     state,
     stabilityOn,
     availableOnViewDate,
-    hiddenOnViewDate,
+    decisionListed,
     availabilityOnViewDate,
     trade,
     industry,

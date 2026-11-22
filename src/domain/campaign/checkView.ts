@@ -57,6 +57,10 @@ const termText = (check: Check, names: CheckNames): string => {
       return `Country flag set: ${nice(check.id)}`
     case 'war_with':
       return `At war with ${check.tag}`
+    case 'factories':
+      return `Factories ${check.op} ${check.than}`
+    case 'major':
+      return check.value ? 'Is a major power' : 'Is not a major power'
     case 'unknown':
       return check.text || 'A condition the planner cannot read'
     default:

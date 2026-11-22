@@ -22,7 +22,7 @@ const {
   viewDate,
   state,
   availableOnViewDate,
-  hiddenOnViewDate,
+  decisionListed,
   availabilityOnViewDate,
   politicsPlan,
   politicsSchedule,
@@ -58,7 +58,7 @@ const byId = computed(() => new Map(options.value.map((o) => [o.id, o])))
 /** The politics screen: each group with its slots, and the options that fill each slot. */
 const groups = computed(() =>
   POLITICS_GROUPS.map((group) => {
-    const shown = options.value.filter((o) => o.kind !== 'decision' || !hiddenOnViewDate(o))
+    const shown = options.value.filter((o) => o.kind !== 'decision' || decisionListed(o))
     const slots = [...new Set(shown.filter((o) => o.group === group.id).map((o) => o.slot))].map(
       (slot) => ({
         slot,

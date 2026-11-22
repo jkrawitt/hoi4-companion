@@ -25,16 +25,25 @@ const UNMODELLED_KEYS = [
   'selectable_mission',
 ]
 
-/** The categories of the `categories` files: each one's `allowed` block, when it has one. */
+/** The categories of the `categories` files: each one's `allowed` and `visible` blocks, when it has them. */
 export const parseDecisionCategories = (
   text: string,
   triggers: ScriptedTriggers = {},
-): Record<string, { allowed?: Check }> =>
+): Record<string, { allowed?: Check; visible?: Check }> =>
   Object.fromEntries(
     parseScript(text).flatMap((e) => {
       if (e.key === null || typeof e.value === 'string') return []
       const allowed = getBlock(e.value, 'allowed')
-      return [[e.key, allowed ? { allowed: triggerOf(allowed, triggers).check } : {}]]
+      const visible = getBlock(e.value, 'visible')
+      return [
+        [
+          e.key,
+          {
+            ...(allowed && { allowed: triggerOf(allowed, triggers).check }),
+            ...(visible && { visible: triggerOf(visible, triggers).check }),
+          },
+        ],
+      ]
     }),
   )
 

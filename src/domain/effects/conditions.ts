@@ -217,7 +217,8 @@ const readNode = ({ line, kids }: ConditionNode): Check => {
   ) {
     return { type: 'state', id: value }
   }
-  if (key === 'has_country_flag') return { type: 'flag', id: value }
+  // A global flag is read like a country flag; only a context that knows flags answers it.
+  if (key === 'has_country_flag' || key === 'has_global_flag') return { type: 'flag', id: value }
   if (key === 'has_idea') return { type: 'idea', id: value }
   if (key === 'has_completed_focus') return { type: 'focus', id: value }
   if (key === 'has_tech') return { type: 'tech', id: value }
@@ -228,6 +229,17 @@ const readNode = ({ line, kids }: ConditionNode): Check => {
     return { type: 'war', atWar: value === 'yes' }
   }
   if (key === 'has_war_with' && /^[A-Z]{3}$/.test(value)) return { type: 'war_with', tag: value }
+  if (key === 'is_major' && (value === 'yes' || value === 'no')) {
+    return { type: 'major', value: value === 'yes' }
+  }
+  if (
+    key === 'num_of_factories' &&
+    COMPARISONS.has(line.operator ?? '=') &&
+    value !== '' &&
+    Number.isFinite(Number(value))
+  ) {
+    return { type: 'factories', op: (line.operator ?? '=') as '>', than: Number(value) }
+  }
   if (key === 'always' && (value === 'yes' || value === 'no')) {
     return { type: 'const', value: value === 'yes' }
   }

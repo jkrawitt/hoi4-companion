@@ -54,6 +54,10 @@ export type Check =
   | { type: 'flag'; id: string }
   /** `has_war_with = SOV`: at war with that country. */
   | { type: 'war_with'; tag: string }
+  /** `num_of_factories < 60`: civilian plus military factories (naval ones not counted). */
+  | { type: 'factories'; op: '>' | '<' | '>=' | '<=' | '='; than: number }
+  /** `is_major = yes` (`value: true`) or `no`. */
+  | { type: 'major'; value: boolean }
   | { type: 'not'; of: Check }
   | { type: 'all' | 'any'; of: Check[] }
   /**
