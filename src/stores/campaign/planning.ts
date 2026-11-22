@@ -37,6 +37,9 @@ export interface CampaignSettings {
 }
 
 /** Everything worked out from the settings, the imported data and the queues. */
+/** The first focus starts with a day done; see `PlanOptions.loadedDays`. */
+const FIRST_FOCUS_LOADED_DAYS = 1
+
 export const createPlanning = (settings: CampaignSettings, data: GameData, queues: Queues) => {
   const { countryTag, startDate, speedBonusPercent, viewDate } = settings
   const {
@@ -57,6 +60,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     schedulePlan(plan.value, focuses.value, {
       startDate: parseDate(startDate.value),
       speedBonus: speedBonusPercent.value / 100,
+      loadedDays: FIRST_FOCUS_LOADED_DAYS,
     }),
   )
 
@@ -255,6 +259,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     scheduleOptions: {
       startDate: parseDate(startDate.value),
       speedBonus: speedBonusPercent.value / 100,
+      loadedDays: FIRST_FOCUS_LOADED_DAYS,
     },
     stateOptions: {
       ...stateOptions.value,

@@ -5,6 +5,12 @@ export interface PlanOptions {
   startDate: Date
   /** Focus completion speed bonus, e.g. 0.25 for +25%. */
   speedBonus: number
+  /**
+   * Days of progress the first focus already has when it starts: the game starts a focus picked on
+   * the first day with a day done (checked in game: 35 days from 1 Jan 1936 ends on 4 Feb).
+   * The focuses after it start with nothing. Default 0.
+   */
+  loadedDays?: number
 }
 
 export type PlanIssue =
