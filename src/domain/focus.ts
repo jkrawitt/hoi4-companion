@@ -1,6 +1,7 @@
 /** HoI4 focus cost is in weeks; one week is 7 days. */
 export const DAYS_PER_WEEK = 7
 
+import type { BalanceOfPower } from './balanceOfPower'
 import type { ProductionData } from './production'
 import type { MioData, ResearchData } from './research'
 import type { PoliticsData } from './politics'
@@ -187,6 +188,8 @@ export interface Focus {
 
 /** What an import produces: the focus tree, and what the country starts the game with. */
 export interface ImportedCountry {
+  /** The country's balance of power (Finland's public trust), when it has one. */
+  balanceOfPower?: BalanceOfPower
   /** The military industrial organisations the country can use as design teams. */
   mios: MioData[]
   focuses: Focus[]

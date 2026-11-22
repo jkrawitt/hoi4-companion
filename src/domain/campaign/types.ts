@@ -1,3 +1,4 @@
+import type { BalanceOfPower } from '../balanceOfPower'
 import type { EffectLine, LeaderData } from '../focus'
 import type { PoliticsData } from '../politics'
 import type { ResearchEnvironment } from '../research'
@@ -140,6 +141,8 @@ export interface CountryState {
    */
   stabilityBeforeModifiers: number
   leader?: CountryLeader
+  /** The balance of power's value (Finland's public trust), once the start or a reward sets it. */
+  balance?: number
   /** The production of each resource added by completed focuses, summed. */
   resources: ResourceTotal[]
   /** The buildings added by completed focuses, summed per type. */
@@ -200,4 +203,6 @@ export interface CountryStateOptions {
   ownedStates?: number[]
   /** The law category of every law idea; a law added replaces the active law of its category. */
   laws?: Record<string, string>
+  /** The country's balance of power (Finland's public trust): its ranges give modifiers. */
+  balanceOfPower?: BalanceOfPower
 }

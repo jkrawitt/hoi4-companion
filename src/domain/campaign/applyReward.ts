@@ -28,6 +28,7 @@ import {
   scriptedStat,
 } from './totals'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
+import { clampBalance, rangeAt } from '../balanceOfPower'
 import type {
   ActiveIdea,
   BuildingTotal,
@@ -77,6 +78,8 @@ export interface Working {
   enemies?: string[]
   /** Country flags the plan's rewards set (true) or cleared (false). */
   flags: Map<string, boolean>
+  /** The balance of power's value (Finland's public trust), once a reward has set or moved it. */
+  balance?: number
 }
 
 export const newWorking = (): Working => ({
@@ -429,7 +432,57 @@ const research: Handler = (c, e) => {
   return true
 }
 
+/**
+ * The country's balance of power (`set_power_balance`, `add_power_balance_value`): the value moves
+ * here, and `syncBalanceOfPower` makes the range it is in a national spirit after the reward.
+ */
+const powerBalance: Handler = (c, e, i) => {
+  const bop = c.options.balanceOfPower
+  if (!bop) return false
+  if (e.key === 'set_power_balance' && e.value === undefined) {
+    const fields = childrenAt(c.effects, i)
+    if (fields.find((f) => f.key === 'id')?.value !== bop.id) return false
+    const value = fields.find((f) => f.key === 'set_value')?.value
+    if (isNumeric(value)) c.w.balance = clampBalance(Number(value))
+    else if (fields.some((f) => f.key === 'set_default' && f.value === 'yes')) {
+      c.w.balance = bop.initial
+    } else return false
+    return true
+  }
+  if (e.key === 'add_power_balance_value' && e.subject === bop.id && isNumeric(e.value)) {
+    c.w.balance = clampBalance((c.w.balance ?? bop.initial) + Number(e.value))
+    return true
+  }
+  return false
+}
+
+/**
+ * Keeps the balance's range among the national spirits, with its modifiers (a range without any
+ * is no spirit). The ranges' modifiers feed stability, war support and political power like an
+ * idea's.
+ */
+const syncBalanceOfPower = (w: Working, step: Step, options: CountryStateOptions) => {
+  const bop = options.balanceOfPower
+  if (!bop || w.balance === undefined) return
+  const id = `bop:${bop.id}`
+  const range = rangeAt(bop, w.balance)
+  if (!range || range.modifiers.length === 0) {
+    w.ideas.delete(id)
+    return
+  }
+  const before = w.ideas.get(id)
+  w.ideas.set(id, {
+    id,
+    name: `${bop.name}: ${range.name} (${w.balance})`,
+    focusId: step.focus.id,
+    focusName: step.focus.name,
+    since: before?.modifiers === range.modifiers ? before.since : step.end,
+    modifiers: range.modifiers,
+  })
+}
+
 const HANDLERS: Handler[] = [
+  powerBalance,
   research,
   ideas,
   recruit,
@@ -640,6 +693,7 @@ export const applyReward = (
   })
 
   pickNextLeader(c, governmentBefore)
+  syncBalanceOfPower(w, step, options)
   w.doneFocuses.add(focus.id)
   totalConstruction(w, built)
   recordBatches(w, step, built)

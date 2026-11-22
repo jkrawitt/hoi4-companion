@@ -38,7 +38,18 @@ export interface CampaignSettings {
 /** Everything worked out from the settings, the imported data and the queues. */
 export const createPlanning = (settings: CampaignSettings, data: GameData, queues: Queues) => {
   const { countryTag, startDate, speedBonusPercent, viewDate } = settings
-  const { focuses, start, leaders, laws, research, mios, production, politics, techs } = data
+  const {
+    focuses,
+    start,
+    leaders,
+    balanceOfPower,
+    laws,
+    research,
+    mios,
+    production,
+    politics,
+    techs,
+  } = data
   const { plan, researchPlan, constructionPlan, politicsPlan, adjustments } = queues
 
   const schedule = computed(() =>
@@ -53,6 +64,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     tag: countryTag.value,
     start: start.value,
     leaders: leaders.value,
+    balanceOfPower: balanceOfPower.value,
     laws: laws.value,
     startDate: parseDate(startDate.value),
     ownedDlc,

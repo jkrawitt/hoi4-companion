@@ -45,6 +45,8 @@ export const GAME_PATHS = {
   buildings: 'common/buildings',
   /** What trading each resource costs (`cic`), for the trade planner. */
   resources: 'common/resources',
+  /** The balances of power (`FIN.txt`: Finland's public trust) and what each range gives. */
+  bop: 'common/bop',
   /** The decisions (and their categories) political power can buy. */
   decisions: 'common/decisions',
   factionTemplates: 'common/factions/templates',

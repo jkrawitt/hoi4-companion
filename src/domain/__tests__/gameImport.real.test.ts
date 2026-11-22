@@ -36,7 +36,7 @@ const importRomania = () =>
 
 describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
   it('imports the Finnish tree with its scripted effects written out', async () => {
-    const { focuses } = await importCountryFocuses(
+    const finland = await importCountryFocuses(
       {
         readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
         listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
@@ -50,7 +50,28 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
       statOverrides,
       ownedDlc,
     )
+    const { focuses } = finland
     expect(focuses.length).toBeGreaterThan(100)
+    // Public trust: ranges with named modifiers, and the 1936 start value in the start lines.
+    const { balanceOfPower } = finland
+    expect(balanceOfPower?.name).toBe('Public Trust')
+    const low = balanceOfPower?.ranges.find((r) => r.id === 'FIN_low_trust_range')
+    expect(low?.name).toBe('Low Trust')
+    expect(low?.modifiers.find((m) => m.key === 'political_power_factor')?.stat?.label).toBeTruthy()
+    expect(finland.start.some((l) => l.key === 'set_value' && l.value === '-0.45')).toBe(true)
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const state = countryStateAt(schedulePlan([], {}, { startDate, speedBonus: 0 }), startDate, {
+      tag: 'FIN',
+      start: finland.start,
+      balanceOfPower,
+      startDate,
+      ownedDlc,
+    })
+    // Finland starts at -0.45 trust: the low range, -10% political power and -5% stability.
+    expect(state.balance).toBe(-0.45)
+    const total = (key: string) => state.modifierTotals.find((t) => t.key === key)?.total
+    expect(total('political_power_factor')).toBeCloseTo(-0.1)
+    expect(total('stability_factor')).toBeCloseTo(-0.05)
     const keys = new Set(focuses.flatMap((f) => f.effects.map((e) => e.key)))
     // A scripted effect (`FIN_bop_*_effect = yes`) is written out, and variables and AI are not shown.
     expect(keys.has('add_power_balance_value')).toBe(true)

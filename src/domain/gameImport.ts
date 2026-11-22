@@ -38,6 +38,8 @@ import { parseStartingLines } from './parsers/countryStart'
 import { readTechnologies } from './parsers/technologies'
 import { readProduction } from './parsers/states'
 import { readMios } from './parsers/mios'
+import { readBalanceOfPower } from './parsers/balanceOfPower'
+import type { BalanceOfPower } from './balanceOfPower'
 import {
   defaultLawLines,
   lawCategoryOf,
@@ -285,6 +287,7 @@ export const importCountryFocuses = async (
   const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
   const production = await readProduction(files, country.tag)
   const rawMios = await readMios(files, country.tag, ownedDlc)
+  const rawBop = await readBalanceOfPower(files, country.tag)
   const lists = [
     ...focuses.map((f) => f.effects),
     ...focuses.map((f) => availabilityLines(f)),
@@ -293,6 +296,7 @@ export const importCountryFocuses = async (
     ...research.techs.map((t) => t.modifiers),
     ...[...politics.options, ...decisions].flatMap((o) => [o.modifiers, availabilityLines(o)]),
     ...rawMios.map(availabilityLines),
+    ...(rawBop?.ranges.map((r) => r.modifiers) ?? []),
   ]
 
   // 3. What the countries and events they mention are.
@@ -314,6 +318,7 @@ export const importCountryFocuses = async (
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
       ...rawMios.flatMap((m) => [m.id, `${country.tag}_${m.id}`]),
+      ...(rawBop ? [rawBop.id, ...rawBop.ranges.map((r) => r.id)] : []),
       ...[...politics.options, ...decisions].flatMap((o) => [
         o.id,
         ...(o.character ? [o.character] : []),
@@ -365,6 +370,15 @@ export const importCountryFocuses = async (
       availableText: named(availabilityLines(m))[0]?.condition,
     }),
   )
+  const balanceOfPower: BalanceOfPower | undefined = rawBop && {
+    ...rawBop,
+    name: (names[rawBop.id] ?? '').trim() || humanize(rawBop.id),
+    ranges: rawBop.ranges.map((r) => ({
+      ...r,
+      name: (names[r.id] ?? '').trim() || humanize(r.id),
+      modifiers: named(r.modifiers),
+    })),
+  }
   const optionsById = new Map(options.map((o) => [o.id, o]))
   const annotated = (lines: EffectLine[]) => annotateIdeaLines(lines, optionsById)
   // A decision's reward adds ideas like a focus does.
@@ -373,6 +387,7 @@ export const importCountryFocuses = async (
   )
   return {
     mios,
+    ...(balanceOfPower && { balanceOfPower }),
     laws,
     focuses: focuses.map(({ availableLines, ...f }) => ({
       ...f,

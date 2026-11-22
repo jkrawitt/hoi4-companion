@@ -2,6 +2,7 @@ import { computed, ref, shallowRef, type Ref } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { statOverrides } from '@/data/statOverrides'
 import { countries } from '@/data/countries'
+import type { BalanceOfPower } from '@/domain/balanceOfPower'
 import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/focus'
 import type { PoliticsData } from '@/domain/politics'
 import type { ProductionData } from '@/domain/production'
@@ -25,6 +26,8 @@ export const createGameData = (
   const start = ref<EffectLine[]>([])
   /** Who the game could pick as leader when the plan retires one or changes the party. */
   const leaders = ref<LeaderData | undefined>()
+  /** The country's balance of power (Finland's public trust), when it has one. */
+  const balanceOfPower = shallowRef<BalanceOfPower | undefined>()
   /** The law category of every law idea. */
   const laws = shallowRef<Record<string, string>>({})
   /** The technologies, folders and research numbers from the game. */
@@ -53,6 +56,7 @@ export const createGameData = (
   const setCountry = (imported: ImportedCountry) => {
     start.value = imported.start
     leaders.value = imported.leaders
+    balanceOfPower.value = imported.balanceOfPower
     laws.value = imported.laws ?? {}
     research.value = imported.research
     mios.value = imported.mios ?? []
@@ -72,6 +76,7 @@ export const createGameData = (
     focuses.value = {}
     start.value = []
     leaders.value = undefined
+    balanceOfPower.value = undefined
     laws.value = {}
     research.value = undefined
     mios.value = []
@@ -104,6 +109,7 @@ export const createGameData = (
     focuses,
     start,
     leaders,
+    balanceOfPower,
     laws,
     research,
     mios,
