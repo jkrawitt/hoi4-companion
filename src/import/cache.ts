@@ -28,20 +28,12 @@ export const loadCachedCountry = async (tag: string): Promise<ImportedCountry | 
       const req = db.transaction(STORE).objectStore(STORE).get(tag)
       req.onsuccess = () => {
         const cached = req.result as CachedCountry | undefined
-        resolve(
-          cached?.version === CACHE_VERSION
-            ? {
-                mios: cached.mios,
-                focuses: cached.focuses,
-                start: cached.start,
-                leaders: cached.leaders,
-                research: cached.research,
-                production: cached.production,
-                laws: cached.laws,
-                politics: cached.politics,
-              }
-            : null,
-        )
+        // Everything but the version is the country: copying it whole means a new field of
+        // `ImportedCountry` cannot be forgotten here (`balanceOfPower` was).
+        if (cached?.version !== CACHE_VERSION) return resolve(null)
+        const country: Partial<CachedCountry> = { ...cached }
+        delete country.version
+        resolve(country as ImportedCountry)
       }
       req.onerror = () => reject(req.error)
     })
