@@ -153,6 +153,7 @@ const LEADER_KEYS = new Set([
   'create_country_leader',
   'add_country_leader_role',
   'add_country_leader_trait',
+  'promote_character',
 ])
 
 /**
@@ -333,10 +334,16 @@ const leaders: Handler = (c, e, i) => {
     return true
   }
   if (e.key === 'promote_character' && e.value) {
+    // The traits listed beneath the line, or those of the character's role as the importer read
+    // them (a reward only names the character).
+    const listed = childrenAt(c.effects, i)
+    const known = c.options.leaders?.candidates.find(
+      (cand) => cand.line.value === e.value && (!e.subject || cand.line.subject === e.subject),
+    )
     w.leader = {
       name: e.valueName ?? e.value,
       ideology: ideologyName(e),
-      traits: [],
+      traits: listed.length > 0 ? listed : (known?.traits ?? []),
       character: e.value,
     }
     w.identity = { character: e.value }
@@ -517,7 +524,7 @@ const pickNextLeader = (c: Context, governmentBefore: string | undefined) => {
   w.leader = {
     name: next.line.valueName ?? next.line.value,
     ideology: next.line.subjectName ?? next.line.subject,
-    traits: [],
+    traits: next.traits ?? [],
     character: next.line.value,
   }
   w.identity = { character: next.line.value }

@@ -52,6 +52,8 @@ export const GAME_PATHS = {
   factionTemplates: 'common/factions/templates',
   events: 'events',
   history: 'history/countries',
+  /** The starting fleets and armies (`set_naval_oob`), read for a ship that is the pride of the fleet. */
+  units: 'history/units',
   localisation: 'localisation/english',
   statDocs: 'documentation/modifiers_documentation.md',
 } as const

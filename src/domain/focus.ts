@@ -69,7 +69,8 @@ export type Check =
  * effect); `groups` maps each sub-ideology to its ideology group (`conservatism` to `democratic`).
  */
 export interface LeaderData {
-  candidates: { group: string; line: EffectLine }[]
+  /** `traits` are the leader's trait lines with their stats beneath, at depth 0. */
+  candidates: { group: string; line: EffectLine; traits?: EffectLine[] }[]
   groups: Record<string, string>
 }
 

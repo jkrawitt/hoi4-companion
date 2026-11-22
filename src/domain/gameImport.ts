@@ -26,6 +26,7 @@ import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
 import { listModifiersUnderLines } from './effects/modifierLines'
 import { readCountryHistory, readCountryHistoryText, readDefinitions } from './definitions'
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
+import { blockEnd, outdent } from './effects/lines'
 import { loadNames } from './names'
 import { nameKeysOf, nameLines, tagOf } from './nameLines'
 import { humanize } from './focusEffects'
@@ -50,6 +51,7 @@ import {
   parseIdeologyGroups,
   parseLeaderRoles,
   listLeaderCandidates,
+  parseLeaderRoleTraits,
   parseRecruited,
   pickStartingLeader,
 } from './parsers/leaders'
@@ -76,6 +78,16 @@ export interface ImportTarget {
 }
 
 /** The history's recruits with the leader roles of each and the ideology groups, read once. */
+/** A `traits` field for a promote line, when the character's role has traits. */
+const traitsOf = (
+  roleTraits: Record<string, Record<string, string[]>>,
+  character: string,
+  ideology: string,
+) => {
+  const traits = roleTraits[character]?.[ideology]
+  return traits ? { traits } : {}
+}
+
 const readLeaderSources = async (files: GameFiles, tag: string, historyText: string) => {
   const roles = parseLeaderRoles(
     (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
@@ -86,7 +98,10 @@ const readLeaderSources = async (files: GameFiles, tag: string, historyText: str
       .map((file) => files.readText(`${GAME_PATHS.ideologies}/${file}`)),
   )
   const groups = Object.assign({}, ...ideologies.map((text) => parseIdeologyGroups(text ?? '')))
-  return { recruited: parseRecruited(historyText), roles, groups }
+  const roleTraits = parseLeaderRoleTraits(
+    (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
+  )
+  return { recruited: parseRecruited(historyText), roles, roleTraits, groups }
 }
 
 /** Every value the effects give for `keys`, e.g. all the opinion modifiers they add. */
@@ -118,11 +133,31 @@ const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
  * characters who could lead it later, as `promote_character` lines in the order the game would
  * pick them.
  */
+/** The static modifier a country with a pride of the fleet gets (`00_static_modifiers.txt`). */
+const PRIDE_OF_THE_FLEET = 'pride_of_the_fleet_country'
+const STATIC_SPIRITS = [PRIDE_OF_THE_FLEET]
+
+/**
+ * Whether the starting fleet (`set_naval_oob`, either of the DLC variants) has a ship that is the
+ * pride of the fleet, which gives the country a static modifier.
+ */
+const hasPrideOfTheFleet = async (files: GameFiles, historyText: string): Promise<boolean> => {
+  const oobs = [...historyText.matchAll(/set_naval_oob\s*=\s*"([^"]+)"/g)].map((m) => m[1])
+  for (const oob of oobs) {
+    const text = await files.readText(`${GAME_PATHS.units}/${oob}.txt`)
+    if (text && /pride_of_the_fleet\s*=\s*yes/.test(text)) return true
+  }
+  return false
+}
+
 const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
   const historyText = await readCountryHistoryText(files, tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
   const defaults = historyText ? await readDefaultLaws(files, startLines) : undefined
   if (defaults) startLines.push(...defaults.lines)
+  if (historyText && (await hasPrideOfTheFleet(files, historyText))) {
+    startLines.push({ depth: 0, key: 'add_ideas', value: PRIDE_OF_THE_FLEET })
+  }
   const rulingParty = startLines.find((e) => e.key === 'set_politics')?.value
   const sources = historyText ? await readLeaderSources(files, tag, historyText) : undefined
   if (sources && rulingParty) {
@@ -133,6 +168,7 @@ const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string,
         key: 'promote_character',
         value: leader.character,
         subject: leader.ideology,
+        ...traitsOf(sources.roleTraits, leader.character, leader.ideology),
       })
     }
   }
@@ -145,6 +181,7 @@ const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string,
       key: 'promote_character',
       value: c.character,
       subject: c.ideology,
+      ...traitsOf(sources!.roleTraits, c.character, c.ideology),
     }),
   )
   return {
@@ -184,7 +221,7 @@ const readEffectDefinitions = async (
   const relations = await readDefinitions(
     files,
     GAME_PATHS.staticModifiers,
-    valuesOf(lists, 'add_relation_modifier'),
+    new Set([...valuesOf(lists, 'add_relation_modifier'), ...STATIC_SPIRITS]),
     `${GAME_PATHS.staticModifiers}/00_static_modifiers.txt`,
     parseStaticModifiers,
   )
@@ -201,6 +238,10 @@ const readEffectDefinitions = async (
     `${GAME_PATHS.leaderTraits}/00_traits.txt`,
     parseLeaderTraits,
   )
+  // Static modifiers the start gives as national spirits have their stats read like an idea's.
+  for (const id of STATIC_SPIRITS) {
+    if (ideaIds.has(id) && !ideas[id] && relations[id]) ideas[id] = relations[id]
+  }
   return { ideas, ideaAliases, opinions, relations, leaderTraits }
 }
 
@@ -347,6 +388,11 @@ export const importCountryFocuses = async (
   }
   const named = (lines: EffectLine[]) => nameLines(lines, nameContext)
   const namedCandidates = named(candidatesListed)
+  // Each candidate is its line and the trait lines listed beneath it.
+  const candidateBlocks: EffectLine[][] = []
+  for (let i = 0; i < namedCandidates.length; i = blockEnd(namedCandidates, i)) {
+    candidateBlocks.push(namedCandidates.slice(i, blockEnd(namedCandidates, i)))
+  }
   /** A tech's name; one without its own is named after what it unlocks, and failing that its id. */
   const techName = (id: string) => {
     const candidates = [id, ...(fallbackNames[id] ?? [])].map((key) => (names[key] ?? '').trim())
@@ -412,7 +458,11 @@ export const importCountryFocuses = async (
       defines: politics.defines,
     },
     leaders: {
-      candidates: candidates.map((c, i) => ({ group: c.group, line: namedCandidates[i] })),
+      candidates: candidates.map((c, i) => ({
+        group: c.group,
+        line: candidateBlocks[i][0],
+        ...(candidateBlocks[i].length > 1 && { traits: outdent(candidateBlocks[i].slice(1)) }),
+      })),
       groups,
     },
     production: {

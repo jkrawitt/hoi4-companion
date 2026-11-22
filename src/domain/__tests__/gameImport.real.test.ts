@@ -71,7 +71,12 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(state.balance).toBe(-0.45)
     const total = (key: string) => state.modifierTotals.find((t) => t.key === key)?.total
     expect(total('political_power_factor')).toBeCloseTo(-0.1)
-    expect(total('stability_factor')).toBeCloseTo(-0.05)
+    // Svinhufvud's traits (Suojeluskunta -5%, Conservative Nationalist +10%) add 5% stability,
+    // so with the low trust (-5%) it is 50% - 10% + 9.75% = 49.75%.
+    expect(total('stability_factor')).toBeCloseTo(0)
+    expect(state.stability).toBeCloseTo(0.4975)
+    // Ilmarinen is the pride of the fleet: +5% war support, which cancels the low trust's -5%.
+    expect(state.warSupport).toBeCloseTo(0.5)
     const keys = new Set(focuses.flatMap((f) => f.effects.map((e) => e.key)))
     // A scripted effect (`FIN_bop_*_effect = yes`) is written out, and variables and AI are not shown.
     expect(keys.has('add_power_balance_value')).toBe(true)

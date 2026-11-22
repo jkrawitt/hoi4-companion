@@ -32,6 +32,25 @@ export const parseLeaderRoles = (text: string): Record<string, string[]> => {
   return roles
 }
 
+/** The traits of each `country_leader` role of each character: character, then ideology. */
+export const parseLeaderRoleTraits = (text: string): Record<string, Record<string, string[]>> => {
+  const result: Record<string, Record<string, string[]>> = {}
+  for (const character of getBlock(parseScript(text), 'characters') ?? []) {
+    if (typeof character.value === 'string' || character.key === null) continue
+    for (const role of getAll(character.value, 'country_leader')) {
+      if (typeof role.value === 'string') continue
+      const ideology = getString(role.value, 'ideology')
+      const traits = getBlock(role.value, 'traits')?.flatMap((t) =>
+        t.key === null && typeof t.value === 'string' ? [t.value] : [],
+      )
+      if (ideology && traits && traits.length > 0) {
+        ;(result[character.key] ??= {})[ideology] ??= traits
+      }
+    }
+  }
+  return result
+}
+
 /** Characters a history file recruits at the start, in order (top level only). */
 export const parseRecruited = (historyText: string): string[] =>
   getStrings(parseScript(historyText), 'recruit_character')
