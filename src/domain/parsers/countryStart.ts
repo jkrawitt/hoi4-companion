@@ -45,6 +45,9 @@ const isStart1936 = (lines: EffectLine[], index: number): boolean => {
   )
 }
 
+const isNumeric = (value: string | undefined): value is string =>
+  value !== undefined && value !== '' && Number.isFinite(Number(value))
+
 const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLine[] => {
   const result: EffectLine[] = []
   for (let i = 0; i < lines.length; i++) {
@@ -64,8 +67,27 @@ const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLin
       }
     } else if (line.key === 'add_ideas' || opensBlock(line, 'set_power_balance')) {
       result.push(...lines.slice(i, end))
+    } else if (
+      (line.key === 'add_stability' || line.key === 'add_war_support') &&
+      isNumeric(line.value)
+    ) {
+      // A change to the default 50%: one start line holds the whole value (`scriptedStat`).
+      const existing = result.find((l) => l.depth === 0 && l.key === line.key)
+      if (existing)
+        existing.value = String(
+          Math.round((Number(existing.value) + Number(line.value)) * 1e6) / 1e6,
+        )
+      else {
+        const value = Math.round((0.5 + Number(line.value)) * 1e6) / 1e6
+        result.push({ depth: 0, key: line.key, value: String(value), isModifier: true })
+      }
     } else if (line.key !== null && line.value !== undefined && line.key in SET_STATS) {
-      result.push({ depth: 0, key: SET_STATS[line.key], value: line.value, isModifier: true })
+      const key = SET_STATS[line.key]
+      // A later `set_*` replaces what came before.
+      const before = result.findIndex((l) => l.depth === 0 && l.key === key)
+      if (before !== -1 && (key === 'add_stability' || key === 'add_war_support'))
+        result.splice(before, 1)
+      result.push({ depth: 0, key, value: line.value, isModifier: true })
     } else if (opensBlock(line, 'set_technology')) {
       const targets = childrenOf(lines, i).flatMap((l) => (l.key && l.value === '1' ? [l.key] : []))
       if (targets.length > 0) {

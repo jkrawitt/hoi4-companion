@@ -56,6 +56,14 @@ describe('balance of power', () => {
     expect(rangeAt(bop, 0.3)?.id).toBe('high')
   })
 
+  it('reads a start `add_stability` as a change to the default 50%', () => {
+    const lines = parseStartingLines('add_stability = -0.1 add_war_support = 0.05')
+    expect(lines.map((l) => [l.key, l.value])).toEqual([
+      ['add_stability', '0.4'],
+      ['add_war_support', '0.55'],
+    ])
+  })
+
   it('reads the 1936 balance of the start, not the 1939 one', () => {
     const lines = parseStartingLines(`
       if = {
