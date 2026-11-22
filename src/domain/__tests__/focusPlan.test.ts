@@ -60,3 +60,20 @@ describe('schedulePlan', () => {
     expect(schedulePlan(['a', 'a'], focuses, options).items[1].issues[0].kind).toBe('duplicate')
   })
 })
+
+describe('schedulePlan with a loaded day', () => {
+  it('shortens only the first focus', () => {
+    const focuses = {
+      a: focus('a', 35),
+      b: focus('b', 35),
+    }
+    const { items } = schedulePlan(['a', 'b'], focuses, {
+      startDate: new Date(Date.UTC(1936, 0, 1)),
+      speedBonus: 0,
+      loadedDays: 1,
+    })
+    expect(items[0].end.toISOString().slice(0, 10)).toBe('1936-02-04')
+    expect(items[1].start.toISOString().slice(0, 10)).toBe('1936-02-04')
+    expect(items[1].durationDays).toBe(35)
+  })
+})

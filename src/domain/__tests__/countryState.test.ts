@@ -170,13 +170,38 @@ describe('countryStateAt', () => {
         { tag: 'ROM', start: startLines },
       ).popularity
     const share = (days: number) => Object.fromEntries(after(days).map((p) => [p.subject, p.total]))
-    // Fascism gains 15 points; the 55% left is split 4:2:1 among the others.
-    expect(share(80)).toMatchObject({ f: 0.45, d: 0.314286, c: 0.157143, n: 0.078571 })
+    // Fascism is above 20%, so its 15 points count half: 7.5. The 62.5% left is split 4:2:1.
+    expect(share(80)).toMatchObject({ f: 0.375, d: 0.357143, c: 0.178571, n: 0.089286 })
     // Losing all 45 points gives them back in the same proportion: fascism is 0.
     expect(share(140).f).toBe(0)
     for (const days of [80, 140]) {
       expect(after(days).reduce((sum, p) => sum + p.total, 0)).toBeCloseTo(1, 5)
     }
+  })
+
+  it('scales a gain by half for a party above 20%, but not a loss or a party at 20% or below', () => {
+    const pop = (subject: string, value: string): EffectLine => ({
+      ...modifier(0, 'add_popularity', value),
+      subject,
+      subjectName: subject,
+    })
+    const startLines = [pop('d', '0.5'), pop('f', '0.25'), pop('c', '0.2'), pop('n', '0.05')]
+    const after = (gain: Record<string, string>) =>
+      Object.fromEntries(
+        countryStateAt(
+          schedulePlan(
+            ['a'],
+            { a: focus('a', Object.entries(gain).map(([k, v]) => pop(k, v))) },
+            { startDate: start, speedBonus: 0 },
+          ),
+          day(80),
+          { tag: 'ROM', start: startLines },
+        ).popularity.map((p) => [p.subject, p.total]),
+      )
+    expect(after({ f: '0.1' }).f).toBeCloseTo(0.3, 5)
+    expect(after({ c: '0.1' }).c).toBeCloseTo(0.3, 5)
+    expect(after({ n: '0.1' }).n).toBeCloseTo(0.15, 5)
+    expect(after({ f: '-0.1' }).f).toBeCloseTo(0.15, 5)
   })
 
   it('drifts the popularity every day a drift modifier is active, from the other parties', () => {

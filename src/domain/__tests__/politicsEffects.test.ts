@@ -173,7 +173,7 @@ describe('politics and leader effects', () => {
       checkOf('if = { limit = { has_country_leader = { unit_leader = yes } } a = b }'),
     ).toBeUndefined()
     // Only the four ideology groups are popularities, not any `key > number`.
-    expect(checkOf('if = { limit = { num_of_factories > 5 } a = b }')).toBeUndefined()
+    expect(checkOf('if = { limit = { num_of_military_factories > 5 } a = b }')).toBeUndefined()
   })
 
   it('writes comparisons, else branches and empty limits', () => {
@@ -330,5 +330,35 @@ describe('has_war_with', () => {
       collapseEffects(flattenEffects(parseScript('if = { limit = { has_war_with = SOV } a = b }'))),
     )
     expect(header.check).toEqual({ type: 'war_with', tag: 'SOV' })
+  })
+})
+
+describe('num_of_factories and is_major', () => {
+  const check = (limit: string) =>
+    foldConditions(
+      collapseEffects(flattenEffects(parseScript(`if = { limit = { ${limit} } a = b }`))),
+    )[0].check
+
+  it('reads the factory count with its comparison', () => {
+    expect(check('num_of_factories < 60')).toEqual({ type: 'factories', op: '<', than: 60 })
+  })
+
+  it('reads is_major', () => {
+    expect(check('is_major = no')).toEqual({ type: 'major', value: false })
+  })
+})
+
+describe('is_subject and has_civil_war', () => {
+  it('are read as situations', () => {
+    const check = (limit: string) =>
+      foldConditions(
+        collapseEffects(flattenEffects(parseScript(`if = { limit = { ${limit} } a = b }`))),
+      )[0].check
+    expect(check('is_subject = no')).toEqual({ type: 'situation', key: 'subject', value: false })
+    expect(check('has_civil_war = no')).toEqual({
+      type: 'situation',
+      key: 'civil_war',
+      value: false,
+    })
   })
 })

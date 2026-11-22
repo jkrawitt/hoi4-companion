@@ -38,6 +38,12 @@ export interface ConditionContext {
    */
   controlsState?: (id: string) => boolean | undefined
   hasFlag?: (id: string) => boolean | undefined
+  /** Civilian plus military factories the country has. */
+  factories?: () => number | undefined
+  /** Whether the country is a subject, or in a civil war: not planned, so only some contexts say. */
+  situation?: (key: 'subject' | 'civil_war') => boolean | undefined
+  /** Whether the country is a major power. */
+  isMajor?: () => boolean | undefined
   /**
    * Whether the country is at war with `tag`. Wars are only known from what the player enters
    * (`WarAdjustment`), and `undefined` before the first entry.
@@ -102,6 +108,18 @@ export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | un
       return ctx.hasFlag?.(check.id)
     case 'war_with':
       return ctx.atWarWith?.(check.tag)
+    case 'factories': {
+      const count = ctx.factories?.()
+      return count === undefined ? undefined : compare(count, check.op, check.than)
+    }
+    case 'situation': {
+      const now = ctx.situation?.(check.key)
+      return now === undefined ? undefined : now === check.value
+    }
+    case 'major': {
+      const major = ctx.isMajor?.()
+      return major === undefined ? undefined : major === check.value
+    }
     case 'not': {
       const inner = evaluateCheck(check.of, ctx)
       return inner === undefined ? undefined : !inner

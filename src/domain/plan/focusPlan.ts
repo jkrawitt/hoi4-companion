@@ -43,7 +43,8 @@ export const schedulePlan = (
       }
     }
 
-    const durationDays = focusDurationDays(focus, options.speedBonus)
+    const loaded = items.length === 0 ? (options.loadedDays ?? 0) : 0
+    const durationDays = Math.max(0, focusDurationDays(focus, options.speedBonus) - loaded)
     const end = addDays(cursor, durationDays)
     items.push({ focus, start: cursor, end, durationDays, issues })
     completed.add(id)

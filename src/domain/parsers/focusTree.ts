@@ -30,6 +30,10 @@ const answerable = (check: Check): boolean => {
     case 'const':
     case 'tag':
     case 'dlc':
+    // Only a decision's `visible` answers these (the store's view context), never a focus.
+    case 'situation':
+    case 'factories':
+    case 'major':
       return false
     default:
       return true

@@ -184,6 +184,7 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       if (holds === false) return { kind: 'wait', reason: 'unavailable' }
       if (holds === undefined) issues.push({ kind: 'availability-unknown' })
     }
+    if (option.variableCost) issues.push({ kind: 'cost-unknown' })
     const inSlotNow = isDecision
       ? []
       : (state.politics.held[option.slot] ?? []).map((idea) => idea.id)

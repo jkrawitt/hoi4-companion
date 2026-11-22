@@ -202,6 +202,13 @@ export const readDecisions = async (
         isAllowed(categories[option.slot] ?? {}, tag, ownedDlc) && isAllowed(option, tag, ownedDlc)
       )
     })
+    .map((option) => {
+      // A category's `visible` hides every decision in it, so it counts with the decision's own.
+      const hide = categories[option.slot]?.visible
+      if (!hide) return option
+      const visible: Check = option.visible ? { type: 'all', of: [hide, option.visible] } : hide
+      return { ...option, visible }
+    })
 }
 
 /** The `available` block as the header of an `if`, so folding the condition writes it in English. */
@@ -232,6 +239,8 @@ export const finishOption = (
   ...(raw.character && { character: raw.character }),
   ...(raw.recruited !== undefined && { recruited: raw.recruited }),
   ...(raw.available && { available: raw.available }),
+  ...(raw.visible && { visible: raw.visible }),
+  ...(raw.variableCost && { variableCost: true }),
   availableText: named(availabilityLines(raw))[0]?.condition,
   modifiers: named(raw.modifiers),
   ...(raw.researchBonus && { researchBonus: raw.researchBonus }),

@@ -1,5 +1,6 @@
 import { computed, watch, type Ref } from 'vue'
 import { ownedDlc } from '@/data/dlc'
+import { MAJORS_1936 } from '@/data/majors'
 import { statOverrides } from '@/data/statOverrides'
 import { countryStateAt } from '@/domain/campaign/countryState'
 import { previewFocusEffects } from '@/domain/campaign/preview'
@@ -36,6 +37,9 @@ export interface CampaignSettings {
 }
 
 /** Everything worked out from the settings, the imported data and the queues. */
+/** The first focus starts with a day done; see `PlanOptions.loadedDays`. */
+const FIRST_FOCUS_LOADED_DAYS = 1
+
 export const createPlanning = (settings: CampaignSettings, data: GameData, queues: Queues) => {
   const { countryTag, startDate, speedBonusPercent, viewDate } = settings
   const {
@@ -56,6 +60,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     schedulePlan(plan.value, focuses.value, {
       startDate: parseDate(startDate.value),
       speedBonus: speedBonusPercent.value / 100,
+      loadedDays: FIRST_FOCUS_LOADED_DAYS,
     }),
   )
 
@@ -174,9 +179,19 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
 
   const state = computed(() => stateOn(parseDate(viewDate.value)))
   /** What the conditions ask about the country on the viewed date. */
-  const viewContext = computed(() =>
-    conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
-  )
+  const viewContext = computed(() => ({
+    ...conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
+    // The terms of a decision's `visible` that only the store can answer (assumed: the factory
+    // count is civilian plus military on the viewed date, and a country stays as it starts).
+    factories: () => {
+      const counts = industry.value?.factories
+      if (!counts) return undefined
+      return counts
+        .filter((f) => ['industrial_complex', 'arms_factory'].includes(f.type))
+        .reduce((n, f) => n + f.count, 0)
+    },
+    isMajor: () => MAJORS_1936.has(countryTag.value),
+  }))
   /**
    * Whether an option's `available` is known to hold in the country on the viewed date. With
    * `unknownCounts` a condition the campaign cannot answer counts as holding, like in the planner.
@@ -186,6 +201,21 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     const holds = evaluateCheck(option.available, viewContext.value)
     return holds === undefined ? unknownCounts : holds
   }
+  /**
+   * Whether a decision is in the list on the viewed date: its `available` is known to hold, or its
+   * `visible` is (no `visible` block counts). The game also greys out what is visible but not
+   * available; one whose `visible` the planner cannot answer stays out, so the list stays short.
+   */
+  const decisionListed = (option: PoliticalOption) =>
+    availableOnViewDate(option, false) ||
+    !option.visible ||
+    // No flag is known to be set (events set them too, which are not played), so none counts as
+    // set, and the country is taken to be independent and at peace at home.
+    evaluateCheck(option.visible, {
+      ...viewContext.value,
+      hasFlag: () => false,
+      situation: () => false,
+    }) === true
   /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */
   const availabilityOnViewDate = (option: PoliticalOption) =>
     option.available
@@ -234,6 +264,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     scheduleOptions: {
       startDate: parseDate(startDate.value),
       speedBonus: speedBonusPercent.value / 100,
+      loadedDays: FIRST_FOCUS_LOADED_DAYS,
     },
     stateOptions: {
       ...stateOptions.value,
@@ -320,6 +351,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     state,
     stabilityOn,
     availableOnViewDate,
+    decisionListed,
     availabilityOnViewDate,
     trade,
     industry,

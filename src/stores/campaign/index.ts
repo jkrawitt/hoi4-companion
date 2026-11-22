@@ -122,6 +122,7 @@ const createCampaign = () => {
     removeAdjustment: queues.removeAdjustment,
     stabilityOn: planning.stabilityOn,
     availableOnViewDate: planning.availableOnViewDate,
+    decisionListed: planning.decisionListed,
     availabilityOnViewDate: planning.availabilityOnViewDate,
     trade: planning.trade,
     toggleChecked: queues.toggleChecked,
