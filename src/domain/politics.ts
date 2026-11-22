@@ -48,6 +48,13 @@ export interface PoliticalOption {
   available?: Check
   /** The `available` block in English, when it is simple enough to write out. */
   availableText?: string
+  /**
+   * Decisions: the `visible` block alone. The game hides a decision whose `visible` fails, but
+   * shows one whose `available` fails (greyed out), so the list is filtered on this.
+   */
+  visible?: Check
+  /** Decisions: the cost is a variable or scripted, so `cost` is 0 and the real one is unknown. */
+  variableCost?: boolean
   /** Decisions: it can be taken once (`fire_only_once`). */
   fireOnce?: boolean
   /**
@@ -123,6 +130,8 @@ export type PurchaseIssue =
   | { kind: 'already-held' }
   /** Its `available` block asks about something the campaign cannot answer, so it is allowed. */
   | { kind: 'availability-unknown' }
+  /** A decision whose cost is a variable, so it is taken to be free. */
+  | { kind: 'cost-unknown' }
 
 export interface ScheduledPurchase {
   /** Position in the queue. */

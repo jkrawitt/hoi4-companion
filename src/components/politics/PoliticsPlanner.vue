@@ -22,6 +22,7 @@ const {
   viewDate,
   state,
   availableOnViewDate,
+  hiddenOnViewDate,
   availabilityOnViewDate,
   politicsPlan,
   politicsSchedule,
@@ -47,7 +48,9 @@ const REASONS: Record<UnscheduledPurchaseReason, string> = {
 const issueText = (issue: PurchaseIssue) =>
   issue.kind === 'already-held'
     ? 'Already held, so nothing is bought.'
-    : 'Its availability cannot be checked, so it is assumed to be available.'
+    : issue.kind === 'cost-unknown'
+      ? 'Its cost is a variable the planner cannot know, so it is taken to be free.'
+      : 'Its availability cannot be checked, so it is assumed to be available.'
 
 const options = computed(() => politics.value?.options ?? [])
 const byId = computed(() => new Map(options.value.map((o) => [o.id, o])))
@@ -55,9 +58,7 @@ const byId = computed(() => new Map(options.value.map((o) => [o.id, o])))
 /** The politics screen: each group with its slots, and the options that fill each slot. */
 const groups = computed(() =>
   POLITICS_GROUPS.map((group) => {
-    const shown = options.value.filter(
-      (o) => o.kind !== 'decision' || availableOnViewDate(o, false),
-    )
+    const shown = options.value.filter((o) => o.kind !== 'decision' || !hiddenOnViewDate(o))
     const slots = [...new Set(shown.filter((o) => o.group === group.id).map((o) => o.slot))].map(
       (slot) => ({
         slot,
@@ -162,7 +163,11 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
                 v-for="option in slot.options"
                 :key="option.id"
                 class="option"
-                :class="{ held: isHeld(option), queued: queued(option) }"
+                :class="{
+                  held: isHeld(option),
+                  queued: queued(option),
+                  unavailable: option.kind === 'decision' && !availableOnViewDate(option, true),
+                }"
               >
                 <button
                   class="pick"
@@ -171,7 +176,9 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
                 >
                   {{ option.name }}
                 </button>
-                <span class="muted cost">{{ costNow(option) }} PP</span>
+                <span class="muted cost">{{
+                  option.variableCost ? 'cost varies' : `${costNow(option)} PP`
+                }}</span>
                 <span v-if="availabilityOnViewDate(option)" class="info" tabindex="0">
                   i
                   <div class="tip">
@@ -321,6 +328,9 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 }
 .option.held .pick {
   font-weight: 700;
+}
+.option.unavailable .pick {
+  opacity: 0.55;
 }
 .option.queued .pick {
   outline: 2px solid #2f4f6f;

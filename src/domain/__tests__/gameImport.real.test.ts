@@ -557,7 +557,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const { politics } = await importRomania()
     const decisions = politics.options.filter((o) => o.kind === 'decision')
     expect(decisions.length).toBeGreaterThan(0)
-    expect(decisions.every((o) => o.cost > 0 && o.group === 'decisions')).toBe(true)
+    expect(decisions.every((o) => o.cost >= 0 && o.group === 'decisions')).toBe(true)
     console.log(`${decisions.length} decisions`)
   })
 

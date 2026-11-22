@@ -232,6 +232,8 @@ export const finishOption = (
   ...(raw.character && { character: raw.character }),
   ...(raw.recruited !== undefined && { recruited: raw.recruited }),
   ...(raw.available && { available: raw.available }),
+  ...(raw.visible && { visible: raw.visible }),
+  ...(raw.variableCost && { variableCost: true }),
   availableText: named(availabilityLines(raw))[0]?.condition,
   modifiers: named(raw.modifiers),
   ...(raw.researchBonus && { researchBonus: raw.researchBonus }),

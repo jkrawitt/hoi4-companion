@@ -186,6 +186,9 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     const holds = evaluateCheck(option.available, viewContext.value)
     return holds === undefined ? unknownCounts : holds
   }
+  /** Whether a decision's `visible` fails on the viewed date: the game hides it then (unknown shows it). */
+  const hiddenOnViewDate = (option: PoliticalOption) =>
+    option.visible !== undefined && evaluateCheck(option.visible, viewContext.value) === false
   /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */
   const availabilityOnViewDate = (option: PoliticalOption) =>
     option.available
@@ -320,6 +323,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     state,
     stabilityOn,
     availableOnViewDate,
+    hiddenOnViewDate,
     availabilityOnViewDate,
     trade,
     industry,

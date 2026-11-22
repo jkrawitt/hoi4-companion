@@ -39,7 +39,7 @@ describe('parseDecisions', () => {
   const options = parseDecisions(TEXT, triggers, effects)
 
   it('keeps decisions with a plain political power cost', () => {
-    expect(options.map((o) => o.id)).toEqual(['ROM_fortify'])
+    expect(options.map((o) => o.id)).toEqual(['ROM_fortify', 'ROM_variable_cost', 'ROM_free'])
     expect(options[0]).toMatchObject({
       kind: 'decision',
       slot: 'ROM_category',
@@ -49,11 +49,22 @@ describe('parseDecisions', () => {
     })
   })
 
-  it('drops an unresolved cost, a missing cost and targeted decisions', () => {
-    const ids = options.map((o) => o.id)
-    expect(ids).not.toContain('ROM_variable_cost')
-    expect(ids).not.toContain('ROM_free')
-    expect(ids).not.toContain('ROM_targeted')
+  it('keeps a variable cost as free and flagged, and a missing cost as free', () => {
+    const byId = Object.fromEntries(options.map((o) => [o.id, o]))
+    expect(byId.ROM_variable_cost).toMatchObject({ cost: 0, variableCost: true })
+    expect(byId.ROM_free.cost).toBe(0)
+    expect(byId.ROM_free.variableCost).toBeUndefined()
+  })
+
+  it('drops targeted decisions', () => {
+    expect(options.map((o) => o.id)).not.toContain('ROM_targeted')
+  })
+
+  it('keeps the visible block apart from the available one', () => {
+    const fortify = options.find((o) => o.id === 'ROM_fortify')!
+    expect(fortify.visible).toBeDefined()
+    expect(evaluateCheck(fortify.visible!, { government: () => 'fascism' } as never)).toBe(true)
+    expect(evaluateCheck(fortify.visible!, { government: () => 'democratic' } as never)).toBe(false)
   })
 
   it('writes the complete_effect out with scripted effects expanded', () => {
