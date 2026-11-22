@@ -269,6 +269,19 @@ export const shiftPopularity = (w: Working, subject: string, delta: number): voi
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
 /**
+ * A party above this popularity gains only `POPULARITY_GAIN_SCALE` of what an `add_popularity`
+ * effect says (the whole effect, not just the part above). Seen in game, not in the files: the
+ * threshold is a guess from a few readings, the gain a half; losses and the daily drift are not
+ * scaled.
+ */
+export const POPULARITY_SCALE_ABOVE = 0.2
+export const POPULARITY_GAIN_SCALE = 0.5
+
+/** What an `add_popularity` of `delta` really does to a party that has `current`. */
+export const scaledPopularityChange = (current: number, delta: number): number =>
+  delta > 0 && current > POPULARITY_SCALE_ABOVE ? delta * POPULARITY_GAIN_SCALE : delta
+
+/**
  * The parties' popularity always adds up to 100%: the start sets each one, and a later change to
  * one party is taken from the others in proportion to their share (`shiftPopularity`). Without the
  * start there is only the changes, which are added as they are.
@@ -285,7 +298,8 @@ const popularity: Handler = ({ w, step, options }, e) => {
       subjectName: e.subjectName ?? e.subject,
     })
   } else {
-    shiftPopularity(w, e.subject, Number(e.value))
+    const current = w.popularity.get(e.subject)?.total ?? 0
+    shiftPopularity(w, e.subject, scaledPopularityChange(current, Number(e.value)))
   }
   return true
 }
