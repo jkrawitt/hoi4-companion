@@ -9,6 +9,8 @@ import { evaluateCheck, type ConditionContext } from './campaign/conditions'
 import { ideaLineIndexes } from './effects/ideaLines'
 import { GAME_PATHS, type GameFiles } from './gameFiles'
 import { readDefinitions } from './definitions'
+import { parseDecisionCategories, parseDecisions } from './parsers/decisions'
+import { type ScriptedEffects } from './parsers/scriptedEffects'
 import { parseLeaderTraits } from './parsers/leaderTraits'
 import {
   parseAdvisors,
@@ -160,6 +162,46 @@ export const readPolitics = async (
     lawSlots,
     defines: parsePoliticsDefines(definesText, staticModifiersText),
   }
+}
+
+/**
+ * The decisions the country can take: those of every `common/decisions` file (the categories live
+ * in the `categories` folder) that `allowed` and `visible` do not rule out for its tag and DLCs.
+ */
+export const readDecisions = async (
+  files: GameFiles,
+  tag: string,
+  ownedDlc: Record<string, boolean>,
+  effects: ScriptedEffects,
+): Promise<RawOption[]> => {
+  const triggers = await readScriptedTriggers(files)
+  const txt = (names: string[]) => names.filter((f) => f.endsWith('.txt'))
+  const dir = GAME_PATHS.decisions
+  const names = txt(await files.listFiles(dir))
+  const categoryNames = txt(await files.listFiles(`${dir}/categories`))
+  const texts = await readAll(
+    files,
+    names.map((f) => `${dir}/${f}`),
+  )
+  const categories: ReturnType<typeof parseDecisionCategories> = Object.assign(
+    {},
+    ...(
+      await readAll(
+        files,
+        categoryNames.map((f) => `${dir}/categories/${f}`),
+      )
+    ).map((text) => parseDecisionCategories(text, triggers)),
+  )
+  const seen = new Set<string>()
+  return texts
+    .flatMap((text) => parseDecisions(text, triggers, effects))
+    .filter((option) => {
+      if (seen.has(option.id)) return false
+      seen.add(option.id)
+      return (
+        isAllowed(categories[option.slot] ?? {}, tag, ownedDlc) && isAllowed(option, tag, ownedDlc)
+      )
+    })
 }
 
 /** The `available` block as the header of an `if`, so folding the condition writes it in English. */

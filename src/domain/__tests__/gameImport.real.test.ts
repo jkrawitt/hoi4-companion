@@ -527,6 +527,14 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     console.log(`${politics.options.length} political options`)
   })
 
+  it('imports decisions with a political power cost', async () => {
+    const { politics } = await importRomania()
+    const decisions = politics.options.filter((o) => o.kind === 'decision')
+    expect(decisions.length).toBeGreaterThan(0)
+    expect(decisions.every((o) => o.cost > 0 && o.group === 'decisions')).toBe(true)
+    console.log(`${decisions.length} decisions`)
+  })
+
   it("imports Romania's military industrial organisations", async () => {
     const { mios, research } = await importRomania()
     const ids = mios.map((m) => m.id)

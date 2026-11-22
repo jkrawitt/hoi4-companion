@@ -52,7 +52,13 @@ import {
   pickStartingLeader,
 } from './parsers/leaders'
 import { parseFactionTemplates } from './parsers/factions'
-import { annotateIdeaLines, availabilityLines, finishOption, readPolitics } from './politicsImport'
+import {
+  annotateIdeaLines,
+  availabilityLines,
+  finishOption,
+  readDecisions,
+  readPolitics,
+} from './politicsImport'
 import { parseStatDocs, type StatOverrides } from './stats'
 
 // Re-exported so callers have one import for "reading the game folder".
@@ -242,7 +248,8 @@ export const importCountryFocuses = async (
 
   // 1. Pick the branch that applies to the DLCs we know about before anything is looked up, so
   // names and idea modifiers are only read for what will be shown.
-  const tree = parseFocusTreeFile(treeText, await readScriptedEffects(files)).map((f) => ({
+  const scriptedEffects = await readScriptedEffects(files)
+  const tree = parseFocusTreeFile(treeText, scriptedEffects).map((f) => ({
     ...f,
     effects: resolveDlcConditions(f.effects, ownedDlc),
   }))
@@ -253,16 +260,26 @@ export const importCountryFocuses = async (
   )
   // What political power can buy; the law of each slot the history leaves empty is a start idea.
   const politics = await readPolitics(files, country, ownedDlc, recruited)
+  // The decisions political power pays for; their rewards are read like a focus reward's.
+  const rawDecisions = (await readDecisions(files, country.tag, ownedDlc, scriptedEffects)).map(
+    (o) => ({ ...o, modifiers: resolveDlcConditions(o.modifiers, ownedDlc) }),
+  )
 
   // 2. The definitions the effects refer to, listed beneath the lines that apply them.
   const defs = await readEffectDefinitions(
     files,
-    [...tree.map((f) => f.effects), startLines, candidateLines],
+    [
+      ...tree.map((f) => f.effects),
+      startLines,
+      candidateLines,
+      ...rawDecisions.map((o) => o.modifiers),
+    ],
     ideasFile,
   )
   const listed = (lines: EffectLine[]) => listModifiersUnderLines(lines, defs)
   const focuses = tree.map((f) => ({ ...f, effects: listed(f.effects) }))
   const start = listed(startLines)
+  const decisions = rawDecisions.map((o) => ({ ...o, modifiers: listed(o.modifiers) }))
   const candidatesListed = listed(candidateLines)
   // The tech tree: its folders, and the stats of each tech, which are named like any other line.
   const { data: research, fallbackNames } = await readTechnologies(files, ownedDlc)
@@ -274,7 +291,7 @@ export const importCountryFocuses = async (
     start,
     candidatesListed,
     ...research.techs.map((t) => t.modifiers),
-    ...politics.options.flatMap((o) => [o.modifiers, availabilityLines(o)]),
+    ...[...politics.options, ...decisions].flatMap((o) => [o.modifiers, availabilityLines(o)]),
     ...rawMios.map(availabilityLines),
   ]
 
@@ -297,7 +314,11 @@ export const importCountryFocuses = async (
       ...research.techs.map((t) => t.id),
       ...research.folders.map((f) => f.id),
       ...rawMios.flatMap((m) => [m.id, `${country.tag}_${m.id}`]),
-      ...politics.options.flatMap((o) => [o.id, ...(o.character ? [o.character] : [])]),
+      ...[...politics.options, ...decisions].flatMap((o) => [
+        o.id,
+        ...(o.character ? [o.character] : []),
+      ]),
+      ...decisions.map((o) => o.slot),
       ...politics.options.flatMap((o) => Object.keys(o.researchBonus ?? {})),
       ...Object.values(fallbackNames).flat(),
       ...lists.flatMap((lines) => lines.flatMap((e) => nameKeysOf(e, defs.ideaAliases))),
@@ -327,7 +348,7 @@ export const importCountryFocuses = async (
     return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
   }
   /** An option's name, with its modifier lines named and its `available` block written out. */
-  const options = politics.options.map((o) =>
+  const options = [...politics.options, ...decisions].map((o) =>
     finishOption(o, names[o.character ?? o.id] ?? names[o.id] ?? humanize(o.id), named),
   )
   const mios = rawMios.map(
@@ -346,6 +367,10 @@ export const importCountryFocuses = async (
   )
   const optionsById = new Map(options.map((o) => [o.id, o]))
   const annotated = (lines: EffectLine[]) => annotateIdeaLines(lines, optionsById)
+  // A decision's reward adds ideas like a focus does.
+  const finished = options.map((o) =>
+    o.kind === 'decision' ? { ...o, modifiers: annotated(o.modifiers) } : o,
+  )
   return {
     mios,
     laws,
@@ -360,13 +385,15 @@ export const importCountryFocuses = async (
     })),
     start: annotated(named(start)),
     politics: {
-      options,
+      options: finished,
       slots: politics.slots,
-      categoryNames: Object.fromEntries(
-        options.flatMap((o) =>
+      // Research categories, and the decision categories (a decision's `slot`).
+      categoryNames: Object.fromEntries([
+        ...options.flatMap((o) =>
           Object.keys(o.researchBonus ?? {}).map((c) => [c, (names[c] ?? humanize(c)).trim()]),
         ),
-      ),
+        ...decisions.map((o) => [o.slot, (names[o.slot] ?? humanize(o.slot)).trim()]),
+      ]),
       defines: politics.defines,
     },
     leaders: {

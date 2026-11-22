@@ -701,6 +701,51 @@ describe('planPolitics', () => {
   })
 })
 
+describe('planPolitics decisions', () => {
+  const decision = (id: string, extra: Partial<PoliticalOption> = {}) =>
+    option(id, { kind: 'decision', slot: 'ROM_category', group: 'decisions', cost: 50, ...extra })
+  const stat = (key: string, value: string) => ({ ...line(key, value), stat: num(key) })
+
+  it('buys a decision when affordable and applies its effect', () => {
+    const d = decision('d', { modifiers: [stat('add_stability', '0.1')] })
+    const plan = planOf(buy('d'), data([d]), [], 100)
+    expect(plan.items[0]).toMatchObject({ cost: 50, balanceAfter: 52 })
+    expect(daysOf(plan)).toEqual([0])
+    const state = countryStateAt(
+      schedulePlan([], {}, { startDate: begin, speedBonus: 0 }),
+      day(1),
+      { tag: 'ROM', startDate: begin, extraSteps: plan.steps },
+    )
+    expect(state.statChanges.find((s) => s.key === 'add_stability')?.total).toBeCloseTo(0.1)
+    // The decision is not an idea in the state.
+    expect(state.ideas.some((i) => i.id === 'd')).toBe(false)
+  })
+
+  it('waits for political power', () => {
+    const plan = planOf(buy('d'), data([decision('d')]))
+    expect(daysOf(plan)).toEqual([24])
+  })
+
+  it('takes a repeatable decision twice but a fire_only_once one once', () => {
+    const repeat = planOf(buy('d', 'd'), data([decision('d')]), [], 200)
+    expect(repeat.items).toHaveLength(2)
+    const once = planOf(buy('d', 'd'), data([decision('d', { fireOnce: true })]), [], 200)
+    expect(once.items).toHaveLength(1)
+    expect(once.unscheduled).toEqual([{ index: 1, optionId: 'd', reason: 'already-taken' }])
+  })
+
+  it('leaves out a decision that is never available', () => {
+    const d = decision('d', { available: trigger('always = no') })
+    const plan = planOf(buy('d'), data([d]), [], 200)
+    expect(plan.unscheduled[0]).toMatchObject({ reason: 'unavailable' })
+  })
+
+  it('does not apply a slot cost factor to a decision', () => {
+    const d = decision('d', { slot: 'economy', cost: 100 })
+    expect(purchaseCost(d, { economy_cost_factor: -0.5 })).toBe(100)
+  })
+})
+
 describe('the purchase queue', () => {
   it('adds, avoids repeats, moves, removes and sets a not-before date', () => {
     let queue = addPurchase([], 'a')

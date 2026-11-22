@@ -43,19 +43,21 @@ export interface PlannedPolitics extends PoliticsSchedule {
 
 /** The reward a purchase (or a dismissal) is, for the country state to apply. */
 export const purchaseEffects = (option: PoliticalOption, dismiss: boolean): EffectLine[] =>
-  dismiss
-    ? [{ depth: 0, key: 'remove_ideas', value: option.id, valueName: option.name }]
-    : [
-        {
-          depth: 0,
-          key: 'add_ideas',
-          value: option.id,
-          valueName: option.name,
-          slot: option.slot,
-          ...(option.researchBonus && { researchBonus: option.researchBonus }),
-        },
-        ...option.modifiers.map((line) => ({ ...line, depth: line.depth + 1 })),
-      ]
+  option.kind === 'decision'
+    ? option.modifiers.map((line) => ({ ...line }))
+    : dismiss
+      ? [{ depth: 0, key: 'remove_ideas', value: option.id, valueName: option.name }]
+      : [
+          {
+            depth: 0,
+            key: 'add_ideas',
+            value: option.id,
+            valueName: option.name,
+            slot: option.slot,
+            ...(option.researchBonus && { researchBonus: option.researchBonus }),
+          },
+          ...option.modifiers.map((line) => ({ ...line, depth: line.depth + 1 })),
+        ]
 
 /** What the campaign knows about the country in `state`, for an option's `available` block. */
 export const conditionsOf = (
@@ -153,8 +155,16 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
     return times.length > 0 ? new Date(Math.min(...times.map((d) => d.getTime()))) : undefined
   }
 
+  /** The decisions taken so far, for `fire_only_once`. */
+  const taken = new Set<string>()
+
   const assess = (option: PoliticalOption, dismiss: boolean): Outcome => {
-    const held = state.ideas.some((idea) => idea.id === option.id)
+    const isDecision = option.kind === 'decision'
+    if (isDecision && (dismiss || (option.fireOnce && taken.has(option.id)))) {
+      return { kind: 'skip', reason: dismiss ? 'not-held' : 'already-taken' }
+    }
+    // A decision is never held as an idea; it can be taken again unless it fires only once.
+    const held = !isDecision && state.ideas.some((idea) => idea.id === option.id)
     if (dismiss)
       return held
         ? { kind: 'buy', cost: 0, days: 0, issues: [] }
@@ -174,7 +184,9 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       if (holds === false) return { kind: 'wait', reason: 'unavailable' }
       if (holds === undefined) issues.push({ kind: 'availability-unknown' })
     }
-    const inSlotNow = (state.politics.held[option.slot] ?? []).map((idea) => idea.id)
+    const inSlotNow = isDecision
+      ? []
+      : (state.politics.held[option.slot] ?? []).map((idea) => idea.id)
     const current = replacedBy(option, inSlotNow, data.options)
     const cost = purchaseCost(option, totalsOf(state.modifierTotals), current)
     const need = cost - balance
@@ -223,6 +235,7 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       if (when > until) return leave('out-of-time')
       if (when > t) moveTo(when)
       balance -= outcome.cost
+      taken.add(option.id)
       steps.push({
         focus: {
           id: `politics:${index}`,

@@ -6,6 +6,10 @@ import { previewFocusEffects } from '@/domain/campaign/preview'
 import { blockedByAvailability, unavailableInPlan } from '@/domain/campaign/availability'
 import { removeWithDependents } from '@/domain/plan/focusSelection'
 import { planCampaign } from '@/domain/campaign/plan'
+import { conditionsOf } from '@/domain/campaign/politics'
+import { evaluateCheck } from '@/domain/campaign/conditions'
+import { viewCheck } from '@/domain/campaign/checkView'
+import type { PoliticalOption } from '@/domain/politics'
 import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
 import { adjustmentSteps, tradeOverTime } from '@/domain/adjustments'
 import { industryAt } from '@/domain/campaign/industry'
@@ -157,6 +161,30 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   )
 
   const state = computed(() => stateOn(parseDate(viewDate.value)))
+  /** What the conditions ask about the country on the viewed date. */
+  const viewContext = computed(() =>
+    conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
+  )
+  /**
+   * Whether an option's `available` is known to hold in the country on the viewed date. With
+   * `unknownCounts` a condition the campaign cannot answer counts as holding, like in the planner.
+   */
+  const availableOnViewDate = (option: PoliticalOption, unknownCounts = true) => {
+    if (!option.available) return true
+    const holds = evaluateCheck(option.available, viewContext.value)
+    return holds === undefined ? unknownCounts : holds
+  }
+  /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */
+  const availabilityOnViewDate = (option: PoliticalOption) =>
+    option.available
+      ? viewCheck(option.available, viewContext.value, {
+          idea: (id) =>
+            politics.value?.options.find((o) => o.id === id)?.name ??
+            state.value.ideas.find((i) => i.id === id)?.name,
+          focus: (id) => focuses.value[id]?.name,
+          tech: (id) => research.value?.techs.find((t) => t.id === id)?.name,
+        })
+      : undefined
   /** The stability the plan has on a date, `YYYY-MM-DD`, or undefined before the start is known. */
   const stabilityOn = (date: string): number | undefined => stateOn(parseDate(date)).stability
 
@@ -279,6 +307,8 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     researchStatus,
     state,
     stabilityOn,
+    availableOnViewDate,
+    availabilityOnViewDate,
     trade,
     industry,
     timeline,
