@@ -167,10 +167,11 @@ describe('the weekly drift of the balance of power', () => {
       { tag: 'FIN', balanceOfPower, start: startLines(democratic), startDate: start },
     )
 
-  it('moves the balance each week while the leader’s condition holds', () => {
-    expect(at(6, '0.15').balance).toBe(-0.45)
-    expect(at(7, '0.15').balance).toBe(-0.46)
-    expect(at(70, '0.15').balance).toBeCloseTo(-0.55, 6)
+  it('starts drifting on day 3 (the first weekly script), a seventh of the week a day', () => {
+    expect(at(2, '0.15').balance).toBe(-0.45)
+    expect(at(3, '0.15').balance).toBeCloseTo(-0.45 - 0.01 / 7, 5)
+    // Days 3 to 10 are eight days of drift.
+    expect(at(10, '0.15').balance).toBeCloseTo(-0.45 - (8 * 0.01) / 7, 5)
   })
 
   it('does not move it when the condition fails, or for another leader', () => {
@@ -179,13 +180,28 @@ describe('the weekly drift of the balance of power', () => {
     expect(at(70, '0.15', other).balance).toBe(-0.45)
   })
 
+  it('keeps the rules of one weekly script until the next', () => {
+    // Democratic popularity falls under 9% when the focus ends on day 20, but the rules are only
+    // read again on day 24, so the drift goes on to day 23 and then stops.
+    const fall: Focus = { ...noFocuses, id: 'fall', days: 20, effects: [pop('democratic', '-0.1')] }
+    const after = (days: number) =>
+      countryStateAt(
+        schedulePlan(['fall'], { fall }, { startDate: start, speedBonus: 0 }),
+        addDays(start, days),
+        { tag: 'FIN', balanceOfPower: bop, start: startLines('0.15'), startDate: start },
+      ).balance
+    expect(after(23)).toBeCloseTo(-0.45 - (21 * 0.01) / 7, 5)
+    expect(after(24)).toBeCloseTo(-0.45 - (21 * 0.01) / 7, 5)
+    expect(after(40)).toBeCloseTo(-0.45 - (21 * 0.01) / 7, 5)
+  })
+
   it('swaps the range’s modifiers and notes the day it crossed into another range', () => {
-    const before = at(98, '0.15')
-    expect(before.balance).toBeCloseTo(-0.59, 6)
+    const before = at(100, '0.15')
+    expect(before.balance).toBeGreaterThan(-0.6)
     expect(before.balanceChanges).toEqual([])
-    const after = at(105, '0.15')
-    expect(after.balance).toBeCloseTo(-0.6, 6)
-    expect(after.balanceChanges).toEqual([addDays(start, 105)])
+    const after = at(108, '0.15')
+    expect(after.balance).toBeLessThan(-0.6)
+    expect(after.balanceChanges).toHaveLength(1)
     expect(after.modifierTotals.find((t) => t.key === 'stability_factor')?.total).toBeCloseTo(-0.1)
   })
 

@@ -12,6 +12,7 @@ import {
   type UnscheduledPurchaseReason,
 } from '@/domain/politics'
 import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { shown, withExact } from '../powerFormat'
 import { useShowOnOverview } from '../overviewLink'
 import { yearBanners } from '../yearBanners'
 
@@ -116,7 +117,6 @@ const teamCost = computed(() => politics.value?.defines.designTeamCost ?? 0)
 const nextPurchase = computed(() =>
   politicsSchedule.value.items.find((item) => item.date > viewed.value),
 )
-const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 </script>
 
 <template>
@@ -132,11 +132,11 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
       against the game.
     </p>
     <p>
-      On {{ viewDate }}: <strong>{{ round(balance) }}</strong> political power, +{{
-        round(gain, 2)
+      On {{ viewDate }}: <strong>{{ withExact(balance, 0) }}</strong> political power, +{{
+        withExact(gain, 2)
       }}
       a day.
-      <template v-if="teams > 0">Design teams: -{{ round(teamCost, 2) }} x {{ teams }}.</template>
+      <template v-if="teams > 0">Design teams: -{{ shown(teamCost, 2) }} x {{ teams }}.</template>
       <template v-if="nextPurchase">
         Next purchase:
         {{ byId.get(nextPurchase.optionId)?.name }} on {{ formatDate(nextPurchase.date) }}.
@@ -231,7 +231,7 @@ const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
                   >{{ formatDate(row.scheduled.date) }}</a
                 >
                 <span class="muted">
-                  , {{ row.scheduled.cost }} PP, {{ round(row.scheduled.balanceAfter) }} left
+                  , {{ row.scheduled.cost }} PP, {{ withExact(row.scheduled.balanceAfter, 0) }} left
                 </span>
               </div>
               <div v-if="row.left" class="problem">{{ REASONS[row.left.reason] }}</div>

@@ -52,5 +52,12 @@ export const rangeAt = (bop: BalanceOfPower, value: number): BopRange | undefine
     .filter((r) => value >= r.min - 1e-9 && value <= r.max + 1e-9)
     .sort((a, b) => a.max - a.min - (b.max - b.min))[0]
 
+/**
+ * The balance as the game shows it, a percentage of the way to either side (-100% to 100%) cut
+ * toward zero, then the exact value the planner works with: `-46% (-0.463)`.
+ */
+export const formatBalance = (value: number): string =>
+  `${Math.trunc(value * 100 + Math.sign(value) * 1e-9)}% (${value.toFixed(3)})`
+
 export const clampBalance = (value: number): number =>
   Math.round(Math.min(1, Math.max(-1, value)) * 1e6) / 1e6

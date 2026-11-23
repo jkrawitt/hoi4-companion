@@ -13,6 +13,7 @@ import { START_ID } from '@/domain/focus'
 import { capitalize, humanize } from '@/domain/effects/lines'
 import { POLITICS_GROUPS } from '@/domain/politics'
 import { formatStatValue } from '@/domain/stats'
+import { shown, withExact } from '@/components/powerFormat'
 import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
 const {
@@ -94,7 +95,6 @@ const power = computed(() => ({
   teamCost: politics.value?.defines.designTeamCost ?? 0,
 }))
 const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
-const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 /** Stability and war support on the date (known once the start has set them), as percentages. */
 const levels = computed(() =>
   [
@@ -154,9 +154,9 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
       <section v-if="politics">
         <h3>Political power</h3>
         <p>
-          {{ round(power.balance, 2) }} political power, +{{ round(power.gain, 2) }} a day.
+          {{ withExact(power.balance, 0) }} political power, +{{ withExact(power.gain, 2) }} a day.
           <template v-if="power.teams > 0">
-            Design teams: -{{ round(power.teamCost, 2) }} x {{ power.teams }}.
+            Design teams: -{{ shown(power.teamCost, 2) }} x {{ power.teams }}.
           </template>
           <template v-if="power.next">
             Next purchase: {{ optionName(power.next.optionId) }} on

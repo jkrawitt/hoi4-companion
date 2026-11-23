@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
 import type { BalanceOfPower } from '../balanceOfPower'
-import { rangeAt } from '../balanceOfPower'
+import { formatBalance, rangeAt } from '../balanceOfPower'
 import { parseBalancesOfPower } from '../parsers/balanceOfPower'
 import { parseStartingLines } from '../parsers/countryStart'
 import { countryStateAt } from '../campaign/countryState'
@@ -48,6 +48,13 @@ describe('balance of power', () => {
       { depth: 0, key: 'stability_factor', value: '-0.05', isModifier: true },
       { depth: 0, key: 'political_power_factor', value: '-0.1', isModifier: true },
     ])
+  })
+
+  it('shows the balance as the game does, cut to a percentage, with the exact value', () => {
+    expect(formatBalance(-0.45)).toBe('-45% (-0.450)')
+    expect(formatBalance(-0.4628571)).toBe('-46% (-0.463)')
+    expect(formatBalance(0.1)).toBe('10% (0.100)')
+    expect(formatBalance(0)).toBe('0% (0.000)')
   })
 
   it('puts a value on a range border in the middle range', () => {

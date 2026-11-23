@@ -28,7 +28,7 @@ import {
   scriptedStat,
 } from './totals'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
-import { clampBalance, rangeAt } from '../balanceOfPower'
+import { clampBalance, formatBalance, rangeAt, type BopWeeklyRule } from '../balanceOfPower'
 import type {
   ActiveIdea,
   BuildingTotal,
@@ -82,6 +82,8 @@ export interface Working {
   balance?: number
   /** The days the balance moved from one range into another by the weekly drift. */
   balanceChanges: Date[]
+  /** The weekly drift rules in force: the ones that held at the last weekly script. */
+  bopRules: BopWeeklyRule[]
 }
 
 export const newWorking = (): Working => ({
@@ -89,6 +91,7 @@ export const newWorking = (): Working => ({
   statChanges: new Map(),
   popularity: new Map(),
   balanceChanges: [],
+  bopRules: [],
   conditional: [],
   focusEffects: {},
   buildings: new Map(),
@@ -501,7 +504,7 @@ export const syncBalanceOfPower = (
   const before = w.ideas.get(id)
   w.ideas.set(id, {
     id,
-    name: `${bop.name}: ${range.name} (${w.balance})`,
+    name: `${bop.name}: ${range.name} ${formatBalance(w.balance)}`,
     focusId: source.focusId,
     focusName: source.focusName,
     since: before?.modifiers === range.modifiers ? before.since : source.end,
