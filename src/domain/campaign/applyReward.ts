@@ -269,17 +269,17 @@ export const shiftPopularity = (w: Working, subject: string, delta: number): voi
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
 /**
- * A party above this popularity gains only `POPULARITY_GAIN_SCALE` of what an `add_popularity`
- * effect says (the whole effect, not just the part above). Seen in game, not in the files: the
- * threshold is a guess from a few readings, the gain a half; losses and the daily drift are not
- * scaled.
+ * A party above this popularity drifts up at only `POPULARITY_DRIFT_SCALE` of its daily drift
+ * (checked in game: Finland, fascism 19% at the start, 20.80% on 1 March with Susitaival's
+ * `fascism_drift` from 4 February; an `add_popularity` effect is not scaled, the coup focus added
+ * its full 5 points on top). The threshold is read from that one case; losses are not scaled.
  */
 export const POPULARITY_SCALE_ABOVE = 0.2
-export const POPULARITY_GAIN_SCALE = 0.5
+export const POPULARITY_DRIFT_SCALE = 0.5
 
-/** What an `add_popularity` of `delta` really does to a party that has `current`. */
-export const scaledPopularityChange = (current: number, delta: number): number =>
-  delta > 0 && current > POPULARITY_SCALE_ABOVE ? delta * POPULARITY_GAIN_SCALE : delta
+/** What a daily drift of `delta` really does to a party that has `current`. */
+export const scaledDrift = (current: number, delta: number): number =>
+  delta > 0 && current > POPULARITY_SCALE_ABOVE ? delta * POPULARITY_DRIFT_SCALE : delta
 
 /**
  * The parties' popularity always adds up to 100%: the start sets each one, and a later change to
@@ -298,8 +298,7 @@ const popularity: Handler = ({ w, step, options }, e) => {
       subjectName: e.subjectName ?? e.subject,
     })
   } else {
-    const current = w.popularity.get(e.subject)?.total ?? 0
-    shiftPopularity(w, e.subject, scaledPopularityChange(current, Number(e.value)))
+    shiftPopularity(w, e.subject, Number(e.value))
   }
   return true
 }
