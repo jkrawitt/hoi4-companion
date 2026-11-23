@@ -1,6 +1,6 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { planCampaign } from '../campaign/plan'
 import { schedulePlan } from '../plan/focusPlan'
 import { layoutFocuses } from '../plan/focusLayout'
@@ -35,6 +35,8 @@ const importRomania = () =>
   )
 
 describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
+  // Reading a whole install takes a while, more so with the other test files running.
+  vi.setConfig({ testTimeout: 30000 })
   it('imports the Finnish tree with its scripted effects written out', async () => {
     const finland = await importCountryFocuses(
       {
@@ -625,6 +627,71 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     expect(team.schedule.items[0].days).toBeLessThanOrEqual(plain.schedule.items[0].days)
     expect(team.politics.designTeamsAt(startDate)).toBe(1)
     expect(team.politics.gainAt(startDate)).toBeCloseTo(plain.politics.gainAt(startDate) - 0.1)
+  })
+
+  it('plans Finland from the checked-in-game start: political power and public trust', async () => {
+    const finland = await importCountryFocuses(
+      {
+        readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
+        listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
+      },
+      {
+        tag: 'FIN',
+        name: 'Finland',
+        focusTreeFile: 'common/national_focus/finland.txt',
+        ideasFile: 'common/ideas/finland.txt',
+      },
+      statOverrides,
+      ownedDlc,
+    )
+    // Svinhufvud's weekly rules: socialists above 9% cost trust, below 1% earn it.
+    const rules = finland.balanceOfPower?.weekly?.filter(
+      (r) => r.leader === 'FIN_pehr_evind_svinhufvud',
+    )
+    expect(rules?.map((r) => r.weekly).sort()).toEqual([-0.01, 0.01])
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const byId = Object.fromEntries(finland.focuses.map((f) => [f.id, f]))
+    const focusSchedule = schedulePlan(
+      ['FIN_right_wing_policies', 'FIN_prepare_a_military_coup'],
+      byId,
+      { startDate, speedBonus: 0, loadedDays: 1 },
+    )
+    const options = {
+      tag: 'FIN',
+      start: finland.start,
+      leaders: finland.leaders,
+      laws: finland.laws,
+      balanceOfPower: finland.balanceOfPower,
+      startDate,
+      ownedDlc,
+      politics: finland.politics,
+    }
+    const plan = planCampaign({
+      focusSchedule,
+      options,
+      researchQueue: [],
+      politicsQueue: [
+        { optionId: 'FIN_paavo_susitaival' },
+        { optionId: 'FIN_secure_the_military' },
+      ],
+      politicsData: finland.politics,
+      startDate,
+      until: new Date(Date.UTC(1937, 0, 1)),
+      loadedDays: 1,
+    })
+    // Checked in game: 1 PP shown on 1 January (1.798), 0 once the first focus is picked.
+    expect(plan.politics.balanceAt(startDate)).toBeCloseTo(0.798, 2)
+    // Hired on 4 February, 2 PP left (2.93 here), 3 on the 5th and 6th.
+    expect(plan.politics.items[0].date.toISOString().slice(0, 10)).toBe('1936-02-04')
+    expect(plan.politics.items[0].balanceAfter).toBeGreaterThan(2.5)
+    expect(plan.politics.items[0].balanceAfter).toBeLessThan(3)
+    // Secure the Military needs fascism above 30%, which the drift reaches on 25 May, between two
+    // focuses: it is bought the day the popularity gets there, not at the next focus.
+    expect(plan.politics.items[1].optionId).toBe('FIN_secure_the_military')
+    expect(plan.politics.items[1].date.toISOString().slice(0, 10)).toBe('1936-05-25')
+    // Public trust: -0.45, -0.15 for the first focus, -0.10 for the second, and -0.01 a week.
+    const state = countryStateAt(focusSchedule, new Date(Date.UTC(1936, 4, 20)), options)
+    expect(state.balance).toBeLessThan(-0.8)
   })
 
   it('plans political power purchases on the real data', async () => {

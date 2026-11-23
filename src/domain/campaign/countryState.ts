@@ -78,11 +78,11 @@ export const countryStateAt = (
   // The popularity drifts day by day from the start on, with what is active in between rewards.
   let driftFrom: Date | undefined
   for (const step of steps) {
-    if (driftFrom) accrueDrift(w, driftFrom, step.end)
+    if (driftFrom) accrueDrift(w, driftFrom, step.end, options)
     applyReward(w, step, options, planned.has(step.focus.id))
     driftFrom = step.end
   }
-  if (driftFrom) accrueDrift(w, driftFrom, date)
+  if (driftFrom) accrueDrift(w, driftFrom, date, options)
 
   const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
 
@@ -109,6 +109,7 @@ export const countryStateAt = (
     warSupport: actual('war_support'),
     leader: w.leader,
     balance: w.balance,
+    balanceChanges: w.balanceChanges,
     resources: [...w.resources.values()],
     buildings: [...w.buildings.values()],
     buildingSlots: w.buildingSlots,

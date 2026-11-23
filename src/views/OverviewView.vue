@@ -13,6 +13,7 @@ import { START_ID } from '@/domain/focus'
 import { capitalize, humanize } from '@/domain/effects/lines'
 import { POLITICS_GROUPS } from '@/domain/politics'
 import { formatStatValue } from '@/domain/stats'
+import { shown, withExact } from '@/components/powerFormat'
 import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
 
 const {
@@ -68,8 +69,10 @@ const popularity = computed(() =>
   asLevels(state.value.popularity).map((p, i) => ({
     ...p,
     key: state.value.popularity[i].subject,
-    // Two decimals, like the game's popularity screen.
+    // Cut to two decimals like the game's popularity screen, with the exact value beside it.
     stat: { ...p.stat, decimals: 2, fixedDecimals: true },
+    value: String(Math.trunc(state.value.popularity[i].total * 1e4 + 1e-6) / 1e4),
+    note: `(${(state.value.popularity[i].total * 100).toFixed(3)}%)`,
   })),
 )
 /** The national spirits: ideas that do not fill a politics slot (laws, advisors, designers). */
@@ -94,7 +97,6 @@ const power = computed(() => ({
   teamCost: politics.value?.defines.designTeamCost ?? 0,
 }))
 const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
-const round = (n: number, decimals = 1) => Number(n.toFixed(decimals))
 /** Stability and war support on the date (known once the start has set them), as percentages. */
 const levels = computed(() =>
   [
@@ -154,9 +156,9 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
       <section v-if="politics">
         <h3>Political power</h3>
         <p>
-          {{ round(power.balance, 2) }} political power, +{{ round(power.gain, 2) }} a day.
+          {{ withExact(power.balance, 0) }} political power, +{{ withExact(power.gain, 2) }} a day.
           <template v-if="power.teams > 0">
-            Design teams: -{{ round(power.teamCost, 2) }} x {{ power.teams }}.
+            Design teams: -{{ shown(power.teamCost, 2) }} x {{ power.teams }}.
           </template>
           <template v-if="power.next">
             Next purchase: {{ optionName(power.next.optionId) }} on

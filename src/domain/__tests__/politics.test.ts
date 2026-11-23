@@ -446,7 +446,7 @@ describe('political power formulas', () => {
 })
 
 describe('planPolitics', () => {
-  it('starts with a day of base gain less the first focus (checked in game: 1)', () => {
+  it('starts with the first day’s gain less the first focus (checked in game: 1)', () => {
     const plan = planOf([], data([], { defines: DEFAULT_POLITICS_DEFINES }))
     expect(plan.balanceAt(begin)).toBe(1)
   })
