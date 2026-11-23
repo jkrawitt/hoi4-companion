@@ -123,6 +123,17 @@ Every path the importer reads is listed once in `GAME_PATHS`. The non-Chromium f
   - the `NProduction` consumer goods, construction speed and energy defines (regex, with fallbacks in `DEFAULT_DEFINES`).
 - `ImportedCountry.production` (`ProductionData`, types in `production.ts`) is cached with each country. State names come from `STATE_<id>` localisation.
 
+## MIO import (`mios.ts`)
+
+- `readMios` reads `common/military_industrial_organization/organizations` into `ImportedCountry.mios` (`MioData`, in `research.ts`).
+- `include` copies the fields of another MIO. Own fields win, and an own `initial_trait` replaces the included one.
+- `allowed` is checked for the tag and `ownedDlc` like a political option's (`isAllowed`). The `DEBUG_` copies are skipped. Foreign MIOs a DLC lets the country license are kept, named `<TAG>_<id>` in localisation.
+- `available` is a `Check`, with `FROM = { ... }` read as its contents.
+- `research_categories` are `mio_cat_tech_*` (which `Technology.categories` already holds).
+- The research bonus is `military_industrial_organization_research_bonus` of the `initial_trait`'s `organization_modifier`.
+- The defines `DESIGN_TEAM_RESEARCH_BONUS` (`ResearchDefines.designTeamBonus`, 0.05) and `ASSIGN_DESIGN_TEAM_PP_COST_PER_DAY` (`PoliticsDefines.designTeamCost`, 0.1) are read by regex.
+- Trait unlocks, policies, funds and size of a MIO are not modelled.
+
 ## Balance of power (Finland's public trust)
 
 ### Import
