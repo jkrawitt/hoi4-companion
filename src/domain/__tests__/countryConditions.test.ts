@@ -144,6 +144,7 @@ describe('countryConditions', () => {
     expect(evaluateCheck({ type: 'flag', id: 'F' }, ctx)).toBe(true)
     expect(evaluateCheck({ type: 'flag', id: 'G' }, ctx)).toBe(false)
     expect(evaluateCheck({ type: 'flag', id: 'never' }, ctx)).toBeUndefined()
+    expect(evaluateCheck({ type: 'flag', id: 'constructor' }, ctx)).toBeUndefined()
     expect(evaluateCheck({ type: 'leader', id: '550' }, ctx)).toBe(true)
     expect(evaluateCheck({ type: 'war_with', tag: 'SOV' }, ctx)).toBe(true)
     expect(evaluateCheck({ type: 'war_with', tag: 'GER' }, ctx)).toBe(false)

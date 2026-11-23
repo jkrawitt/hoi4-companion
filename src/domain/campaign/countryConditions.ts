@@ -69,7 +69,9 @@ export const factsOfState = (state: CountryState): ConditionFacts => {
       ? (ideology) => state.popularity.find((p) => p.subject === ideology)?.total ?? 0
       : undefined,
     stat: known ? (key) => (key === 'stability' ? state.stability : state.warSupport) : undefined,
-    flag: (id) => (id in state.flags ? state.flags[id] : undefined),
+    // Only the flags' own keys: `in` would also find `constructor` and the like.
+    flag: (id) =>
+      Object.prototype.hasOwnProperty.call(state.flags, id) ? state.flags[id] : undefined,
     enemies: state.enemies,
   }
 }
