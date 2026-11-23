@@ -84,6 +84,7 @@ const createCampaign = () => {
     mios: data.mios,
     production: data.production,
     industry: planning.industry,
+    powerOnViewDate: planning.powerOnViewDate,
     politics: data.politics,
     startTechs: data.startTechs,
     status: data.status,

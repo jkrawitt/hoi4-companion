@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { addDays } from '../calendar'
 import type { Check, EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
-import {
-  annotateConditions,
-  resolveConditions,
-  type ConditionContext,
-} from '../campaign/conditions'
+import type { ConditionContext } from '../checks'
+import { annotateConditions, resolveConditions } from '../campaign/conditions'
 import { previewFocusEffects } from '../campaign/preview'
 import { schedulePlan } from '../plan/focusPlan'
 

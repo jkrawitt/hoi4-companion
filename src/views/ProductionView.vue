@@ -7,6 +7,7 @@ import ConstructionQueue, {
 import TradePanel from '@/components/production/TradePanel.vue'
 import GameDataImport from '@/components/GameDataImport.vue'
 import DateScrubber from '@/components/overview/DateScrubber.vue'
+import { CIVILIAN, MILITARY, NAVAL, factoryCount } from '@/domain/campaign/industry'
 import { useCampaign } from '@/stores/campaign'
 
 const { country, hasData, production, industry } = useCampaign()
@@ -14,12 +15,12 @@ const { country, hasData, production, industry } = useCampaign()
 /** The queue's add row; a state row's `+` fills in its state. */
 const draft = ref<ConstructionDraft>({
   state: production.value?.states[0]?.id ?? 0,
-  building: 'industrial_complex',
+  building: CIVILIAN,
   levels: 1,
 })
 const queueFor = (state: number) => (draft.value = { ...draft.value, state })
 
-const count = (type: string) => industry.value?.factories.find((f) => f.type === type)?.count ?? 0
+const count = (type: string) => (industry.value ? factoryCount(industry.value, [type]) : 0)
 const percent = (n: number) => `${Math.round(n * 1000) / 10}%`
 const resources = (r: Record<string, number>) =>
   Object.entries(r)
@@ -28,7 +29,7 @@ const resources = (r: Record<string, number>) =>
 const otherFactories = computed(
   () =>
     industry.value?.factories.filter(
-      (f) => !['industrial_complex', 'arms_factory', 'dockyard'].includes(f.type) && f.count > 0,
+      (f) => ![CIVILIAN, MILITARY, NAVAL].includes(f.type) && f.count > 0,
     ) ?? [],
 )
 </script>
@@ -51,13 +52,13 @@ const otherFactories = computed(
 
       <section class="tiles">
         <div class="tile">
-          <span>Civilian factories</span><strong>{{ count('industrial_complex') }}</strong>
+          <span>Civilian factories</span><strong>{{ count(CIVILIAN) }}</strong>
         </div>
         <div class="tile">
-          <span>Military factories</span><strong>{{ count('arms_factory') }}</strong>
+          <span>Military factories</span><strong>{{ count(MILITARY) }}</strong>
         </div>
         <div class="tile">
-          <span>Naval dockyards</span><strong>{{ count('dockyard') }}</strong>
+          <span>Naval dockyards</span><strong>{{ count(NAVAL) }}</strong>
         </div>
         <div class="tile">
           <span>Consumer goods</span>

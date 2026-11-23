@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { parseDecisionCategories, parseDecisions } from '../parsers/decisions'
 import { parseScriptedEffects } from '../parsers/scriptedEffects'
 import { parseScriptedTriggers } from '../parsers/politics'
-import { evaluateCheck } from '../campaign/conditions'
+import { evaluateCheck } from '../checks'
 
 const TEXT = `
 ROM_category = {

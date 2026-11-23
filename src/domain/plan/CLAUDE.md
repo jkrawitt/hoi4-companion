@@ -20,7 +20,7 @@ Each planner is a pure function of a user queue plus an environment built by `ca
 ### `available` and `bypass`
 
 - `parsers/focusTree.ts` reads both triggers into `Focus.available` / `Focus.bypass` as `Check`s, only when they hold a term the campaign can answer (popularity, stability, government, focuses, ...). A trigger of only unknown terms is dropped, so it never blocks.
-- `campaign/availability.ts` asks `available` of the country on the day the focus would start (`focusConditions`; unknown counts as available).
+- `campaign/availability.ts` asks `available` of the country on the day the focus would start (`countryConditions`; unknown counts as available).
   - `blockedByAvailability` adds the focuses that fail (with the prerequisites they need first) to the blocked cards.
   - `unavailableInPlan` finds planned focuses that no longer pass.
   - The store's `toggleFocus` (`planning.ts`) refuses a blocked focus and, after a removal, drops planned focuses that became unavailable.

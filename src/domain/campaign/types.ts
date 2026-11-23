@@ -1,10 +1,9 @@
 import type { BalanceOfPower } from '../balanceOfPower'
-import type { EffectLine, LeaderData } from '../focus'
+import type { EffectLine, LeaderData, Step } from '../focus'
 import type { PoliticsData } from '../politics'
 import type { ResearchEnvironment } from '../research'
 import type { ScheduledFocus } from '../plan/types'
 import type { StatDefinition } from '../stats'
-import type { Step } from './applyReward'
 
 export interface ActiveIdea {
   id: string
@@ -141,6 +140,13 @@ export interface CountryState {
    */
   stabilityBeforeModifiers: number
   leader?: CountryLeader
+  /**
+   * Who leads as the conditions see it (`Working.identity`): unlike `leader`, unknown after a
+   * retirement until a successor is picked.
+   */
+  leaderIdentity?: { id?: string; character?: string }
+  /** Country flags the plan's rewards set (true) or cleared (false). */
+  flags: Record<string, boolean>
   /** The balance of power's value (Finland's public trust), once the start or a reward sets it. */
   balance?: number
   /**

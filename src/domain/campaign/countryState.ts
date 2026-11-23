@@ -10,11 +10,11 @@
  * This file only runs the rewards in order and totals the result. `applyReward.ts` is what one
  * reward does, `rewardScopes.ts` sorts its lines, and `types.ts` has the shapes.
  */
-import { START_ID } from '../focus'
+import { START_ID, type Step } from '../focus'
 import { addDays, wholeDay } from '../calendar'
 import type { FocusSchedule } from '../plan/types'
-import { applyReward, newWorking, rawStatNow, stabilityBeforeModifiersNow } from './applyReward'
-import type { Step, Working } from './applyReward'
+import { applyReward } from './applyReward'
+import { newWorking, rawStatNow, stabilityBeforeModifiersNow, type Working } from './working'
 import { accrueDrift } from './drift'
 import { activeModifiers, clampStat } from './totals'
 import { researchEnvironment } from './researchEvents'
@@ -192,6 +192,8 @@ export const simulateCountry = (
       stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
       warSupport: actual('war_support'),
       leader: w.leader,
+      leaderIdentity: w.identity && { ...w.identity },
+      flags: Object.fromEntries(w.flags),
       balance: w.balance,
       balanceChanges: w.balanceChanges.slice(),
       resources: [...w.resources.values()],

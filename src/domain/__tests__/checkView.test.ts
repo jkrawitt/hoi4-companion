@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { viewCheck } from '../campaign/checkView'
-import type { ConditionContext } from '../campaign/conditions'
+import type { ConditionContext } from '../checks'
 import type { Check } from '../focus'
 
 const ctx = (ideas: string[]): ConditionContext =>

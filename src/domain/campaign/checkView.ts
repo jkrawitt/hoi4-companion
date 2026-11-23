@@ -4,9 +4,9 @@
  */
 import type { Check } from '../focus'
 import { capitalize, humanize } from '../effects/lines'
+import { evaluateCheck, type ConditionContext } from '../checks'
 
 const nice = (id: string) => capitalize(humanize(id))
-import { evaluateCheck, type ConditionContext } from './conditions'
 
 export interface CheckView {
   text: string

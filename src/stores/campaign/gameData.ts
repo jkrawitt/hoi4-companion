@@ -7,7 +7,7 @@ import type { EffectLine, Focus, ImportedCountry, LeaderData } from '@/domain/fo
 import type { PoliticsData } from '@/domain/politics'
 import type { ProductionData } from '@/domain/production'
 import type { MioData, ResearchData } from '@/domain/research'
-import { GameFolderError, importCountryFocuses, type GameFiles } from '@/domain/gameImport'
+import { GameFolderError, importCountry, type GameFiles } from '@/domain/gameImport'
 import { loadCachedCountry, saveCachedCountry } from '@/import/cache'
 
 /**
@@ -92,7 +92,7 @@ export const createGameData = (
     status.value = 'Reading game files…'
     const target = country.value
     try {
-      const imported = await importCountryFocuses(files, target, statOverrides, ownedDlc)
+      const imported = await importCountry(files, target, statOverrides, ownedDlc)
       await saveCachedCountry(target.tag, imported)
       if (target.tag === countryTag.value) setCountry(imported)
       status.value = `Imported ${imported.focuses.length} focuses for ${target.name}.`

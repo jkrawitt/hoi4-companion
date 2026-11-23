@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { addDays } from '../calendar'
 import type { Check, EffectLine, Focus } from '../focus'
 import { countryStateAt } from '../campaign/countryState'
-import { evaluateCheck, resolveConditions } from '../campaign/conditions'
+import { evaluateCheck } from '../checks'
+import { resolveConditions } from '../campaign/conditions'
 import { schedulePlan } from '../plan/focusPlan'
 
 const focus = (id: string, effects: EffectLine[]): Focus => ({

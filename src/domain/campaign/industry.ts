@@ -74,14 +74,18 @@ export interface Industry {
   availableCivs: number
 }
 
-const CIVILIAN = 'industrial_complex'
-const MILITARY = 'arms_factory'
-const NAVAL = 'dockyard'
+export const CIVILIAN = 'industrial_complex'
+export const MILITARY = 'arms_factory'
+export const NAVAL = 'dockyard'
 const FACTORY_NAMES: Record<string, string> = {
   [CIVILIAN]: 'Civilian factories',
   [MILITARY]: 'Military factories',
   [NAVAL]: 'Naval dockyards',
 }
+
+/** How many factories of these building types the industry has. */
+export const factoryCount = (industry: Industry, types: string[]): number =>
+  industry.factories.filter((f) => types.includes(f.type)).reduce((n, f) => n + f.count, 0)
 
 const totalOf = (totals: StatTotal[], key: string) => totals.find((t) => t.key === key)?.total ?? 0
 

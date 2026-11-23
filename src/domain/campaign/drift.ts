@@ -12,20 +12,44 @@
  * split into calls (`accrueDrift(a, b)` then `accrueDrift(b, c)` is `accrueDrift(a, c)`), which the
  * country simulation relies on to carry on from a checkpoint.
  */
-import { rangeAt } from '../balanceOfPower'
+import { formatBalance, rangeAt } from '../balanceOfPower'
 import { addDays, wholeDay } from '../calendar'
-import {
-  conditionContext,
-  scaledDrift,
-  shiftPopularity,
-  stabilityBeforeModifiersNow,
-  syncBalanceOfPower,
-  type Working,
-} from './applyReward'
-import { evaluateCheck } from './conditions'
-import { recordResearchState } from './researchEvents'
+import { evaluateCheck } from '../checks'
+import { countryConditions, factsOfWorking } from './countryConditions'
+import { scaledDrift, shiftPopularity } from './popularity'
 import { activeModifiers } from './totals'
 import type { CountryStateOptions } from './types'
+import { snapshotResearch, type Working } from './working'
+
+/**
+ * Keeps the balance's range among the national spirits, with its modifiers (a range without any
+ * is no spirit). The ranges' modifiers feed stability, war support and political power like an
+ * idea's.
+ */
+export const syncBalanceOfPower = (
+  w: Working,
+  options: CountryStateOptions,
+  /** What made the range change: a focus, or (the weekly drift) nothing in particular. */
+  source: { focusId: string; focusName: string; end: Date },
+) => {
+  const bop = options.balanceOfPower
+  if (!bop || w.balance === undefined) return
+  const id = `bop:${bop.id}`
+  const range = rangeAt(bop, w.balance)
+  if (!range || range.modifiers.length === 0) {
+    w.ideas.delete(id)
+    return
+  }
+  const before = w.ideas.get(id)
+  w.ideas.set(id, {
+    id,
+    name: `${bop.name}: ${range.name} ${formatBalance(w.balance)}`,
+    focusId: source.focusId,
+    focusName: source.focusName,
+    since: before?.modifiers === range.modifiers ? before.since : source.end,
+    modifiers: range.modifiers,
+  })
+}
 
 /** The drift of each party (a fraction a day) of the ideas and leader traits active on `day`. */
 const driftOn = (w: Working, day: Date): Map<string, number> => {
@@ -55,7 +79,7 @@ const weeklyScript = (w: Working, options: CountryStateOptions, at: Date): void 
   const bop = options.balanceOfPower
   const leader = w.identity?.character
   if (!bop?.weekly) return
-  const ctx = conditionContext(w, options, at)
+  const ctx = countryConditions(factsOfWorking(w, options, at), options)
   w.bopRules = leader
     ? bop.weekly
         .filter((rule) => rule.leader === leader)
@@ -84,11 +108,7 @@ const driftBalance = (w: Working, options: CountryStateOptions, at: Date): void 
   })
   if (rangeAt(bop, w.balance)?.id !== before?.id) {
     w.balanceChanges.push(at)
-    recordResearchState(w.research, at, w.statChanges.get('add_research_slot')?.total ?? 0, {
-      ideas: [...w.ideas.values()],
-      traits: w.leader?.traits ?? [],
-      stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
-    })
+    snapshotResearch(w, options, at)
   }
 }
 

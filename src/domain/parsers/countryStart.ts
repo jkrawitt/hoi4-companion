@@ -14,6 +14,7 @@
 import type { EffectLine } from '../focus'
 import { blockEnd, childrenOf, flattenEffects, opensBlock, outdent } from '../effects/lines'
 import { resolveDlcConditions } from '../effects/passes'
+import { isNumeric } from '../numbers'
 import { parseScript } from './paradoxScript'
 
 /** Effects of the form `key = number` that set a stat, and the additive stat each becomes. */
@@ -44,9 +45,6 @@ const isStart1936 = (lines: EffectLine[], index: number): boolean => {
     inside[0].value === '1936.01.02'
   )
 }
-
-const isNumeric = (value: string | undefined): value is string =>
-  value !== undefined && value !== '' && Number.isFinite(Number(value))
 
 const pick = (lines: EffectLine[], ownedDlc: Record<string, boolean>): EffectLine[] => {
   const result: EffectLine[] = []

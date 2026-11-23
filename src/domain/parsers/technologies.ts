@@ -16,6 +16,7 @@ import {
   getStrings,
   parseScript,
   type ScriptBlock,
+  readDefine,
 } from './paradoxScript'
 
 /** A tech as written in the file, before parents are worked out and folders are filtered. */
@@ -246,21 +247,20 @@ export const placeInTrees = (
 /** `NTechnology` of the defines; whatever is missing keeps the game's usual value. */
 export const parseResearchDefines = (text: string): ResearchDefines => {
   const section = /NTechnology\s*=\s*\{([\s\S]*?)\n\s*\}/.exec(text)?.[1] ?? ''
-  const read = (name: string, fallback: number) => {
-    const found = new RegExp(`${name}\\s*=\\s*(-?[\\d.]+)`).exec(section)
-    return found && Number.isFinite(Number(found[1])) ? Number(found[1]) : fallback
-  }
   return {
-    baseCost: read('BASE_TECH_COST', DEFAULT_DEFINES.baseCost),
-    aheadPenalty: read('BASE_YEAR_AHEAD_PENALTY_FACTOR', DEFAULT_DEFINES.aheadPenalty),
-    minSpeed: read('MIN_RESEARCH_SPEED', DEFAULT_DEFINES.minSpeed),
+    baseCost: readDefine(section, 'BASE_TECH_COST', DEFAULT_DEFINES.baseCost),
+    aheadPenalty: readDefine(
+      section,
+      'BASE_YEAR_AHEAD_PENALTY_FACTOR',
+      DEFAULT_DEFINES.aheadPenalty,
+    ),
+    minSpeed: readDefine(section, 'MIN_RESEARCH_SPEED', DEFAULT_DEFINES.minSpeed),
     // In `NMilitaryIndustrialOrganization`; the name is not used anywhere else.
-    designTeamBonus: (() => {
-      const found = /\bDESIGN_TEAM_RESEARCH_BONUS\s*=\s*(-?[\d.]+)/.exec(text)
-      return found && Number.isFinite(Number(found[1]))
-        ? Number(found[1])
-        : DEFAULT_DEFINES.designTeamBonus
-    })(),
+    designTeamBonus: readDefine(
+      text,
+      'DESIGN_TEAM_RESEARCH_BONUS',
+      DEFAULT_DEFINES.designTeamBonus,
+    ),
   }
 }
 

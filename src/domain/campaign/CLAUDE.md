@@ -14,7 +14,7 @@ The campaign is the whole picture built from the plans. This folder settles what
 
 ### Focus builds
 
-- Focus builds come as `CountryState.construction` (`ConstructionBatch[]`), recorded in reward order by `recordBatches` in `applyReward.ts`. There is one batch per header block, with the numbered `state`, the `prefer` states, `random`, buildings, extra `slots` and resources. The country-wide totals stay as they were.
+- Focus builds come as `CountryState.construction` (`ConstructionBatch[]`), recorded in reward order by `recordBatches` in `rewardConstruction.ts`. There is one batch per header block, with the numbered `state`, the `prefer` states, `random`, buildings, extra `slots` and resources. The country-wide totals stay as they were.
 - `placeBatches` (exported, also returns each batch's `placements`) puts the batches into the state rows in order:
   - A numbered scope goes in its state (unplaced if the country does not own it).
   - A `random_owned_*` block goes in the first preferred state where, after its extra slots, the free shared slots hold its shared-slot buildings (queued builds reserve slots). Failing that, it goes in the fitting state with most free slots (lowest id on ties), and failing that the one with most free slots. Those last two are marked `guessed`.
@@ -37,6 +37,9 @@ The campaign is the whole picture built from the plans. This folder settles what
 `countryState.ts` only runs the rewards in order and totals them. The other files:
 
 - `applyReward.ts`: what one reward does, as a list of handlers over a `Working` state. A new kind of effect is a new handler.
+- `working.ts`: `Working` (the running country), `newWorking`, `rawStatNow`, `stabilityBeforeModifiersNow` and `snapshotResearch`.
+- `popularity.ts`: `shiftPopularity`, `DRIFT_SCALES`, `scaledDrift`.
+- `rewardConstruction.ts`: `totalConstruction` and `recordBatches`, the construction totals and batches of a reward.
 - `rewardScopes.ts`: sorts a reward's lines into certain and conditional.
 - `types.ts`: the shapes.
 
@@ -63,7 +66,7 @@ It applies the rewards of the focuses completed by a date. With `options.start` 
 
 - `<party>_drift` modifiers (`fascism_drift = 0.1` on a spirit, advisor or leader trait) add that many percentage points to the party a day while active, taken from the others like any change.
 - `accrueDrift` runs it day by day (one tick per midnight, the drift map taken again where timed ideas expire or the balance changes range) between the rewards and purchases that `countryStateAt` applies and up to the viewed date. It runs from the start on; nothing drifts without the start. The hire day itself does not drift.
-- **Daily drift is scaled above 20% and 30%:** a party above 20% drifts up at half its drift and above 30% at a third (`scaledDrift`, `DRIFT_SCALES` in `applyReward.ts`, used by `accrueDrift`). Losses are not scaled.
+- **Daily drift is scaled above 20% and 30%:** a party above 20% drifts up at half its drift and above 30% at a third (`scaledDrift`, `DRIFT_SCALES` in `popularity.ts`, used by `accrueDrift`). Losses are not scaled.
 - An `add_popularity` effect is not scaled.
 - **Popularity always adds up to 100%:** once the start has set the parties, an `add_popularity` change to one is taken from (or given back to) the others in proportion to their share, kept between 0 and 100% (the `popularity` handler in `applyReward.ts`). Without a start the changes are plain sums.
 - The overview shows popularity cut to two decimals like the game, with the exact value beside it.
@@ -98,7 +101,7 @@ It applies the rewards of the focuses completed by a date. With `options.start` 
 - `finalState` is taken at the later of the plan's end and the last adjustment, so the construction factors see them.
 - The UI is `components/overview/AdjustmentsPanel.vue` under the date scrubber, and the timeline lists them as `adjustment` entries.
 
-## Conditions (`conditions.ts`)
+## Conditions (`conditions.ts`, and `checks.ts` for `evaluateCheck`, `ConditionContext` and `changesWithoutEvents`)
 
 ### Resolving a reward's conditions
 
@@ -118,12 +121,19 @@ It applies the rewards of the focuses completed by a date. With `options.start` 
 - A term like `not_already_hired_except_as` is `unknown`.
 - Not answered yet: factions and other countries' state (their leaders).
 
+### One context for every caller (`countryConditions.ts`)
+
+- `countryConditions(facts, options, extras)` is the only builder of `ConditionContext`. `factsOfWorking` reads the running `Working` state (rewards in `applyReward`, the weekly balance of power rules in `drift`), `factsOfState` a `CountryState` (purchases, MIOs, focus `available`, the store's view). The same country gives the same answers either way (`countryConditions.test.ts`).
+- `CountryState.flags` and `CountryState.leaderIdentity` carry what the state form needs. `leaderIdentity` is `Working.identity`: unknown after `retire_country_leader` until a successor is picked, unlike `leader`. The start is taken as known when `state.stability` is set.
+- `extras.assumePeace` (purchases, MIOs, the store's view): with no war entered yet, `has_war` is false and `has_war_with` false; a war the player entered still counts from its day. Focus rewards and focus `available` leave war unknown before the first entry. `extras.factories` / `isMajor` are the store's.
+- Purchases, MIOs and the overview therefore answer `has_country_flag` from the plan's flags, `controls_state` for start states and `has_war_with`. A decision's `visible` takes a flag the plan set, and any other flag as not set.
+
 ### Triggers (`checkOfLines`)
 
 - `checkOfLines` (`effects/conditions.ts`) reads a whole trigger block (an `available` or `allowed`).
   - `if` / `else_if` / `else` chains inside a trigger are read as `any(not limit, body)` / `any(all(limit, body), all(not limit, else))`.
   - `hidden_trigger` and `custom_trigger_tooltip` are read as their terms (all required).
-- `has_war` is a `war` check that only the political power planner answers (`atWar: false`, purchases are planned for peace), so focus rewards leave it unknown.
+- `has_war` is a `war` check answered from the entered wars; the planners of purchases and MIOs take no entry as peace (`assumePeace`), so focus rewards leave it unknown.
 - The politics import writes scripted triggers (`common/scripted_triggers`, e.g. `PHI_SEA = yes`) out in place before reading `available` / `allowed` (`expandTriggers` in `parsers/politics.ts`).
 
 ### State control

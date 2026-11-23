@@ -1,8 +1,7 @@
 import type { EffectLine } from '../focus'
+import { isNumeric, round } from '../numbers'
 import type { StatDefinition } from '../stats'
 import type { ActiveIdea, RuleValue, StatTotal } from './types'
-
-export const round = (n: number) => Number(n.toFixed(6))
 
 /** Adds `amount` to the total for `key`, keeping the order keys first appeared in. */
 export const addTo = (
@@ -70,9 +69,6 @@ export const scriptedStat = (
 
 /** A stat kept between 0 and 1, which is what the game shows. */
 export const clampStat = (value: number): number => Math.min(1, Math.max(0, value))
-
-export const isNumeric = (value: string | undefined): value is string =>
-  value !== undefined && value !== '' && Number.isFinite(Number(value))
 
 /**
  * What the national spirits and the leader's traits add up to: the summed numeric modifiers and

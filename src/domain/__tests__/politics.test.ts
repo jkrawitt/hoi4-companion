@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addDays, daysBetween } from '../calendar'
-import { evaluateCheck } from '../campaign/conditions'
+import { evaluateCheck } from '../checks'
 import { countryStateAt } from '../campaign/countryState'
 import { planCampaign } from '../campaign/plan'
 import { planPolitics } from '../campaign/politics'
@@ -492,6 +492,26 @@ describe('planPolitics', () => {
     expect(planOf(buy('works'), data([gated]), [], 1000).unscheduled).toEqual([
       { index: 0, optionId: 'works', reason: 'unavailable' },
     ])
+  })
+
+  it('answers has_country_flag from the flags the plan set', () => {
+    const gated = option('works', {
+      kind: 'designer',
+      slot: 'tank_manufacturer',
+      cost: 50,
+      available: { type: 'flag', id: 'F' },
+    })
+    // The flag is cleared first (so it is known not to be set), then set by the second focus.
+    const flag = (key: string) => ({ depth: 0, key, value: 'F', bookkeeping: true })
+    const focuses = [focus('c', [flag('clr_country_flag')]), focus('f', [flag('set_country_flag')])]
+    const plan = planOf(
+      [{ optionId: 'works', notBefore: '1936-03-15' }],
+      data([gated]),
+      focuses,
+      1000,
+    )
+    expect(daysOf(plan)).toEqual([140])
+    expect(plan.items[0].issues).toEqual([])
   })
 
   it('allows an option whose availability it cannot tell, with a warning', () => {

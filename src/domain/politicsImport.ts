@@ -5,7 +5,7 @@
  * sometimes available keeps its `available` condition for the campaign to answer.
  */
 import type { Check, EffectLine } from './focus'
-import { evaluateCheck, type ConditionContext } from './campaign/conditions'
+import { evaluateCheck, type ConditionContext } from './checks'
 import { ideaLineIndexes } from './effects/ideaLines'
 import { GAME_PATHS, type GameFiles } from './gameFiles'
 import { readDefinitions } from './definitions'

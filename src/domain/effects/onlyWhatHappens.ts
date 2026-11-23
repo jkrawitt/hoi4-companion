@@ -11,9 +11,8 @@
  * net change.
  */
 import type { EffectLine } from '../focus'
+import { round } from '../numbers'
 import { blockEnd, opensBlock, outdent } from './lines'
-
-const round = (n: number) => Number(n.toFixed(6))
 
 const nameOf = (line: EffectLine) => line.valueName ?? line.value
 

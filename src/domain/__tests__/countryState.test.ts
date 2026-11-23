@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
-import { scaledDrift } from '../campaign/applyReward'
+import { scaledDrift } from '../campaign/popularity'
 import { countryStateAt } from '../campaign/countryState'
 import { schedulePlan } from '../plan/focusPlan'
 import { adjustmentSteps, emptyAdjustments } from '../adjustments'

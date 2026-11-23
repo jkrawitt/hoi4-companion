@@ -213,3 +213,9 @@ export interface ImportedCountry {
   /** The laws, designers and advisors political power can buy, which are the country's own. */
   politics: PoliticsData
 }
+
+/** A reward and when it is finished. */
+export interface Step {
+  focus: { id: string; name: string; effects: EffectLine[]; bypass?: Check }
+  end: Date
+}

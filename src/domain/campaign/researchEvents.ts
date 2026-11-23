@@ -5,7 +5,8 @@
  * `ResearchEnvironment` the planner takes.
  */
 import type { ResearchBonus, ResearchEnvironment } from '../research'
-import { activeModifiers, round } from './totals'
+import { round } from '../numbers'
+import { activeModifiers } from './totals'
 import { changePoints } from './snapshots'
 import type { StateSnapshot } from './types'
 
