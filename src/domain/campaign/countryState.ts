@@ -277,13 +277,15 @@ export const simulateCountry = (
 
   return {
     at: (date) => {
-      if (date.getTime() < cursor.time) {
-        // Back to the latest checkpoint on or before the date.
+      // A date before the start still has the starting state, as if the start were that day.
+      const target = hasStart && startDate && date < startDate ? startDate : date
+      // Back to the latest checkpoint on or before the date.
+      if (target.getTime() < cursor.time) {
         let found = checkpoints[0]
-        for (const c of checkpoints) if (c.time <= date.getTime()) found = c
+        for (const c of checkpoints) if (c.time <= target.getTime()) found = c
         cursor = copyOf(found)
       }
-      advance(cursor, steps, date, keep)
+      advance(cursor, steps, target, keep)
       return stateFrom(cursor.w, date)
     },
     addStep: (step) => {

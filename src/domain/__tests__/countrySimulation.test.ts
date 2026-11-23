@@ -171,6 +171,16 @@ describe('simulateCountry', () => {
     }
   })
 
+  it('gives a date before the start the starting state', () => {
+    const sim = simulateCountry(schedule, options)
+    sim.at(day(500))
+    const before = sim.at(new Date(Date.UTC(1935, 11, 1)))
+    const first = sim.at(day(0))
+    expect(before.popularity).toEqual(first.popularity)
+    expect(before.balance).toBe(first.balance)
+    expect(before.ideas.map((i) => i.id)).toEqual(first.ideas.map((i) => i.id))
+  })
+
   it('does not change a state it gave earlier', () => {
     const sim = simulateCountry(schedule, options)
     const early = sim.at(day(100))
