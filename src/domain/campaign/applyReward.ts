@@ -275,17 +275,23 @@ export const shiftPopularity = (w: Working, subject: string, delta: number): voi
 const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
 
 /**
- * A party above this popularity drifts up at only `POPULARITY_DRIFT_SCALE` of its daily drift
- * (checked in game: Finland, fascism 19% at the start, 20.80% on 1 March with Susitaival's
- * `fascism_drift` from 4 February; an `add_popularity` effect is not scaled, the coup focus added
- * its full 5 points on top). The threshold is read from that one case; losses are not scaled.
+ * A party above 20% popularity drifts up at half its daily drift, and above 30% at a third
+ * (checked in game on Finland: fascism 19% at the start, 20.80% on 1 March with Susitaival's
+ * `fascism_drift`, 26.30% on 11 March after the coup focus, 32.21% on 29 July; an `add_popularity`
+ * effect is not scaled). The thresholds are read from those cases; what happens past 40% is not
+ * known, so a third is kept. Losses are not scaled.
  */
-export const POPULARITY_SCALE_ABOVE = 0.2
-export const POPULARITY_DRIFT_SCALE = 0.5
+export const DRIFT_SCALES: { above: number; scale: number }[] = [
+  { above: 0.2, scale: 1 / 2 },
+  { above: 0.3, scale: 1 / 3 },
+]
 
 /** What a daily drift of `delta` really does to a party that has `current`. */
-export const scaledDrift = (current: number, delta: number): number =>
-  delta > 0 && current > POPULARITY_SCALE_ABOVE ? delta * POPULARITY_DRIFT_SCALE : delta
+export const scaledDrift = (current: number, delta: number): number => {
+  if (delta <= 0) return delta
+  const tier = DRIFT_SCALES.filter((t) => current > t.above).pop()
+  return tier ? delta * tier.scale : delta
+}
 
 /**
  * The parties' popularity always adds up to 100%: the start sets each one, and a later change to

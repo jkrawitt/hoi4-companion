@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { addDays } from '../calendar'
 import type { EffectLine, Focus } from '../focus'
+import { scaledDrift } from '../campaign/applyReward'
 import { countryStateAt } from '../campaign/countryState'
 import { schedulePlan } from '../plan/focusPlan'
 import { adjustmentSteps, emptyAdjustments } from '../adjustments'
@@ -246,6 +247,14 @@ describe('countryStateAt', () => {
     expect(later.democratic + later.fascism + later.communism + later.neutrality).toBeCloseTo(1, 5)
     // The others lose in proportion: 5 : 2 : 1.
     expect(later.democratic / later.communism).toBeCloseTo(2.5, 2)
+  })
+
+  it('scales a daily drift by half above 20% and by a third above 30%, not a loss', () => {
+    expect(scaledDrift(0.2, 0.001)).toBe(0.001)
+    expect(scaledDrift(0.25, 0.001)).toBe(0.0005)
+    expect(scaledDrift(0.3, 0.001)).toBe(0.0005)
+    expect(scaledDrift(0.35, 0.001)).toBeCloseTo(0.001 / 3, 9)
+    expect(scaledDrift(0.35, -0.001)).toBe(-0.001)
   })
 
   it('lists conditional effects without applying them', () => {

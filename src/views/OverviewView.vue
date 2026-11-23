@@ -69,8 +69,10 @@ const popularity = computed(() =>
   asLevels(state.value.popularity).map((p, i) => ({
     ...p,
     key: state.value.popularity[i].subject,
-    // Two decimals, like the game's popularity screen.
+    // Cut to two decimals like the game's popularity screen, with the exact value beside it.
     stat: { ...p.stat, decimals: 2, fixedDecimals: true },
+    value: String(Math.trunc(state.value.popularity[i].total * 1e4 + 1e-6) / 1e4),
+    note: `(${(state.value.popularity[i].total * 100).toFixed(3)}%)`,
   })),
 )
 /** The national spirits: ideas that do not fill a politics slot (laws, advisors, designers). */

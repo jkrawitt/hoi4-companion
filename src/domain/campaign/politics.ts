@@ -212,6 +212,26 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
     return { kind: 'buy', cost, days: Math.ceil(need / gain), issues }
   }
 
+  /**
+   * The first day after now, before `limit`, on which an option's `available` no longer fails.
+   * Popularity and stability move every day with no event, so the days are looked at a week at a
+   * time and the week it turns in is then looked at day by day.
+   */
+  const firstDayAvailable = (option: PoliticalOption, limit: Date): Date | undefined => {
+    if (!option.available) return undefined
+    const check = option.available
+    const open = (day: Date) => evaluateCheck(check, conditionsOf(stateAt(day), options)) !== false
+    let before = t
+    for (let day = addDays(t, 7); before < limit; day = addDays(day, 7)) {
+      const end = day < limit ? day : limit
+      if (open(end)) {
+        for (let d = addDays(before, 1); d <= end; d = addDays(d, 1)) if (open(d)) return d
+      }
+      before = end
+    }
+    return undefined
+  }
+
   queue.forEach((item, index) => {
     const option = byId.get(item.optionId)
     const dismiss = item.dismiss === true
@@ -238,8 +258,13 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       }
       const change = nextChange()
       if (outcome.kind === 'wait') {
-        if (!change) return leave(outcome.reason)
-        moveTo(change)
+        // What is not available yet may become so by itself: a party's popularity drifting over a
+        // threshold is no change of the country, so look for that day before the next change.
+        const day =
+          outcome.reason === 'unavailable' ? firstDayAvailable(option, change ?? until) : undefined
+        const to = day && (!change || day < change) ? day : change
+        if (!to) return leave(outcome.reason)
+        moveTo(to)
         continue
       }
       let when = addDays(t, outcome.days)
