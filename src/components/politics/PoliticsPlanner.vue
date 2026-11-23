@@ -11,7 +11,7 @@ import {
   type PurchaseIssue,
   type UnscheduledPurchaseReason,
 } from '@/domain/politics'
-import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { formatDate, useCampaign } from '@/stores/campaign'
 import { shown, withExact } from '../powerFormat'
 import { useShowOnOverview } from '../overviewLink'
 import { yearBanners } from '../yearBanners'
@@ -27,6 +27,7 @@ const {
   availabilityOnViewDate,
   politicsPlan,
   politicsSchedule,
+  powerOnViewDate,
   addPurchase,
   movePurchase,
   removePurchase,
@@ -108,15 +109,6 @@ const rows = computed(() => {
     return { index, item, option, scheduled, left, banner }
   })
 })
-
-const viewed = computed(() => parseDate(viewDate.value))
-const balance = computed(() => politicsSchedule.value.balanceAt(viewed.value))
-const gain = computed(() => politicsSchedule.value.gainAt(viewed.value))
-const teams = computed(() => politicsSchedule.value.designTeamsAt(viewed.value))
-const teamCost = computed(() => politics.value?.defines.designTeamCost ?? 0)
-const nextPurchase = computed(() =>
-  politicsSchedule.value.items.find((item) => item.date > viewed.value),
-)
 </script>
 
 <template>
@@ -132,14 +124,17 @@ const nextPurchase = computed(() =>
       against the game.
     </p>
     <p>
-      On {{ viewDate }}: <strong>{{ withExact(balance, 0) }}</strong> political power, +{{
-        withExact(gain, 2)
-      }}
+      On {{ viewDate }}: <strong>{{ withExact(powerOnViewDate.balance, 0) }}</strong> political
+      power, +{{ withExact(powerOnViewDate.gain, 2) }}
       a day.
-      <template v-if="teams > 0">Design teams: -{{ shown(teamCost, 2) }} x {{ teams }}.</template>
-      <template v-if="nextPurchase">
+      <template v-if="powerOnViewDate.teams > 0"
+        >Design teams: -{{ shown(powerOnViewDate.teamCost, 2) }} x
+        {{ powerOnViewDate.teams }}.</template
+      >
+      <template v-if="powerOnViewDate.next">
         Next purchase:
-        {{ byId.get(nextPurchase.optionId)?.name }} on {{ formatDate(nextPurchase.date) }}.
+        {{ byId.get(powerOnViewDate.next.optionId)?.name }} on
+        {{ formatDate(powerOnViewDate.next.date) }}.
       </template>
     </p>
     <div class="settings">

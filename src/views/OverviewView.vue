@@ -14,7 +14,7 @@ import { capitalize, humanize } from '@/domain/effects/lines'
 import { POLITICS_GROUPS } from '@/domain/politics'
 import { formatStatValue } from '@/domain/stats'
 import { shown, withExact } from '@/components/powerFormat'
-import { formatDate, parseDate, useCampaign } from '@/stores/campaign'
+import { formatDate, useCampaign } from '@/stores/campaign'
 
 const {
   country,
@@ -25,8 +25,7 @@ const {
   researchStatus,
   researchTotals,
   politics,
-  politicsSchedule,
-  viewDate,
+  powerOnViewDate,
 } = useCampaign()
 
 const techNames = computed(
@@ -88,14 +87,6 @@ const staff = computed(() => {
       .map(([slot, ideas]) => ({ slot, title: capitalize(humanize(slot)), ideas })),
   })).filter((group) => group.slots.length > 0)
 })
-const viewed = computed(() => parseDate(viewDate.value))
-const power = computed(() => ({
-  balance: politicsSchedule.value.balanceAt(viewed.value),
-  gain: politicsSchedule.value.gainAt(viewed.value),
-  next: politicsSchedule.value.items.find((item) => item.date > viewed.value),
-  teams: politicsSchedule.value.designTeamsAt(viewed.value),
-  teamCost: politics.value?.defines.designTeamCost ?? 0,
-}))
 const optionName = (id: string) => politics.value?.options.find((o) => o.id === id)?.name ?? id
 /** Stability and war support on the date (known once the start has set them), as percentages. */
 const levels = computed(() =>
@@ -156,13 +147,16 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
       <section v-if="politics">
         <h3>Political power</h3>
         <p>
-          {{ withExact(power.balance, 0) }} political power, +{{ withExact(power.gain, 2) }} a day.
-          <template v-if="power.teams > 0">
-            Design teams: -{{ shown(power.teamCost, 2) }} x {{ power.teams }}.
+          {{ withExact(powerOnViewDate.balance, 0) }} political power, +{{
+            withExact(powerOnViewDate.gain, 2)
+          }}
+          a day.
+          <template v-if="powerOnViewDate.teams > 0">
+            Design teams: -{{ shown(powerOnViewDate.teamCost, 2) }} x {{ powerOnViewDate.teams }}.
           </template>
-          <template v-if="power.next">
-            Next purchase: {{ optionName(power.next.optionId) }} on
-            {{ formatDate(power.next.date) }}.
+          <template v-if="powerOnViewDate.next">
+            Next purchase: {{ optionName(powerOnViewDate.next.optionId) }} on
+            {{ formatDate(powerOnViewDate.next.date) }}.
           </template>
           <RouterLink to="/politics">Plan political power</RouterLink>
         </p>

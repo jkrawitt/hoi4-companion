@@ -13,7 +13,7 @@ import { viewCheck } from '@/domain/campaign/checkView'
 import type { PoliticalOption } from '@/domain/politics'
 import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'
 import { adjustmentSteps, tradeOverTime } from '@/domain/adjustments'
-import { industryAt } from '@/domain/campaign/industry'
+import { CIVILIAN, MILITARY, factoryCount, industryAt } from '@/domain/campaign/industry'
 import { planConstruction } from '@/domain/campaign/construction'
 import { tradeAt } from '@/domain/production'
 import { addDays, schedulePlan } from '@/domain/plan/focusPlan'
@@ -36,12 +36,12 @@ export interface CampaignSettings {
   viewDate: Ref<string>
 }
 
-/** Everything worked out from the settings, the imported data and the queues. */
 /** The first focus starts with a day done; see `PlanOptions.loadedDays`. */
 const FIRST_FOCUS_LOADED_DAYS = 1
 /** The techs the opening research slots start with have a day done too (seen in game, Finland). */
 const FIRST_TECH_LOADED_DAYS = 1
 
+/** Everything worked out from the settings, the imported data and the queues. */
 export const createPlanning = (settings: CampaignSettings, data: GameData, queues: Queues) => {
   const { countryTag, startDate, speedBonusPercent, viewDate } = settings
   const {
@@ -58,13 +58,13 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   } = data
   const { plan, researchPlan, constructionPlan, politicsPlan, adjustments } = queues
 
-  const schedule = computed(() =>
-    schedulePlan(plan.value, focuses.value, {
-      startDate: parseDate(startDate.value),
-      speedBonus: speedBonusPercent.value / 100,
-      loadedDays: FIRST_FOCUS_LOADED_DAYS,
-    }),
-  )
+  /** How the focus plan is scheduled: when it starts and how fast the focuses go. */
+  const scheduleOptions = computed(() => ({
+    startDate: parseDate(startDate.value),
+    speedBonus: speedBonusPercent.value / 100,
+    loadedDays: FIRST_FOCUS_LOADED_DAYS,
+  }))
+  const schedule = computed(() => schedulePlan(plan.value, focuses.value, scheduleOptions.value))
 
   /** The options both the planning and the overview take to work out the country's state. */
   const stateOptions = computed(() => ({
@@ -106,17 +106,17 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
       loadedDays: FIRST_TECH_LOADED_DAYS,
     }),
   )
+  /** The state options with the campaign's research and purchases. */
+  const campaignOptions = computed(() => ({
+    ...stateOptions.value,
+    hasTech: planned.value.hasTech,
+    extraSteps: planned.value.politics.steps,
+  }))
   const researchSchedule = computed(() => planned.value.schedule)
   const politicsSchedule = computed(() => planned.value.politics)
 
   /** The country on a date, with the research, purchases and adjustments of the campaign. */
-  const simulation = computed(() =>
-    simulateCountry(schedule.value, {
-      ...stateOptions.value,
-      hasTech: planned.value.hasTech,
-      extraSteps: planned.value.politics.steps,
-    }),
-  )
+  const simulation = computed(() => simulateCountry(schedule.value, campaignOptions.value))
   const stateOn = (date: Date) => simulation.value.at(date)
 
   /** The later of `date` and the last thing the player entered from the game. */
@@ -185,23 +185,14 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   const state = computed(() => stateOn(parseDate(viewDate.value)))
   /** What the conditions ask about the country on the viewed date. */
   const viewContext = computed(() =>
-    countryConditions(
-      factsOfState(state.value),
-      { ...stateOptions.value, hasTech: planned.value.hasTech },
-      {
-        assumePeace: true,
-        // The terms of a decision's `visible` that only the store can answer (assumed: the factory
-        // count is civilian plus military on the viewed date, and a country stays as it starts).
-        factories: () => {
-          const counts = industry.value?.factories
-          if (!counts) return undefined
-          return counts
-            .filter((f) => ['industrial_complex', 'arms_factory'].includes(f.type))
-            .reduce((n, f) => n + f.count, 0)
-        },
-        isMajor: () => MAJORS_1936.has(countryTag.value),
-      },
-    ),
+    countryConditions(factsOfState(state.value), campaignOptions.value, {
+      assumePeace: true,
+      // The terms of a decision's `visible` that only the store can answer (assumed: the factory
+      // count is civilian plus military on the viewed date, and a country stays as it starts).
+      factories: () =>
+        industry.value ? factoryCount(industry.value, [CIVILIAN, MILITARY]) : undefined,
+      isMajor: () => MAJORS_1936.has(countryTag.value),
+    }),
   )
   /**
    * Whether an option's `available` is known to hold in the country on the viewed date. With
@@ -265,6 +256,19 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
       : undefined,
   )
 
+  /** The political power, its gain, design teams and next purchase on the viewed date. */
+  const powerOnViewDate = computed(() => {
+    const date = parseDate(viewDate.value)
+    const items = politicsSchedule.value
+    return {
+      balance: items.balanceAt(date),
+      gain: items.gainAt(date),
+      next: items.items.find((item) => item.date > date),
+      teams: items.designTeamsAt(date),
+      teamCost: politics.value?.defines.designTeamCost ?? 0,
+    }
+  })
+
   /** Each planned focus's reward with the branches that apply or not marked. */
   const plannedFocusEffects = computed(() => finalState.value.focusEffects)
 
@@ -272,16 +276,8 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   const focusInput = computed(() => ({
     plan: plan.value,
     focuses: focuses.value,
-    scheduleOptions: {
-      startDate: parseDate(startDate.value),
-      speedBonus: speedBonusPercent.value / 100,
-      loadedDays: FIRST_FOCUS_LOADED_DAYS,
-    },
-    stateOptions: {
-      ...stateOptions.value,
-      hasTech: planned.value.hasTech,
-      extraSteps: planned.value.politics.steps,
-    },
+    scheduleOptions: scheduleOptions.value,
+    stateOptions: campaignOptions.value,
   }))
 
   /**
@@ -366,6 +362,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
     availabilityOnViewDate,
     trade,
     industry,
+    powerOnViewDate,
     timeline,
   }
 }
