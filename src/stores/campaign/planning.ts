@@ -7,7 +7,7 @@ import { previewFocusEffects } from '@/domain/campaign/preview'
 import { blockedByAvailability, unavailableInPlan } from '@/domain/campaign/availability'
 import { removeWithDependents } from '@/domain/plan/focusSelection'
 import { planCampaign } from '@/domain/campaign/plan'
-import { conditionsOf } from '@/domain/campaign/politics'
+import { countryConditions, factsOfState } from '@/domain/campaign/countryConditions'
 import { evaluateCheck } from '@/domain/campaign/conditions'
 import { viewCheck } from '@/domain/campaign/checkView'
 import type { PoliticalOption } from '@/domain/politics'
@@ -184,19 +184,25 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
 
   const state = computed(() => stateOn(parseDate(viewDate.value)))
   /** What the conditions ask about the country on the viewed date. */
-  const viewContext = computed(() => ({
-    ...conditionsOf(state.value, { ...stateOptions.value, hasTech: planned.value.hasTech }),
-    // The terms of a decision's `visible` that only the store can answer (assumed: the factory
-    // count is civilian plus military on the viewed date, and a country stays as it starts).
-    factories: () => {
-      const counts = industry.value?.factories
-      if (!counts) return undefined
-      return counts
-        .filter((f) => ['industrial_complex', 'arms_factory'].includes(f.type))
-        .reduce((n, f) => n + f.count, 0)
-    },
-    isMajor: () => MAJORS_1936.has(countryTag.value),
-  }))
+  const viewContext = computed(() =>
+    countryConditions(
+      factsOfState(state.value),
+      { ...stateOptions.value, hasTech: planned.value.hasTech },
+      {
+        assumePeace: true,
+        // The terms of a decision's `visible` that only the store can answer (assumed: the factory
+        // count is civilian plus military on the viewed date, and a country stays as it starts).
+        factories: () => {
+          const counts = industry.value?.factories
+          if (!counts) return undefined
+          return counts
+            .filter((f) => ['industrial_complex', 'arms_factory'].includes(f.type))
+            .reduce((n, f) => n + f.count, 0)
+        },
+        isMajor: () => MAJORS_1936.has(countryTag.value),
+      },
+    ),
+  )
   /**
    * Whether an option's `available` is known to hold in the country on the viewed date. With
    * `unknownCounts` a condition the campaign cannot answer counts as holding, like in the planner.
@@ -214,11 +220,11 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   const decisionListed = (option: PoliticalOption) =>
     availableOnViewDate(option, false) ||
     !option.visible ||
-    // No flag is known to be set (events set them too, which are not played), so none counts as
-    // set, and the country is taken to be independent and at peace at home.
+    // A flag the plan set counts; one it never touched counts as not set (events set flags too, which
+    // are not played), and the country is taken to be independent and at peace at home.
     evaluateCheck(option.visible, {
       ...viewContext.value,
-      hasFlag: () => false,
+      hasFlag: (id) => viewContext.value.hasFlag?.(id) ?? false,
       situation: () => false,
     }) === true
   /** An option's `available` as a readable tree, each term marked as holding on the viewed date. */

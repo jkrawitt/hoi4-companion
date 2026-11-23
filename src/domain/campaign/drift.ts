@@ -15,7 +15,6 @@
 import { rangeAt } from '../balanceOfPower'
 import { addDays, wholeDay } from '../calendar'
 import {
-  conditionContext,
   scaledDrift,
   shiftPopularity,
   stabilityBeforeModifiersNow,
@@ -23,6 +22,7 @@ import {
   type Working,
 } from './applyReward'
 import { evaluateCheck } from './conditions'
+import { countryConditions, factsOfWorking } from './countryConditions'
 import { recordResearchState } from './researchEvents'
 import { activeModifiers } from './totals'
 import type { CountryStateOptions } from './types'
@@ -55,7 +55,7 @@ const weeklyScript = (w: Working, options: CountryStateOptions, at: Date): void 
   const bop = options.balanceOfPower
   const leader = w.identity?.character
   if (!bop?.weekly) return
-  const ctx = conditionContext(w, options, at)
+  const ctx = countryConditions(factsOfWorking(w, options, at), options)
   w.bopRules = leader
     ? bop.weekly
         .filter((rule) => rule.leader === leader)

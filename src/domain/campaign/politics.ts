@@ -20,7 +20,8 @@ import type { FocusSchedule } from '../plan/types'
 import { dailyGain, purchaseCost, replacedBy, slotHasRoom, totalsOf } from '../plan/politicsPlan'
 import { addDays, daysBetween, parseDay } from '../calendar'
 import type { Step } from './applyReward'
-import { changesWithoutEvents, evaluateCheck, type ConditionContext } from './conditions'
+import { changesWithoutEvents, evaluateCheck } from './conditions'
+import { countryConditions, factsOfState } from './countryConditions'
 import { simulateCountry } from './countryState'
 import type { CountryState, CountryStateOptions } from './types'
 
@@ -59,29 +60,6 @@ export const purchaseEffects = (option: PoliticalOption, dismiss: boolean): Effe
           },
           ...option.modifiers.map((line) => ({ ...line, depth: line.depth + 1 })),
         ]
-
-/** What the campaign knows about the country in `state`, for an option's `available` block. */
-export const conditionsOf = (
-  state: CountryState,
-  options: CountryStateOptions,
-): ConditionContext => {
-  const known = Boolean(options.start?.length)
-  return {
-    hasIdea: (id) => state.ideas.some((idea) => idea.id === id),
-    hasFocus: (id) => state.completed.some((item) => item.focus.id === id),
-    hasTech: (id) => options.hasTech?.(id, state.date),
-    leader: () =>
-      state.leader ? { id: state.leader.id, character: state.leader.character } : undefined,
-    government: () => state.government,
-    popularity: (ideology) =>
-      known ? (state.popularity.find((p) => p.subject === ideology)?.total ?? 0) : undefined,
-    tag: options.tag,
-    hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
-    stat: (key) => (key === 'stability' ? state.stability : state.warSupport),
-    // Wars are not planned: purchases are planned for peace.
-    atWar: () => false,
-  }
-}
 
 /** What happens to the head of the queue in the country as it is right now. */
 type Outcome =
@@ -198,7 +176,10 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
     }
     const issues: PurchaseIssue[] = []
     if (option.available) {
-      const holds = evaluateCheck(option.available, conditionsOf(state, options))
+      const holds = evaluateCheck(
+        option.available,
+        countryConditions(factsOfState(state), options, { assumePeace: true }),
+      )
       if (holds === false) return { kind: 'wait', reason: 'unavailable' }
       if (holds === undefined) issues.push({ kind: 'availability-unknown' })
     }
@@ -224,7 +205,11 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
     const check = option.available
     // What no passing day can change is only settled by a change of the country, looked at anyway.
     if (!changesWithoutEvents(check)) return undefined
-    const open = (day: Date) => evaluateCheck(check, conditionsOf(stateAt(day), options)) !== false
+    const open = (day: Date) =>
+      evaluateCheck(
+        check,
+        countryConditions(factsOfState(stateAt(day)), options, { assumePeace: true }),
+      ) !== false
     let before = t
     for (let day = addDays(t, 7); before < limit; day = addDays(day, 7)) {
       const end = day < limit ? day : limit

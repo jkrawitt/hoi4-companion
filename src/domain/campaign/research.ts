@@ -19,7 +19,7 @@ import type { FocusSchedule } from '../plan/types'
 import { scheduleResearch } from '../plan/researchPlan'
 import { countryStateAt, simulateCountry } from './countryState'
 import { evaluateCheck } from './conditions'
-import { conditionsOf } from './politics'
+import { countryConditions, factsOfState } from './countryConditions'
 import { addTo, isNumeric } from './totals'
 import { statLabel } from '../stats'
 import type { CountryStateOptions, StatTotal } from './types'
@@ -98,7 +98,10 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
       const available = mios.find((mio) => mio.id === id)?.available
       if (!available) return true
       const state = sim.at(date)
-      return evaluateCheck(available, conditionsOf(state, passOptions))
+      return evaluateCheck(
+        available,
+        countryConditions(factsOfState(state), passOptions, { assumePeace: true }),
+      )
     }
     const schedule = scheduleResearch(queue, techs, environment, {
       startDate,

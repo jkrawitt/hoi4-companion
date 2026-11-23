@@ -7,9 +7,9 @@ import type { Focus } from '../focus'
 import { pathTo } from '../plan/focusSelection'
 import { schedulePlan } from '../plan/focusPlan'
 import type { PlanOptions } from '../plan/types'
-import { evaluateCheck, type ConditionContext } from './conditions'
+import { evaluateCheck } from './conditions'
 import { countryStateAt, simulateCountry } from './countryState'
-import { conditionsOf } from './politics'
+import { countryConditions, factsOfState } from './countryConditions'
 import type { CountryState, CountryStateOptions } from './types'
 
 export interface AvailabilityInput {
@@ -19,23 +19,10 @@ export interface AvailabilityInput {
   stateOptions: CountryStateOptions
 }
 
-/** What a focus's triggers can ask about the country in `state`. */
-export const focusConditions = (
-  state: CountryState,
-  options: CountryStateOptions,
-): ConditionContext => ({
-  ...conditionsOf(state, options),
-  // Wars are only what the player entered; before the first entry they are unknown.
-  atWar: () => (state.enemies ? state.enemies.length > 0 : undefined),
-  atWarWith: (tag) => state.enemies?.includes(tag),
-  controlsState: options.ownedStates
-    ? (id) => (options.ownedStates!.includes(Number(id)) ? true : undefined)
-    : undefined,
-})
-
 /** Whether `focus` is available in `state`: false only when its trigger is known not to hold. */
 const availableIn = (focus: Focus, state: CountryState, options: CountryStateOptions) =>
-  !focus.available || evaluateCheck(focus.available, focusConditions(state, options)) !== false
+  !focus.available ||
+  evaluateCheck(focus.available, countryConditions(factsOfState(state), options)) !== false
 
 /** The planned focuses whose `available` does not hold on the day they start. */
 export const unavailableInPlan = ({

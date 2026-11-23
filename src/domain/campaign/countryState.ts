@@ -192,6 +192,8 @@ export const simulateCountry = (
       stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
       warSupport: actual('war_support'),
       leader: w.leader,
+      leaderIdentity: w.identity && { ...w.identity },
+      flags: Object.fromEntries(w.flags),
       balance: w.balance,
       balanceChanges: w.balanceChanges.slice(),
       resources: [...w.resources.values()],

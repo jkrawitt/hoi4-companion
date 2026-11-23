@@ -10,23 +10,11 @@ import { START_ID, type Check, type EffectLine } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
-import {
-  annotateConditions,
-  evaluateCheck,
-  resolveConditions,
-  type ConditionContext,
-} from './conditions'
+import { annotateConditions, evaluateCheck, resolveConditions } from './conditions'
+import { countryConditions, factsOfWorking } from './countryConditions'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import {
-  activeModifiers,
-  addTo,
-  clampStat,
-  isNumeric,
-  rawCountryStat,
-  round,
-  scriptedStat,
-} from './totals'
+import { activeModifiers, addTo, isNumeric, rawCountryStat, round, scriptedStat } from './totals'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
 import { clampBalance, formatBalance, rangeAt, type BopWeeklyRule } from '../balanceOfPower'
 import type {
@@ -645,35 +633,6 @@ const ownedLines = (effects: EffectLine[], owners: number[]): Set<number> => {
   return owned
 }
 
-/** What the campaign can answer about the country, as the working state stands at `at`. */
-export const conditionContext = (
-  w: Working,
-  options: CountryStateOptions,
-  at: Date,
-): ConditionContext => ({
-  hasIdea: (id) => {
-    const idea = w.ideas.get(id)
-    return idea !== undefined && (!idea.until || idea.until > at)
-  },
-  hasFocus: (id) => w.doneFocuses.has(id),
-  government: () => w.government,
-  leader: () => w.identity,
-  // Only known once the start has set the popularities; the plan alone only has changes.
-  popularity: (ideology) =>
-    options.start?.length ? (w.popularity.get(ideology)?.total ?? 0) : undefined,
-  hasTech: (id) => options.hasTech?.(id, at),
-  tag: options.tag,
-  hasDlc: options.ownedDlc ? (id) => options.ownedDlc![id] === true : undefined,
-  controlsState: options.ownedStates
-    ? (id) => (options.ownedStates!.includes(Number(id)) ? true : undefined)
-    : undefined,
-  hasFlag: (id) => w.flags.get(id),
-  atWar: () => w.enemies && w.enemies.length > 0,
-  atWarWith: (tag) => w.enemies?.includes(tag),
-  // The actual stat: only known once the start has set it, like popularity.
-  stat: (key) => (options.start?.length ? clampStat(rawStatNow(w, options, key, at)) : undefined),
-})
-
 export const applyReward = (
   w: Working,
   step: Step,
@@ -684,7 +643,7 @@ export const applyReward = (
   const { focus } = step
   // Conditions about what the country has by now (ideas, focuses, government, popularity) are
   // settled, so the branch that applies counts like any other lines.
-  const ctx = conditionContext(w, options, step.end)
+  const ctx = countryConditions(factsOfWorking(w, options, step.end), options)
   // A focus whose `bypass` holds as it starts is skipped: it gives no reward (assumed to still
   // count as done for what needs it; its duration is not changed).
   if (focus.bypass && annotate && evaluateCheck(focus.bypass, ctx) === true) {

@@ -118,12 +118,19 @@ It applies the rewards of the focuses completed by a date. With `options.start` 
 - A term like `not_already_hired_except_as` is `unknown`.
 - Not answered yet: factions and other countries' state (their leaders).
 
+### One context for every caller (`countryConditions.ts`)
+
+- `countryConditions(facts, options, extras)` is the only builder of `ConditionContext`. `factsOfWorking` reads the running `Working` state (rewards in `applyReward`, the weekly balance of power rules in `drift`), `factsOfState` a `CountryState` (purchases, MIOs, focus `available`, the store's view). The same country gives the same answers either way (`countryConditions.test.ts`).
+- `CountryState.flags` and `CountryState.leaderIdentity` carry what the state form needs. `leaderIdentity` is `Working.identity`: unknown after `retire_country_leader` until a successor is picked, unlike `leader`. The start is taken as known when `state.stability` is set.
+- `extras.assumePeace` (purchases, MIOs, the store's view): with no war entered yet, `has_war` is false and `has_war_with` false; a war the player entered still counts from its day. Focus rewards and focus `available` leave war unknown before the first entry. `extras.factories` / `isMajor` are the store's.
+- Purchases, MIOs and the overview therefore answer `has_country_flag` from the plan's flags, `controls_state` for start states and `has_war_with`. A decision's `visible` takes a flag the plan set, and any other flag as not set.
+
 ### Triggers (`checkOfLines`)
 
 - `checkOfLines` (`effects/conditions.ts`) reads a whole trigger block (an `available` or `allowed`).
   - `if` / `else_if` / `else` chains inside a trigger are read as `any(not limit, body)` / `any(all(limit, body), all(not limit, else))`.
   - `hidden_trigger` and `custom_trigger_tooltip` are read as their terms (all required).
-- `has_war` is a `war` check that only the political power planner answers (`atWar: false`, purchases are planned for peace), so focus rewards leave it unknown.
+- `has_war` is a `war` check answered from the entered wars; the planners of purchases and MIOs take no entry as peace (`assumePeace`), so focus rewards leave it unknown.
 - The politics import writes scripted triggers (`common/scripted_triggers`, e.g. `PHI_SEA = yes`) out in place before reading `available` / `allowed` (`expandTriggers` in `parsers/politics.ts`).
 
 ### State control
