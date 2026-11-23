@@ -125,11 +125,6 @@ const readDefaultLaws = async (files: GameFiles, startLines: EffectLine[]) => {
   return { lines: defaultLawLines(categories, startLines), laws: lawCategoryOf(categories) }
 }
 
-/**
- * How the country starts the game, as effect lines (with the starting leader added), and the
- * characters who could lead it later, as `promote_character` lines in the order the game would
- * pick them.
- */
 /** The static modifier a country with a pride of the fleet gets (`00_static_modifiers.txt`). */
 const PRIDE_OF_THE_FLEET = 'pride_of_the_fleet_country'
 const STATIC_SPIRITS = [PRIDE_OF_THE_FLEET]
@@ -147,6 +142,11 @@ const hasPrideOfTheFleet = async (files: GameFiles, historyText: string): Promis
   return false
 }
 
+/**
+ * How the country starts the game, as effect lines (with the starting leader added), and the
+ * characters who could lead it later, as `promote_character` lines in the order the game would
+ * pick them.
+ */
 const readStart = async (files: GameFiles, tag: string, ownedDlc: Record<string, boolean>) => {
   const historyText = await readCountryHistoryText(files, tag)
   const startLines = historyText ? parseStartingLines(historyText, ownedDlc) : []
