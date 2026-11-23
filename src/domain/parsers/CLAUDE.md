@@ -37,7 +37,7 @@ Every path the importer reads is listed once in `GAME_PATHS`. The non-Chromium f
 - It reads the 1936 part of `history/countries/<TAG> - *.txt` as effect lines: starting `add_ideas`, `set_stability` / `set_war_support` / `set_research_slots`, `set_politics`, `set_popularities`, and `set_technology` as an unlock line. It does not read characters, OOBs or dated `1939.1.1` blocks.
 - Stats become the additive keys (`add_stability`, ...) and popularities become `add_popularity` fractions.
 - A top-level `if = { limit = { has_dlc = X } }` follows `ownedDlc` (a DLC missing from `dlc.ts` counts as not owned).
-- `importCountryFocuses` returns `{ focuses, start, leaders, research }` (`ImportedCountry`). The start lines ride through the same name, modifier and stat passes as lines of their own and are cached with the focuses. `ImportTarget` needs the country `tag`.
+- `importCountry` returns `{ focuses, start, leaders, research }` (`ImportedCountry`). The start lines ride through the same name, modifier and stat passes as lines of their own and are cached with the focuses. `ImportTarget` needs the country `tag`.
 - The starting leader is a `promote_character` line the importer adds (`parsers/leaders.ts`): the first `recruit_character` in the history whose `common/characters/<TAG>.txt` `country_leader` ideology belongs to the ruling party (sub-ideology to group via `common/ideologies`).
 - `CountryState.leader` is `{ name, ideology, traits }`. Traits listed beneath a `create_country_leader` / `add_country_leader_role` count as the leader's, not as one-off stat changes, and their stats are summed into the modifier totals. The overview shows it in its own Leader section.
 
@@ -46,7 +46,7 @@ Every path the importer reads is listed once in `GAME_PATHS`. The non-Chromium f
 - `readTechnologies` reads:
   - every file of `common/technologies`;
   - the folders from `common/technology_tags`: a folder's `available` picks the DLC variant by `ownedDlc` (BBA air, MtG navy, No Step Back armour), and doctrine folders are left out;
-  - `NTechnology` from `common/defines/00_defines.lua` (by regex, with fallbacks).
+  - `NTechnology` from `common/defines/00_defines.lua` (by regex, with fallbacks). All three defines readers (research, politics, production) use `readDefine` in `paradoxScript.ts`.
 - `@variables` in positions (`y = @1936`) are defined per file, in the `technologies` block, and resolved in file order.
 - **Parents:** a tech lists the techs it leads to, so its parents are found by turning those around.
   - **All parents together are one OR group:** any one opens the tech. The tank and cruiser lines lead to each other, so AND would deadlock.

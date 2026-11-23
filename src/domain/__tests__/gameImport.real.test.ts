@@ -7,7 +7,7 @@ import { layoutFocuses } from '../plan/focusLayout'
 import { ownedDlc } from '../../data/dlc'
 import { statOverrides } from '../../data/statOverrides'
 import { effectTone, formatEffect } from '../focusEffects'
-import { importCountryFocuses } from '../gameImport'
+import { importCountry } from '../gameImport'
 import { countryStateAt } from '../campaign/countryState'
 import { industryAt } from '../campaign/industry'
 import { planConstruction } from '../campaign/construction'
@@ -21,7 +21,7 @@ import { addDays } from '../calendar'
 const dir = process.env.HOI4_DIR
 
 const importRomania = () =>
-  importCountryFocuses(
+  importCountry(
     {
       readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
       listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
@@ -36,11 +36,11 @@ const importRomania = () =>
     ownedDlc,
   )
 
-describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
+describe.skipIf(!dir)('importCountry (real game files)', () => {
   // Reading a whole install takes a while, more so with the other test files running.
   vi.setConfig({ testTimeout: 30000 })
   it('imports the Finnish tree with its scripted effects written out', async () => {
-    const finland = await importCountryFocuses(
+    const finland = await importCountry(
       {
         readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
         listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
@@ -632,7 +632,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
   })
 
   it('plans Finland from the checked-in-game start: political power and public trust', async () => {
-    const finland = await importCountryFocuses(
+    const finland = await importCountry(
       {
         readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
         listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
@@ -697,7 +697,7 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
   })
 
   it('plans a full Finnish campaign in seconds', async () => {
-    const finland = await importCountryFocuses(
+    const finland = await importCountry(
       {
         readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
         listFiles: (p) => readdir(join(dir!, p)).catch(() => []),

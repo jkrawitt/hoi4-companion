@@ -5,7 +5,7 @@
  */
 import type { EffectLine, Step } from '../focus'
 import { CONSTRUCTION_KEYS } from './rewardScopes'
-import { isNumeric, round } from './totals'
+import { isNumeric, round } from '../numbers'
 import type { ConstructionBatch } from './types'
 import type { Working } from './working'
 

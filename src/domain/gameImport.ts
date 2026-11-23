@@ -22,14 +22,13 @@ import type { EffectLine, ImportedCountry } from './focus'
 import type { MioData, Technology } from './research'
 import { parseFocusTreeFile } from './parsers/focusTree'
 import { readScriptedEffects } from './parsers/scriptedEffectsImport'
-import { ideaIdsOf, resolveDlcConditions } from './focusEffects'
+import { humanize, ideaIdsOf, resolveDlcConditions } from './focusEffects'
 import { listModifiersUnderLines } from './effects/modifierLines'
 import { readCountryHistory, readCountryHistoryText, readDefinitions } from './definitions'
 import { GAME_PATHS, GameFolderError, type GameFiles } from './gameFiles'
 import { blockEnd, outdent } from './effects/lines'
 import { loadNames } from './names'
 import { nameKeysOf, nameLines, tagOf } from './nameLines'
-import { humanize } from './focusEffects'
 import { parseIdeaNames, parseIdeas } from './parsers/ideas'
 import { parseOpinionModifiers } from './parsers/opinionModifiers'
 import { parseLeaderTraits } from './parsers/leaderTraits'
@@ -78,7 +77,6 @@ export interface ImportTarget {
   ideasFile?: string
 }
 
-/** The history's recruits with the leader roles of each and the ideology groups, read once. */
 /** A `traits` field for a promote line, when the character's role has traits. */
 const traitsOf = (
   roleTraits: Record<string, Record<string, string[]>>,
@@ -89,19 +87,17 @@ const traitsOf = (
   return traits ? { traits } : {}
 }
 
+/** The history's recruits with the leader roles of each and the ideology groups, read once. */
 const readLeaderSources = async (files: GameFiles, tag: string, historyText: string) => {
-  const roles = parseLeaderRoles(
-    (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
-  )
+  const charactersText = (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? ''
+  const roles = parseLeaderRoles(charactersText)
   const ideologies = await Promise.all(
     (await files.listFiles(GAME_PATHS.ideologies))
       .filter((file) => file.endsWith('.txt'))
       .map((file) => files.readText(`${GAME_PATHS.ideologies}/${file}`)),
   )
   const groups = Object.assign({}, ...ideologies.map((text) => parseIdeologyGroups(text ?? '')))
-  const roleTraits = parseLeaderRoleTraits(
-    (await files.readText(`${GAME_PATHS.characters}/${tag}.txt`)) ?? '',
-  )
+  const roleTraits = parseLeaderRoleTraits(charactersText)
   return { recruited: parseRecruited(historyText), roles, roleTraits, groups }
 }
 
@@ -276,7 +272,7 @@ const readCountryContext = async (files: GameFiles, lists: EffectLine[][]) => {
  * Reads a country's focus tree from the game files and attaches English display names.
  * Throws GameFolderError if the folder does not look like a HoI4 installation.
  */
-export const importCountryFocuses = async (
+export const importCountry = async (
   files: GameFiles,
   country: ImportTarget,
   statOverrides: StatOverrides = {},
@@ -395,11 +391,12 @@ export const importCountryFocuses = async (
   for (let i = 0; i < namedCandidates.length; i = blockEnd(namedCandidates, i)) {
     candidateBlocks.push(namedCandidates.slice(i, blockEnd(namedCandidates, i)))
   }
+  /** The first of the keys with a name of its own (not empty, not a `$KEY$` placeholder), else the id. */
+  const localName = (keys: string[], id: string) =>
+    keys.map((key) => (names[key] ?? '').trim()).find((name) => name && !/^\$.+\$$/.test(name)) ??
+    humanize(id)
   /** A tech's name; one without its own is named after what it unlocks, and failing that its id. */
-  const techName = (id: string) => {
-    const candidates = [id, ...(fallbackNames[id] ?? [])].map((key) => (names[key] ?? '').trim())
-    return candidates.find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(id)
-  }
+  const techName = (id: string) => localName([id, ...(fallbackNames[id] ?? [])], id)
   /** An option's name, with its modifier lines named and its `available` block written out. */
   const options = [...politics.options, ...decisions].map((o) =>
     finishOption(o, names[o.character ?? o.id] ?? names[o.id] ?? humanize(o.id), named),
@@ -408,10 +405,7 @@ export const importCountryFocuses = async (
     (m): MioData => ({
       id: m.id,
       // A foreign MIO a country can license is named `<TAG>_<id>` for that country.
-      name:
-        [`${country.tag}_${m.id}`, m.id]
-          .map((key) => (names[key] ?? '').trim())
-          .find((name) => name && !/^\$.+\$$/.test(name)) ?? humanize(m.id),
+      name: localName([`${country.tag}_${m.id}`, m.id], m.id),
       researchCategories: m.researchCategories,
       researchBonus: m.researchBonus,
       ...(m.available && { available: m.available }),
@@ -421,10 +415,10 @@ export const importCountryFocuses = async (
   const balanceOfPower: BalanceOfPower | undefined = rawBop && {
     ...rawBop,
     ...(weeklyRules.length > 0 && { weekly: weeklyRules }),
-    name: (names[rawBop.id] ?? '').trim() || humanize(rawBop.id),
+    name: localName([rawBop.id], rawBop.id),
     ranges: rawBop.ranges.map((r) => ({
       ...r,
-      name: (names[r.id] ?? '').trim() || humanize(r.id),
+      name: localName([r.id], r.id),
       modifiers: named(r.modifiers),
     })),
   }

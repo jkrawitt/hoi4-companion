@@ -8,7 +8,7 @@
 - `saved.ts`: localStorage.
 - `gameData.ts`: `createGameData`, the imported data and the import.
 - `queues.ts`: `createQueues`, the queues and their edits, `keepValid`.
-- `planning.ts`: `createPlanning`, everything computed (the schedules come from `planCampaign`).
+- `planning.ts`: `createPlanning`, everything computed (the schedules come from `planCampaign`). `campaignOptions` is the state options with the campaign's research and purchases, `scheduleOptions` the focus schedule's, and `powerOnViewDate` the political power summary (balance, gain, next purchase, design teams) the overview and the politics page share. The factory count the store assumes is `factoryCount` from `campaign/industry.ts`.
 - `dates.ts`: the date helpers.
 
 ## Rules

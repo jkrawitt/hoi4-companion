@@ -6,7 +6,8 @@ import type { EffectLine } from '../focus'
 import type { BopWeeklyRule } from '../balanceOfPower'
 import { DEFAULT_POLITICS_DEFINES } from '../politics'
 import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import { activeModifiers, rawCountryStat, round, scriptedStat } from './totals'
+import { round } from '../numbers'
+import { activeModifiers, rawCountryStat, scriptedStat } from './totals'
 import type {
   ActiveIdea,
   BuildingTotal,

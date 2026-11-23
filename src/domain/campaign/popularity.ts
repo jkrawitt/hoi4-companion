@@ -2,7 +2,8 @@
  * Party popularity: how a change to one party is shared out among the others, and how a daily
  * drift is scaled by the popularity the party has.
  */
-import { round, clampStat } from './totals'
+import { round } from '../numbers'
+import { clampStat } from './totals'
 import type { Working } from './working'
 
 /**
