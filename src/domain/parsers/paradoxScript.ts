@@ -125,3 +125,12 @@ export const findBlocks = (text: string, wanted: Set<string>): Record<string, Sc
   visit(parseScript(text))
   return found
 }
+
+/**
+ * A number from the defines (`NAME = 1.5`) by regex: the first one with that whole name, or
+ * `fallback` when it is missing or not a number.
+ */
+export const readDefine = (text: string, name: string, fallback: number): number => {
+  const found = new RegExp(`\\b${name}\\s*=\\s*(-?[\\d.]+)`).exec(text)
+  return found && Number.isFinite(Number(found[1])) ? Number(found[1]) : fallback
+}

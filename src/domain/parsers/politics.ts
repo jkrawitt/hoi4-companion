@@ -23,6 +23,7 @@ import {
   getStrings,
   parseScript,
   type ScriptBlock,
+  readDefine,
 } from './paradoxScript'
 
 /** What an idea costs when it does not say (the category's `cost` in `idea_tags`). */
@@ -288,10 +289,6 @@ export const parseAdvisors = (text: string, triggers: ScriptedTriggers = {}): Ra
  */
 export const parsePoliticsDefines = (text: string, staticModifiersText = ''): PoliticsDefines => {
   const d = DEFAULT_POLITICS_DEFINES
-  const read = (name: string, fallback: number) => {
-    const found = new RegExp(`\\b${name}\\s*=\\s*(-?[\\d.]+)`).exec(text)
-    return found && Number.isFinite(Number(found[1])) ? Number(found[1]) : fallback
-  }
   const statics = parseStaticModifiers(
     staticModifiersText,
     new Set(['stability_good_modifier', 'stability_bad_modifier', 'gain_focus']),
@@ -301,12 +298,12 @@ export const parsePoliticsDefines = (text: string, staticModifiersText = ''): Po
     return line ? Number(line.value) : fallback
   }
   return {
-    baseGain: read('BASE_POLITICAL_POWER_INCREASE', d.baseGain),
-    cap: read('POLITICAL_POWER_UPPER_CAP', d.cap),
-    partyStability: read('BASE_STABILITY_PARTY_POPULARITY_FACTOR', d.partyStability),
+    baseGain: readDefine(text, 'BASE_POLITICAL_POWER_INCREASE', d.baseGain),
+    cap: readDefine(text, 'POLITICAL_POWER_UPPER_CAP', d.cap),
+    partyStability: readDefine(text, 'BASE_STABILITY_PARTY_POPULARITY_FACTOR', d.partyStability),
     stabilityGood: stat('stability_good_modifier', 'political_power_factor', d.stabilityGood),
     stabilityBad: stat('stability_bad_modifier', 'political_power_factor', d.stabilityBad),
     focusCost: stat('gain_focus', 'political_power_cost', d.focusCost),
-    designTeamCost: read('ASSIGN_DESIGN_TEAM_PP_COST_PER_DAY', d.designTeamCost),
+    designTeamCost: readDefine(text, 'ASSIGN_DESIGN_TEAM_PP_COST_PER_DAY', d.designTeamCost),
   }
 }

@@ -12,7 +12,7 @@ import {
   type ProductionDefines,
   type StateData,
 } from '../production'
-import { getBlock, getString, parseScript, type ScriptBlock } from './paradoxScript'
+import { getBlock, getString, parseScript, readDefine, type ScriptBlock } from './paradoxScript'
 
 const numbersOf = (block: ScriptBlock | undefined): Record<string, number> =>
   Object.fromEntries(
@@ -98,30 +98,33 @@ export const parseBuildings = (text: string): BuildingData[] =>
 /** The `NProduction` numbers production needs, by regex like the research defines. */
 export const parseProductionDefines = (text: string): ProductionDefines => {
   const d = DEFAULT_DEFINES
-  const read = (name: string, fallback: number) => {
-    const found = new RegExp(`\\b${name}\\s*=\\s*(-?[\\d.]+)`).exec(text)
-    return found && Number.isFinite(Number(found[1])) ? Number(found[1]) : fallback
-  }
   return {
-    minConsumerFactories: read(
+    minConsumerFactories: readDefine(
+      text,
       'MINIMUM_NUMBER_OF_FACTORIES_TAKEN_BY_CONSUMER_GOODS_VALUE',
       d.minConsumerFactories,
     ),
-    minConsumerPercent: read(
+    minConsumerPercent: readDefine(
+      text,
       'MINIMUM_NUMBER_OF_FACTORIES_TAKEN_BY_CONSUMER_GOODS_PERCENT',
       d.minConsumerPercent,
     ),
-    maxCivsPerProject: read('MAX_CIV_FACTORIES_PER_LINE', d.maxCivsPerProject),
-    baseFactorySpeed: read('BASE_FACTORY_SPEED', d.baseFactorySpeed),
-    poweredFactorySpeed: read('POWERED_FACTORY_SPEED', d.poweredFactorySpeed),
-    infraEffect: read('INFRA_MAX_CONSTRUCTION_COST_EFFECT', d.infraEffect),
+    maxCivsPerProject: readDefine(text, 'MAX_CIV_FACTORIES_PER_LINE', d.maxCivsPerProject),
+    baseFactorySpeed: readDefine(text, 'BASE_FACTORY_SPEED', d.baseFactorySpeed),
+    poweredFactorySpeed: readDefine(text, 'POWERED_FACTORY_SPEED', d.poweredFactorySpeed),
+    infraEffect: readDefine(text, 'INFRA_MAX_CONSTRUCTION_COST_EFFECT', d.infraEffect),
     energyResource: /\bENERGY_RESOURCE\s*=\s*"([^"]+)"/.exec(text)?.[1] ?? d.energyResource,
-    baseEnergy: read('BASE_COUNTRY_ENERGY_PRODUCTION', d.baseEnergy),
-    energyPerResource: read('RESOURCE_TO_ENERGY_COEFFICIENT', d.energyPerResource),
-    baseEnergyCost: read('BASE_ENERGY_COST', d.baseEnergyCost),
-    energyCostScaling: read('ENERGY_SCALING_COST_BY_FACTORY_COUNT', d.energyCostScaling),
-    energyCostCap: read('ENERGY_COST_CAP', d.energyCostCap),
-    energyScalePerTradeFactory: read(
+    baseEnergy: readDefine(text, 'BASE_COUNTRY_ENERGY_PRODUCTION', d.baseEnergy),
+    energyPerResource: readDefine(text, 'RESOURCE_TO_ENERGY_COEFFICIENT', d.energyPerResource),
+    baseEnergyCost: readDefine(text, 'BASE_ENERGY_COST', d.baseEnergyCost),
+    energyCostScaling: readDefine(
+      text,
+      'ENERGY_SCALING_COST_BY_FACTORY_COUNT',
+      d.energyCostScaling,
+    ),
+    energyCostCap: readDefine(text, 'ENERGY_COST_CAP', d.energyCostCap),
+    energyScalePerTradeFactory: readDefine(
+      text,
       'ENERGY_SCALE_PER_TRADE_FACTORY_EXPORT',
       d.energyScalePerTradeFactory,
     ),
