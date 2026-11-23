@@ -1,5 +1,7 @@
 /**
  * Applies one reward (a completed focus's, or the game start's) to the country's running state.
+ * The state itself and its stat formulas are in `working.ts`, popularity shifts in `popularity.ts`,
+ * the balance-of-power spirit in `drift.ts` and the construction totals in `rewardConstruction.ts`.
  *
  * `applyReward` settles the conditions it can, sorts the lines into the ones that happen for sure
  * and the ones that might not (`rewardScopes.ts`), then offers each certain line to the handlers
@@ -10,89 +12,22 @@ import { START_ID, type Check, type EffectLine } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
+import { clampBalance } from '../balanceOfPower'
 import { annotateConditions, evaluateCheck, resolveConditions } from './conditions'
 import { countryConditions, factsOfWorking } from './countryConditions'
+import { syncBalanceOfPower } from './drift'
+import { shiftPopularity } from './popularity'
+import { recordBatches, totalConstruction } from './rewardConstruction'
 import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
-import { newResearchWorking, recordResearchState, type ResearchWorking } from './researchEvents'
-import { activeModifiers, addTo, isNumeric, rawCountryStat, round, scriptedStat } from './totals'
-import { DEFAULT_POLITICS_DEFINES } from '../politics'
-import { clampBalance, formatBalance, rangeAt, type BopWeeklyRule } from '../balanceOfPower'
-import type {
-  ActiveIdea,
-  BuildingTotal,
-  ConditionalEffects,
-  ConstructionBatch,
-  CountryLeader,
-  CountryStateOptions,
-  PopularityChange,
-  ResourceTotal,
-  StatTotal,
-} from './types'
+import { addTo, isNumeric, round } from './totals'
+import type { CountryStateOptions } from './types'
+import { rawStatNow, snapshotResearch, type Working } from './working'
 
 /** A reward and when it is finished. */
 export interface Step {
   focus: { id: string; name: string; effects: EffectLine[]; bypass?: Check }
   end: Date
 }
-
-/** Everything the rewards applied so far have done to the country. */
-export interface Working {
-  ideas: Map<string, ActiveIdea>
-  statChanges: Map<string, StatTotal>
-  popularity: Map<string, PopularityChange>
-  conditional: ConditionalEffects[]
-  /** The planned focuses' rewards with the branches marked, by focus id. */
-  focusEffects: Record<string, EffectLine[]>
-  buildings: Map<string, BuildingTotal>
-  buildingSlots: number
-  construction: ConstructionBatch[]
-  resources: Map<string, ResourceTotal>
-  rulingParty?: string
-  /** The ruling ideology group as the scripts name it (`communism`), for conditions. */
-  government?: string
-  doneFocuses: Set<string>
-  /** The focuses whose `bypass` held as they started: they are skipped, with no reward. */
-  bypassed: Set<string>
-  /** Who leads, for conditions: unknown again after `retire_country_leader`, as the game picks next. */
-  identity?: { id?: string; character?: string }
-  /** The ideology group the leader leads for, when known (a new leader, not a bare role). */
-  leaderGroup?: string
-  retiredLeaders: Set<string>
-  leader?: CountryLeader
-  research: ResearchWorking
-  /** The characters recruited so far, whom advisors need to be hired. */
-  recruited: Set<string>
-  /** The countries at war with ours, from the player's entries; unknown before the first one. */
-  enemies?: string[]
-  /** Country flags the plan's rewards set (true) or cleared (false). */
-  flags: Map<string, boolean>
-  /** The balance of power's value (Finland's public trust), once a reward has set or moved it. */
-  balance?: number
-  /** The days the balance moved from one range into another by the weekly drift. */
-  balanceChanges: Date[]
-  /** The weekly drift rules in force: the ones that held at the last weekly script. */
-  bopRules: BopWeeklyRule[]
-}
-
-export const newWorking = (): Working => ({
-  ideas: new Map(),
-  statChanges: new Map(),
-  popularity: new Map(),
-  balanceChanges: [],
-  bopRules: [],
-  conditional: [],
-  focusEffects: {},
-  buildings: new Map(),
-  buildingSlots: 0,
-  construction: [],
-  resources: new Map(),
-  doneFocuses: new Set(),
-  bypassed: new Set(),
-  retiredLeaders: new Set(),
-  research: newResearchWorking(),
-  recruited: new Set(),
-  flags: new Map(),
-})
 
 /** What a handler needs to know about the reward it is part of. */
 interface Context {
@@ -150,40 +85,6 @@ const LEADER_KEYS = new Set([
   'promote_character',
 ])
 
-/**
- * The country's stability or war support on `date` as the rewards so far leave it, before it is
- * kept between 0 and 1 (see `rawCountryStat`): what conditions, the overview and
- * `set_actual_stability` all go by.
- */
-export const rawStatNow = (
-  w: Working,
-  options: CountryStateOptions,
-  key: 'stability' | 'war_support',
-  date: Date,
-): number => {
-  const active = [...w.ideas.values()].filter((idea) => !idea.until || idea.until > date)
-  const { totals } = activeModifiers(active, w.leader?.traits ?? [])
-  return rawCountryStat(
-    key,
-    options.start ?? [],
-    w.statChanges.get(`add_${key}`)?.total ?? 0,
-    (k) => totals.get(k)?.total ?? 0,
-    w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0,
-    (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
-  )
-}
-
-/**
- * Stability before modifiers (see `stabilityFrom`): the scripted part plus the ruling party's
- * popularity times `partyStability`, from the same inputs `rawStatNow` uses.
- */
-export const stabilityBeforeModifiersNow = (w: Working, options: CountryStateOptions): number =>
-  round(
-    scriptedStat('stability', options.start ?? [], w.statChanges.get('add_stability')?.total ?? 0) +
-      (w.government ? (w.popularity.get(w.government)?.total ?? 0) : 0) *
-        (options.politics?.defines ?? DEFAULT_POLITICS_DEFINES).partyStability,
-  )
-
 // --- Handlers, one per kind of effect. ---
 
 const ideas: Handler = (c, e, i) => {
@@ -239,46 +140,6 @@ const construction: Handler = (c, e) => {
   if (e.key === null || !CONSTRUCTION_KEYS.has(e.key)) return false
   c.built.push({ ...e, depth: 0 })
   return true
-}
-
-/**
- * Moves one party's popularity by `delta` (a fraction) and keeps the total at 100%: the others
- * share the change in proportion to what they have (evenly if they have none), and the party
- * itself stays between 0 and 100%. Only the parties already in `w.popularity` take part, which is
- * all of them once the start has set them.
- */
-export const shiftPopularity = (w: Working, subject: string, delta: number): void => {
-  const mine = w.popularity.get(subject)
-  if (!mine) return
-  const others = [...w.popularity.values()].filter((p) => p.subject !== subject)
-  const next = others.length === 0 ? mine.total + delta : clamp01(mine.total + delta)
-  w.popularity.set(subject, { ...mine, total: round(next) })
-  const rest = others.reduce((sum, p) => sum + p.total, 0)
-  for (const other of others) {
-    const share = rest > 0 ? other.total / rest : 1 / others.length
-    w.popularity.set(other.subject, { ...other, total: round((1 - next) * share) })
-  }
-}
-
-const clamp01 = (n: number) => Math.min(1, Math.max(0, n))
-
-/**
- * A party above 20% popularity drifts up at half its daily drift, and above 30% at a third
- * (checked in game on Finland: fascism 19% at the start, 20.80% on 1 March with Susitaival's
- * `fascism_drift`, 26.30% on 11 March after the coup focus, 32.21% on 29 July; an `add_popularity`
- * effect is not scaled). The thresholds are read from those cases; what happens past 40% is not
- * known, so a third is kept. Losses are not scaled.
- */
-export const DRIFT_SCALES: { above: number; scale: number }[] = [
-  { above: 0.2, scale: 1 / 2 },
-  { above: 0.3, scale: 1 / 3 },
-]
-
-/** What a daily drift of `delta` really does to a party that has `current`. */
-export const scaledDrift = (current: number, delta: number): number => {
-  if (delta <= 0) return delta
-  const tier = DRIFT_SCALES.filter((t) => current > t.above).pop()
-  return tier ? delta * tier.scale : delta
 }
 
 /**
@@ -476,36 +337,6 @@ const powerBalance: Handler = (c, e, i) => {
   return false
 }
 
-/**
- * Keeps the balance's range among the national spirits, with its modifiers (a range without any
- * is no spirit). The ranges' modifiers feed stability, war support and political power like an
- * idea's.
- */
-export const syncBalanceOfPower = (
-  w: Working,
-  options: CountryStateOptions,
-  /** What made the range change: a focus, or (the weekly drift) nothing in particular. */
-  source: { focusId: string; focusName: string; end: Date },
-) => {
-  const bop = options.balanceOfPower
-  if (!bop || w.balance === undefined) return
-  const id = `bop:${bop.id}`
-  const range = rangeAt(bop, w.balance)
-  if (!range || range.modifiers.length === 0) {
-    w.ideas.delete(id)
-    return
-  }
-  const before = w.ideas.get(id)
-  w.ideas.set(id, {
-    id,
-    name: `${bop.name}: ${range.name} ${formatBalance(w.balance)}`,
-    focusId: source.focusId,
-    focusName: source.focusName,
-    since: before?.modifiers === range.modifiers ? before.since : source.end,
-    modifiers: range.modifiers,
-  })
-}
-
 const HANDLERS: Handler[] = [
   powerBalance,
   research,
@@ -547,81 +378,6 @@ const pickNextLeader = (c: Context, governmentBefore: string | undefined) => {
   }
   w.identity = { character: next.line.value }
   w.leaderGroup = government
-}
-
-/** Totals the construction effects that happen: resources, buildings and building slots. */
-const totalConstruction = (w: Working, built: EffectLine[]) => {
-  for (const l of built) {
-    if (l.key === 'add_extra_state_shared_building_slots' && isNumeric(l.value)) {
-      w.buildingSlots += Number(l.value)
-    }
-    if (!l.subject || !isNumeric(l.value)) continue
-    if (l.key === 'add_resource') {
-      const total = w.resources.get(l.subject)?.total ?? 0
-      w.resources.set(l.subject, {
-        type: l.subject,
-        name: l.subjectName ?? l.subject,
-        total: round(total + Number(l.value)),
-      })
-    } else if (l.key === 'add_building_construction') {
-      const id = `${l.subject}${l.instant ? ':instant' : ''}`
-      const total = w.buildings.get(id)?.total ?? 0
-      w.buildings.set(id, {
-        type: l.subject,
-        name: l.subjectName ?? l.subject,
-        total: total + Number(l.value),
-        instant: l.instant === true,
-      })
-    }
-  }
-}
-
-/** Groups the construction lines of a reward into one batch per header block. */
-const recordBatches = (w: Working, step: Step, built: EffectLine[]) => {
-  let batch: ConstructionBatch | undefined
-  const start = (header?: EffectLine) => {
-    const key = header?.key ?? ''
-    const state = /^\d+$/.test(key) ? Number(key) : undefined
-    const prefer = header?.preferStates?.map(Number).filter((n) => Number.isFinite(n))
-    batch = {
-      focusId: step.focus.id,
-      focusName: step.focus.name,
-      date: step.end,
-      state,
-      prefer: prefer && prefer.length > 0 ? prefer : undefined,
-      random: key.startsWith('random_owned_'),
-      buildings: [],
-      slots: 0,
-      resources: [],
-    }
-    w.construction.push(batch)
-  }
-  for (const l of built) {
-    const isConstruction = l.key !== null && CONSTRUCTION_KEYS.has(l.key)
-    if (!isConstruction) {
-      start(l)
-      continue
-    }
-    // A loose top-level line (not under a header) gets a batch of its own.
-    if (l.depth === 0 || !batch) start()
-    if (!batch || !isNumeric(l.value)) continue
-    if (l.key === 'add_extra_state_shared_building_slots') batch.slots += Number(l.value)
-    else if (!l.subject) continue
-    else if (l.key === 'add_resource') {
-      batch.resources.push({
-        type: l.subject,
-        name: l.subjectName ?? l.subject,
-        amount: Number(l.value),
-      })
-    } else {
-      batch.buildings.push({
-        type: l.subject,
-        name: l.subjectName ?? l.subject,
-        level: Number(l.value),
-        instant: l.instant === true,
-      })
-    }
-  }
 }
 
 /** The indexes of the lines under every line that is an idea or a leader. */
@@ -703,9 +459,5 @@ export const applyReward = (
   w.doneFocuses.add(focus.id)
   totalConstruction(w, built)
   recordBatches(w, step, built)
-  recordResearchState(w.research, step.end, w.statChanges.get('add_research_slot')?.total ?? 0, {
-    ideas: [...w.ideas.values()],
-    traits: w.leader?.traits ?? [],
-    stabilityBeforeModifiers: stabilityBeforeModifiersNow(w, options),
-  })
+  snapshotResearch(w, options, step.end)
 }

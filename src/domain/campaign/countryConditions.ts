@@ -6,7 +6,7 @@
  * same answers for the same country.
  */
 import type { ConditionContext } from './conditions'
-import { rawStatNow, type Working } from './applyReward'
+import { rawStatNow, type Working } from './working'
 import { clampStat } from './totals'
 import type { CountryState, CountryStateOptions } from './types'
 
