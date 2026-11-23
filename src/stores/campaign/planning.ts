@@ -2,7 +2,7 @@ import { computed, watch, type Ref } from 'vue'
 import { ownedDlc } from '@/data/dlc'
 import { MAJORS_1936 } from '@/data/majors'
 import { statOverrides } from '@/data/statOverrides'
-import { countryStateAt } from '@/domain/campaign/countryState'
+import { simulateCountry } from '@/domain/campaign/countryState'
 import { previewFocusEffects } from '@/domain/campaign/preview'
 import { blockedByAvailability, unavailableInPlan } from '@/domain/campaign/availability'
 import { removeWithDependents } from '@/domain/plan/focusSelection'
@@ -110,12 +110,14 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
   const politicsSchedule = computed(() => planned.value.politics)
 
   /** The country on a date, with the research, purchases and adjustments of the campaign. */
-  const stateOn = (date: Date) =>
-    countryStateAt(schedule.value, date, {
+  const simulation = computed(() =>
+    simulateCountry(schedule.value, {
       ...stateOptions.value,
       hasTech: planned.value.hasTech,
       extraSteps: planned.value.politics.steps,
-    })
+    }),
+  )
+  const stateOn = (date: Date) => simulation.value.at(date)
 
   /** The later of `date` and the last thing the player entered from the game. */
   const lastChange = (date: Date) =>

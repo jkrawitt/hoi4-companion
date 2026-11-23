@@ -17,7 +17,7 @@ import type {
 import { emptyEnvironment, sameBonus } from '../research'
 import type { FocusSchedule } from '../plan/types'
 import { scheduleResearch } from '../plan/researchPlan'
-import { countryStateAt } from './countryState'
+import { countryStateAt, simulateCountry } from './countryState'
 import { evaluateCheck } from './conditions'
 import { conditionsOf } from './politics'
 import { addTo, isNumeric } from './totals'
@@ -89,13 +89,15 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
   let planned: PlannedResearch | undefined
   for (let pass = 0; pass < MAX_PASSES; pass++) {
     const passOptions = { ...options, hasTech }
-    const environment = countryStateAt(focusSchedule, finish, passOptions).research
+    // One running country answers the environment and every MIO question of the pass.
+    const sim = simulateCountry(focusSchedule, passOptions)
+    const environment = sim.at(finish).research
     // A MIO's `available` (a focus completed, say) is answered from the country on that day.
     const mios = input.mios ?? []
     environment.mioAvailable = (id, date) => {
       const available = mios.find((mio) => mio.id === id)?.available
       if (!available) return true
-      const state = countryStateAt(focusSchedule, date, passOptions)
+      const state = sim.at(date)
       return evaluateCheck(available, conditionsOf(state, passOptions))
     }
     const schedule = scheduleResearch(queue, techs, environment, {

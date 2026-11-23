@@ -61,6 +61,44 @@ const compare = (a: number, op: string, b: number): boolean => {
   return close
 }
 
+/**
+ * Whether `check` can start to hold with no event in between: only because time passes (popularity
+ * and stability drift every day, a technology finishes) or because the check is not understood. A
+ * check about an idea, focus, government, leader, war and the like only changes when a reward, a
+ * purchase or an idea running out changes the country, and those are the political power planner's
+ * change points, so it need not look between them.
+ */
+export const changesWithoutEvents = (check: Check): boolean => {
+  switch (check.type) {
+    case 'popularity':
+    case 'stat':
+    case 'tech':
+      return true
+    case 'not':
+      return changesWithoutEvents(check.of)
+    case 'all':
+    case 'any':
+      return check.of.some(changesWithoutEvents)
+    case 'idea':
+    case 'focus':
+    case 'government':
+    case 'leader':
+    case 'tag':
+    case 'dlc':
+    case 'const':
+    case 'war':
+    case 'state':
+    case 'flag':
+    case 'war_with':
+    case 'factories':
+    case 'situation':
+    case 'major':
+      return false
+    default:
+      return true
+  }
+}
+
 /** Whether `check` holds: true, false, or undefined when the campaign cannot tell. */
 export const evaluateCheck = (check: Check, ctx: ConditionContext): boolean | undefined => {
   switch (check.type) {

@@ -3,7 +3,8 @@
  * is worked through in order: each item is bought the first day the political power is there and
  * it is available, and the next item waits behind it (the power is saved up in order).
  *
- * The planner reuses `countryStateAt` rather than a second model of the country. The gain is
+ * The planner reuses `simulateCountry` (`countryStateAt`, kept running) rather than a second model
+ * of the country. The gain is
  * constant until the country changes (a focus ends, a timed idea runs out, a purchase), so it
  * jumps from change to change: at each one it asks the state what is held, available and costs
  * what, and works out the day the head of the queue becomes affordable. If that day comes before
@@ -19,8 +20,8 @@ import type { FocusSchedule } from '../plan/types'
 import { dailyGain, purchaseCost, replacedBy, slotHasRoom, totalsOf } from '../plan/politicsPlan'
 import { addDays, daysBetween, parseDay } from '../calendar'
 import type { Step } from './applyReward'
-import { evaluateCheck, type ConditionContext } from './conditions'
-import { countryStateAt } from './countryState'
+import { changesWithoutEvents, evaluateCheck, type ConditionContext } from './conditions'
+import { simulateCountry } from './countryState'
 import type { CountryState, CountryStateOptions } from './types'
 
 export interface PoliticsPlanInput {
@@ -111,8 +112,9 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
   /** How many design teams are in use on a date: from the day their research starts until it ends. */
   const teamsAt = (date: Date) => teams.filter((u) => u.start <= date && date < u.end).length
 
-  const stateAt = (date: Date) =>
-    countryStateAt(focusSchedule, date, { ...options, politics: data, extraSteps: steps })
+  // One running country for all the dates asked about; a purchase is added to it as it is made.
+  const sim = simulateCountry(focusSchedule, { ...options, politics: data, extraSteps: [] })
+  const stateAt = (date: Date) => sim.at(date)
   const lumpOf = (state: CountryState) =>
     state.statChanges.find((s) => s.key === 'add_political_power')?.total ?? 0
   /** The gain on the day `t`: the modifiers' gain less what the design teams in use cost. */
@@ -220,6 +222,8 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
   const firstDayAvailable = (option: PoliticalOption, limit: Date): Date | undefined => {
     if (!option.available) return undefined
     const check = option.available
+    // What no passing day can change is only settled by a change of the country, looked at anyway.
+    if (!changesWithoutEvents(check)) return undefined
     const open = (day: Date) => evaluateCheck(check, conditionsOf(stateAt(day), options)) !== false
     let before = t
     for (let day = addDays(t, 7); before < limit; day = addDays(day, 7)) {
@@ -278,14 +282,16 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
       if (when > t) moveTo(when)
       balance -= outcome.cost
       taken.add(option.id)
-      steps.push({
+      const step: Step = {
         focus: {
           id: `politics:${index}`,
           name: option.name,
           effects: purchaseEffects(option, dismiss),
         },
         end: t,
-      })
+      }
+      steps.push(step)
+      sim.addStep(step)
       state = stateAt(t)
       gain = gainOf(state)
       points.push({ date: t, balance, gain })

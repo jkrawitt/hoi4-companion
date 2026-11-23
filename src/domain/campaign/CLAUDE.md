@@ -40,6 +40,16 @@ The campaign is the whole picture built from the plans. This folder settles what
 - `rewardScopes.ts`: sorts a reward's lines into certain and conditional.
 - `types.ts`: the shapes.
 
+### The simulation (`simulateCountry`)
+
+- `countryStateAt(schedule, date, options)` is `simulateCountry(schedule, options).at(date)`. A planner that asks about hundreds of dates (`planPolitics`, the store's `stateOn`, `unavailableInPlan`, the MIO questions of `planResearch`) makes one simulation and asks it, instead of replaying the country from 1936 each time (Finland with 40 focuses, 8 purchases and 30 techs took about 150 s in `planCampaign`, and takes under 2 s now).
+- It keeps one running country (the cursor) and carries it on for a later date. For an earlier date it goes back to the latest checkpoint on or before it: a copy of the country (`cloneWorking`) taken after every reward applied and every `CHECKPOINT_DAYS` (28) of drift. All steps (focuses, `extraSteps`, `adjustments`) are ordered once; the date only decides how many are applied.
+- `addStep(step)` adds a purchase as an `extraSteps` entry (after the earlier ones) and drops the checkpoints from its day on, which is all it can change. `planPolitics` adds each purchase at its current day, which never moves back, so most checkpoints stay.
+- A state handed out is not changed by later questions: `stateFrom` copies what the cursor goes on changing (`statChanges` totals, the lists), and `research` (the environment) is worked out when first read, since it is the costliest part and the planners of political power never read it.
+- Without `startDate` the start is finished on the date asked for, so nothing can be reused and each date is its own run (only tests do this).
+- Checked: `countrySimulation.test.ts` compares the simulation, asked in any order, with a fresh `countryStateAt` (also after `addStep`). Assumed: a `Working` field that is mutated in place is one of the copies in `cloneWorking`; a new one that is mutated in place must be added there.
+- `accrueDrift` gives the same result however the time is split (the drift map is taken again the day after the balance of power moves into another range, since the range's modifiers can carry a party drift). Before, it was taken once per stretch between idea expiries, which made the result depend on where a call split the time.
+
 It applies the rewards of the focuses completed by a date. With `options.start` / `startDate`, the start lines are applied first as a step with id `START_ID`, so stat totals and popularity are absolute (start plus plan).
 
 ### What counts
@@ -52,7 +62,7 @@ It applies the rewards of the focuses completed by a date. With `options.start` 
 ### Party drift (`drift.ts`)
 
 - `<party>_drift` modifiers (`fascism_drift = 0.1` on a spirit, advisor or leader trait) add that many percentage points to the party a day while active, taken from the others like any change.
-- `accrueDrift` runs it day by day (one tick per midnight, split where timed ideas expire) between the rewards and purchases that `countryStateAt` applies and up to the viewed date. It runs from the start on; nothing drifts without the start. The hire day itself does not drift.
+- `accrueDrift` runs it day by day (one tick per midnight, the drift map taken again where timed ideas expire or the balance changes range) between the rewards and purchases that `countryStateAt` applies and up to the viewed date. It runs from the start on; nothing drifts without the start. The hire day itself does not drift.
 - **Daily drift is scaled above 20% and 30%:** a party above 20% drifts up at half its drift and above 30% at a third (`scaledDrift`, `DRIFT_SCALES` in `applyReward.ts`, used by `accrueDrift`). Losses are not scaled.
 - An `add_popularity` effect is not scaled.
 - **Popularity always adds up to 100%:** once the start has set the parties, an `add_popularity` change to one is taken from (or given back to) the others in proportion to their share, kept between 0 and 100% (the `popularity` handler in `applyReward.ts`). Without a start the changes are plain sums.

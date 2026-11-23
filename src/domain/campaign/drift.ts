@@ -7,7 +7,10 @@
  *
  * The country state works out the drift in between its events: from one reward or purchase to the
  * next, and up to the date asked for, one day at a time. The drift in force changes only when an
- * idea is added, removed or runs out, so the totals are taken once per stretch between those.
+ * idea is added, removed or runs out, or the balance of power moves into another range, so the
+ * totals are taken again then and not before. That makes the result the same however the time is
+ * split into calls (`accrueDrift(a, b)` then `accrueDrift(b, c)` is `accrueDrift(a, c)`), which the
+ * country simulation relies on to carry on from a checkpoint.
  */
 import { rangeAt } from '../balanceOfPower'
 import { addDays, wholeDay } from '../calendar'
@@ -105,7 +108,7 @@ export const accrueDrift = (
   for (const edge of [...expiries, to]) {
     const days = wholeDay(edge) - wholeDay(a)
     if (days > 0) {
-      const drift = driftOn(w, a)
+      let drift = driftOn(w, a)
       for (let d = 0; d < days; d++) {
         for (const [subject, perDay] of drift) {
           shiftPopularity(w, subject, scaledDrift(w.popularity.get(subject)?.total ?? 0, perDay))
@@ -117,7 +120,10 @@ export const accrueDrift = (
           if (daysIn >= FIRST_WEEKLY_DAY && (daysIn - FIRST_WEEKLY_DAY) % DAYS_PER_WEEK === 0) {
             weeklyScript(w, options, day)
           }
+          const ranges = w.balanceChanges.length
           driftBalance(w, options, day)
+          // A new range may carry a drift of its own (or end one) from the next day on.
+          if (w.balanceChanges.length !== ranges) drift = driftOn(w, a)
         }
       }
     }

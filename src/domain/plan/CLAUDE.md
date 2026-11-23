@@ -103,7 +103,7 @@ Each planner is a pure function of a user queue plus an environment built by `ca
 
 ### Scheduling (`campaign/politics.ts`)
 
-- `planPolitics` works the queue (`PoliticsItem`: `optionId`, `dismiss`, `notBefore`) in order, event-driven on `countryStateAt`.
+- `planPolitics` works the queue (`PoliticsItem`: `optionId`, `dismiss`, `notBefore`) in order, event-driven on one `simulateCountry` (see `campaign/CLAUDE.md`): each purchase is added to it with `addStep`, and `firstDayAvailable` skips the day-by-day look when the check only changes with an event (`changesWithoutEvents`).
 - At each change (a focus ends, a timed idea runs out, a purchase) it asks the state what is held, available and costs what, and buys the head of the queue the first day the balance covers it, if that is before the next change. Otherwise it looks again at the change, since a focus may make it available.
 - The head waits for PP and the rest wait behind it.
 - Items that can never happen are `unscheduled` with a reason: `slots-full` (an advisor), `is-leader`, `not-recruited`, `unavailable`, `unaffordable`, `not-held`, ...

@@ -8,7 +8,7 @@ import { pathTo } from '../plan/focusSelection'
 import { schedulePlan } from '../plan/focusPlan'
 import type { PlanOptions } from '../plan/types'
 import { evaluateCheck, type ConditionContext } from './conditions'
-import { countryStateAt } from './countryState'
+import { countryStateAt, simulateCountry } from './countryState'
 import { conditionsOf } from './politics'
 import type { CountryState, CountryStateOptions } from './types'
 
@@ -47,10 +47,11 @@ export const unavailableInPlan = ({
   const bad = new Set<string>()
   if (!plan.some((id) => focuses[id]?.available)) return bad
   const schedule = schedulePlan(plan, focuses, scheduleOptions)
+  const sim = simulateCountry(schedule, stateOptions)
   for (const item of schedule.items) {
     if (!item.focus.available) continue
     // Only the focuses finished before this one started count, which is what the date gives.
-    const state = countryStateAt(schedule, item.start, stateOptions)
+    const state = sim.at(item.start)
     if (!availableIn(item.focus, state, stateOptions)) bad.add(item.focus.id)
   }
   return bad
