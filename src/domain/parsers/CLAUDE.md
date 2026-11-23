@@ -146,7 +146,7 @@ Every path the importer reads is listed once in `GAME_PATHS`. The non-Chromium f
 ### In the campaign
 
 - In `applyReward.ts` the `powerBalance` handler moves `Working.balance`: `set_power_balance` with `set_value` / `set_default`, and `add_power_balance_value`, kept between -1 and 1. `CountryState.balance` is the value.
-- `syncBalanceOfPower` keeps the range it is in as a national spirit `bop:<id>` (none when the range has no modifiers). Its stability, war support, political power and recruitable pop modifiers therefore flow everywhere an idea's do.
+- `syncBalanceOfPower` (in `campaign/drift.ts`) keeps the range it is in as a national spirit `bop:<id>` (none when the range has no modifiers). Its stability, war support, political power and recruitable pop modifiers therefore flow everywhere an idea's do.
 
 ### Weekly drift
 

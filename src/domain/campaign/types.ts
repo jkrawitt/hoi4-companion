@@ -1,10 +1,9 @@
 import type { BalanceOfPower } from '../balanceOfPower'
-import type { EffectLine, LeaderData } from '../focus'
+import type { EffectLine, LeaderData, Step } from '../focus'
 import type { PoliticsData } from '../politics'
 import type { ResearchEnvironment } from '../research'
 import type { ScheduledFocus } from '../plan/types'
 import type { StatDefinition } from '../stats'
-import type { Step } from './applyReward'
 
 export interface ActiveIdea {
   id: string

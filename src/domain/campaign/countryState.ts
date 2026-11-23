@@ -10,11 +10,10 @@
  * This file only runs the rewards in order and totals the result. `applyReward.ts` is what one
  * reward does, `rewardScopes.ts` sorts its lines, and `types.ts` has the shapes.
  */
-import { START_ID } from '../focus'
+import { START_ID, type Step } from '../focus'
 import { addDays, wholeDay } from '../calendar'
 import type { FocusSchedule } from '../plan/types'
 import { applyReward } from './applyReward'
-import type { Step } from './applyReward'
 import { newWorking, rawStatNow, stabilityBeforeModifiersNow, type Working } from './working'
 import { accrueDrift } from './drift'
 import { activeModifiers, clampStat } from './totals'

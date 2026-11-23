@@ -3,8 +3,7 @@
  * (`totalConstruction`), and the batches the construction planner builds from (`recordBatches`).
  * `rewardScopes.ts` tells which lines are construction.
  */
-import type { EffectLine } from '../focus'
-import type { Step } from './applyReward'
+import type { EffectLine, Step } from '../focus'
 import { CONSTRUCTION_KEYS } from './rewardScopes'
 import { isNumeric, round } from './totals'
 import type { ConstructionBatch } from './types'

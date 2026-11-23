@@ -6,7 +6,7 @@ import type { Check } from '../focus'
 import { capitalize, humanize } from '../effects/lines'
 
 const nice = (id: string) => capitalize(humanize(id))
-import { evaluateCheck, type ConditionContext } from './conditions'
+import { evaluateCheck, type ConditionContext } from '../checks'
 
 export interface CheckView {
   text: string

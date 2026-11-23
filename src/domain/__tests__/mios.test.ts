@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseMios } from '../parsers/mios'
-import { evaluateCheck } from '../campaign/conditions'
+import { evaluateCheck } from '../checks'
 
 const FILE = `
 generic_tank_organization = {

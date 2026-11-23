@@ -5,7 +5,7 @@
  * `countryConditions` turns the facts and the options into the context, so every caller gets the
  * same answers for the same country.
  */
-import type { ConditionContext } from './conditions'
+import type { ConditionContext } from '../checks'
 import { rawStatNow, type Working } from './working'
 import { clampStat } from './totals'
 import type { CountryState, CountryStateOptions } from './types'

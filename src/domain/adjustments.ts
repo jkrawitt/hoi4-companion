@@ -4,8 +4,7 @@
  * types and helpers; the campaign turns them into steps of the country state
  * (`adjustmentSteps`) and into the trade the construction scheduler works with (`tradeOverTime`).
  */
-import type { EffectLine } from './focus'
-import type { Step } from './campaign/applyReward'
+import type { EffectLine, Step } from './focus'
 import { resolveStat, type StatDefinition, type StatOverrides } from './stats'
 import { DEFAULT_RESOURCE_COST, type TradePoint } from './production'
 import { formatDay, parseDay } from './calendar'

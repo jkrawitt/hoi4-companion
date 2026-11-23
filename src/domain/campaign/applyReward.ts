@@ -8,12 +8,13 @@
  * below in turn; the first that recognises it takes it. Each handler changes only its own part of
  * `Working`, so a new kind of effect is a new handler.
  */
-import { START_ID, type Check, type EffectLine } from '../focus'
+import { START_ID, type EffectLine, type Step } from '../focus'
 import { blockEnd } from '../effects/lines'
 import { ideaLineIndexes, removedIdeaLineIndexes } from '../effects/ideaLines'
 import { addDays } from '../plan/focusPlan'
 import { clampBalance } from '../balanceOfPower'
-import { annotateConditions, evaluateCheck, resolveConditions } from './conditions'
+import { evaluateCheck } from '../checks'
+import { annotateConditions, resolveConditions } from './conditions'
 import { countryConditions, factsOfWorking } from './countryConditions'
 import { syncBalanceOfPower } from './drift'
 import { shiftPopularity } from './popularity'
@@ -22,12 +23,6 @@ import { CONSTRUCTION_KEYS, classify, splitConstruction } from './rewardScopes'
 import { addTo, isNumeric, round } from './totals'
 import type { CountryStateOptions } from './types'
 import { rawStatNow, snapshotResearch, type Working } from './working'
-
-/** A reward and when it is finished. */
-export interface Step {
-  focus: { id: string; name: string; effects: EffectLine[]; bypass?: Check }
-  end: Date
-}
 
 /** What a handler needs to know about the reward it is part of. */
 interface Context {

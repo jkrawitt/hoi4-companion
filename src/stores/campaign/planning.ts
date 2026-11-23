@@ -8,7 +8,7 @@ import { blockedByAvailability, unavailableInPlan } from '@/domain/campaign/avai
 import { removeWithDependents } from '@/domain/plan/focusSelection'
 import { planCampaign } from '@/domain/campaign/plan'
 import { countryConditions, factsOfState } from '@/domain/campaign/countryConditions'
-import { evaluateCheck } from '@/domain/campaign/conditions'
+import { evaluateCheck } from '@/domain/checks'
 import { viewCheck } from '@/domain/campaign/checkView'
 import type { PoliticalOption } from '@/domain/politics'
 import { researchStatusAt, techModifierTotals } from '@/domain/campaign/research'

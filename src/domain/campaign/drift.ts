@@ -14,7 +14,7 @@
  */
 import { formatBalance, rangeAt } from '../balanceOfPower'
 import { addDays, wholeDay } from '../calendar'
-import { evaluateCheck } from './conditions'
+import { evaluateCheck } from '../checks'
 import { countryConditions, factsOfWorking } from './countryConditions'
 import { scaledDrift, shiftPopularity } from './popularity'
 import { activeModifiers } from './totals'

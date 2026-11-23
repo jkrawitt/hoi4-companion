@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { addDays, daysBetween } from '../calendar'
-import { evaluateCheck } from '../campaign/conditions'
+import { evaluateCheck } from '../checks'
 import { countryStateAt } from '../campaign/countryState'
 import { planCampaign } from '../campaign/plan'
 import { planPolitics } from '../campaign/politics'
