@@ -13,6 +13,8 @@ import { industryAt } from '../campaign/industry'
 import { planConstruction } from '../campaign/construction'
 import { planResearch } from '../campaign/research'
 import { isPowered } from '../plan/constructionPlan'
+import { pathTo } from '../plan/focusSelection'
+import { addDays } from '../calendar'
 
 // Runs against a real install only when HOI4_DIR is set, e.g.
 //   HOI4_DIR="/path/to/Hearts of Iron IV" npm run test
@@ -693,6 +695,68 @@ describe.skipIf(!dir)('importCountryFocuses (real game files)', () => {
     const state = countryStateAt(focusSchedule, new Date(Date.UTC(1936, 4, 20)), options)
     expect(state.balance).toBeLessThan(-0.8)
   })
+
+  it('plans a full Finnish campaign in seconds', async () => {
+    const finland = await importCountryFocuses(
+      {
+        readText: (p) => readFile(join(dir!, p), 'utf8').catch(() => null),
+        listFiles: (p) => readdir(join(dir!, p)).catch(() => []),
+      },
+      {
+        tag: 'FIN',
+        name: 'Finland',
+        focusTreeFile: 'common/national_focus/finland.txt',
+        ideasFile: 'common/ideas/finland.txt',
+      },
+      statOverrides,
+      ownedDlc,
+    )
+    const startDate = new Date(Date.UTC(1936, 0, 1))
+    const byId = Object.fromEntries(finland.focuses.map((f) => [f.id, f]))
+    // Forty focuses, each taken with what it needs, in the order the tree lists them.
+    const plan: string[] = []
+    for (const f of finland.focuses) {
+      if (plan.length >= 40) break
+      if (plan.includes(f.id)) continue
+      const path = pathTo(f.id, plan, byId)
+      if (path && plan.length + path.length <= 40) plan.push(...path)
+    }
+    const focusSchedule = schedulePlan(plan, byId, { startDate, speedBonus: 0, loadedDays: 1 })
+    const started = performance.now()
+    const planned = planCampaign({
+      focusSchedule,
+      options: {
+        tag: 'FIN',
+        start: finland.start,
+        leaders: finland.leaders,
+        laws: finland.laws,
+        balanceOfPower: finland.balanceOfPower,
+        startDate,
+        ownedDlc,
+        politics: finland.politics,
+      },
+      researchQueue: finland.research.techs
+        .filter((t) => t.researchable)
+        .slice(0, 30)
+        .map((t) => ({ techId: t.id })),
+      researchData: finland.research,
+      mios: finland.mios,
+      politicsQueue: (finland.politics?.options ?? [])
+        .filter((o) => o.kind !== 'decision')
+        .slice(0, 8)
+        .map((o) => ({ optionId: o.id })),
+      politicsData: finland.politics,
+      startDate,
+      until: addDays(focusSchedule.finish, 25 * 365),
+      loadedDays: 1,
+    })
+    const seconds = (performance.now() - started) / 1000
+    console.log(`Finland planCampaign: ${seconds.toFixed(2)} s`)
+    expect(plan.length).toBeGreaterThan(20)
+    expect(planned.politics.items.length).toBeGreaterThan(0)
+    // This took about 150 s when every date was worked out from 1936.
+    expect(seconds).toBeLessThan(15)
+  }, 120000)
 
   it('plans political power purchases on the real data', async () => {
     const { focuses, start, politics, leaders } = await importRomania()
