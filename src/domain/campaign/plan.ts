@@ -28,6 +28,8 @@ export interface CampaignPlanInput {
   startDate: Date
   /** How far to look for techs finishing and purchases. */
   until: Date
+  /** Days a tech starting on the first day has done already; see `ResearchOptions.loadedDays`. */
+  loadedDays?: number
 }
 
 export interface PlannedCampaign extends PlannedResearch {
@@ -69,6 +71,7 @@ export const planCampaign = (input: CampaignPlanInput): PlannedCampaign => {
       mios: input.mios,
       startDate,
       until,
+      loadedDays: input.loadedDays,
     })
     const next = { ...research, politics }
     const settled = planned !== undefined && signature(planned) === signature(next)

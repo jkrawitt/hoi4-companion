@@ -39,6 +39,8 @@ export interface CampaignSettings {
 /** Everything worked out from the settings, the imported data and the queues. */
 /** The first focus starts with a day done; see `PlanOptions.loadedDays`. */
 const FIRST_FOCUS_LOADED_DAYS = 1
+/** The techs the opening research slots start with have a day done too (seen in game, Finland). */
+const FIRST_TECH_LOADED_DAYS = 1
 
 export const createPlanning = (settings: CampaignSettings, data: GameData, queues: Queues) => {
   const { countryTag, startDate, speedBonusPercent, viewDate } = settings
@@ -101,6 +103,7 @@ export const createPlanning = (settings: CampaignSettings, data: GameData, queue
       politicsData: politics.value,
       startDate: parseDate(startDate.value),
       until: addDays(planBase.value, RESEARCH_YEARS * DAYS_PER_YEAR),
+      loadedDays: FIRST_TECH_LOADED_DAYS,
     }),
   )
   const researchSchedule = computed(() => planned.value.schedule)

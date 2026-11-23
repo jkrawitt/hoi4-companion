@@ -8,7 +8,7 @@
  * idea is added, removed or runs out, so the totals are taken once per stretch between those.
  */
 import { wholeDay } from '../calendar'
-import { shiftPopularity, type Working } from './applyReward'
+import { scaledDrift, shiftPopularity, type Working } from './applyReward'
 import { activeModifiers } from './totals'
 
 /** The drift of each party (a fraction a day) of the ideas and leader traits active on `day`. */
@@ -35,7 +35,9 @@ export const accrueDrift = (w: Working, from: Date, to: Date): void => {
     if (days > 0) {
       const drift = driftOn(w, a)
       for (let d = 0; d < days; d++) {
-        for (const [subject, perDay] of drift) shiftPopularity(w, subject, perDay)
+        for (const [subject, perDay] of drift) {
+          shiftPopularity(w, subject, scaledDrift(w.popularity.get(subject)?.total ?? 0, perDay))
+        }
       }
     }
     a = edge

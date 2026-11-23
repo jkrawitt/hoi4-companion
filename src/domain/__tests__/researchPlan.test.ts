@@ -73,6 +73,37 @@ const bonus = (extra: Partial<ResearchBonus> = {}): ResearchBonus => ({
 })
 
 describe('scheduleResearch', () => {
+  it('gives a tech that starts on the first day loaded days, and none to a later one', () => {
+    const run2 = (loadedDays?: number) =>
+      scheduleResearch(q('a', 'b'), techsOf(tech('a'), tech('b')), env(), {
+        startDate: start,
+        until: day(5000),
+        defines,
+        loadedDays,
+      })
+    const plain = run2()
+    const loaded = run2(1)
+    const days = (s: ReturnType<typeof run2>, id: string) =>
+      s.items.find((i) => i.techId === id)!.days
+    expect(days(loaded, 'a')).toBe(days(plain, 'a') - 1)
+    // The second tech starts later in the same slot, so it has no head start.
+    expect(days(loaded, 'b')).toBe(days(plain, 'b'))
+  })
+
+  it('adds the research speed of a tech from the day it is finished', () => {
+    const speedy = tech('a', {
+      modifiers: [{ depth: 0, key: 'research_speed_factor', value: '0.1' }],
+    })
+    const plain = run(q('a', 'b'), techsOf(tech('a'), tech('b')))
+    const boosted = run(q('a', 'b'), techsOf(speedy, tech('b')))
+    const days = (s: ReturnType<typeof run>, id: string) =>
+      s.items.find((i) => i.techId === id)!.days
+    // The tech itself is not sped up; the next one is, by 10%.
+    expect(days(boosted, 'a')).toBe(days(plain, 'a'))
+    expect(days(boosted, 'b')).toBeLessThan(days(plain, 'b'))
+    expect(days(boosted, 'b')).toBe(Math.ceil(days(plain, 'b') / 1.1))
+  })
+
   it('takes base cost x tech cost days for a tech at normal speed', () => {
     const s = run(q('a'), techsOf(tech('a', { cost: 1.5 })))
     expect(span(s)).toEqual([['a', 0, 0, 165]])

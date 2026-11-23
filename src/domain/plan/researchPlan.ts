@@ -129,6 +129,14 @@ export const scheduleResearch = (
   const slotsByDay = env.slots
     .map((s) => ({ day: dayOf(s.date), value: s.total }))
     .sort((a, b) => a.day - b.day)
+  /** The `research_speed_factor` listed on a tech itself, by tech. */
+  const techSpeeds = new Map<string, number>()
+  for (const tech of Object.values(techs)) {
+    const factor = tech.modifiers
+      .filter((m) => m.key === 'research_speed_factor' && m.value !== undefined)
+      .reduce((sum, m) => sum + Number(m.value), 0)
+    if (factor) techSpeeds.set(tech.id, factor)
+  }
   const speedByDay = env.speed
     .map((s) => ({ day: dayOf(s.date), value: s.factor }))
     .sort((a, b) => a.day - b.day)
@@ -146,6 +154,13 @@ export const scheduleResearch = (
   const doneDay = (id: string) => {
     const date = doneAt.get(id)
     return date ? dayOf(date) : Infinity
+  }
+
+  /** The research speed of the techs had on `day` (a few early techs add a few percent). */
+  const techSpeedOn = (day: number) => {
+    let total = 0
+    for (const [id, factor] of techSpeeds) if (doneDay(id) <= day) total += factor
+    return total
   }
 
   const scheduled: (ScheduledResearch | undefined)[] = new Array(queue.length)
@@ -248,7 +263,7 @@ export const scheduleResearch = (
       if (next !== -1) running[slot] = begin(pending.splice(next, 1)[0], day)
     }
 
-    const speed = valueAt(speedByDay, day, 0)
+    const speed = valueAt(speedByDay, day, 0) + techSpeedOn(day)
     const today = addDays(startDate, day)
     running.forEach((r, slot) => {
       if (!r) return
@@ -257,7 +272,9 @@ export const scheduleResearch = (
       const bonus =
         (r.bonus?.bonus ?? 0) + categoryBonusAt(env, tech, today) + (r.designTeam?.bonus ?? 0)
       const speedFactor = Math.max(defines.minSpeed, 1 + speed + bonus)
-      r.progress += speedFactor / (defines.baseCost * tech.cost * penalty)
+      // A tech that starts on the first day has a day done already (`ResearchOptions.loadedDays`).
+      const ticks = day === 0 && r.start === 0 ? 1 + (options.loadedDays ?? 0) : 1
+      r.progress += (ticks * speedFactor) / (defines.baseCost * tech.cost * penalty)
       if (r.progress < 1 - EPSILON) return
       const end = addDays(startDate, day + 1)
       scheduled[r.entry.index] = {

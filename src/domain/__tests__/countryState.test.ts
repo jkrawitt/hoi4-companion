@@ -170,8 +170,8 @@ describe('countryStateAt', () => {
         { tag: 'ROM', start: startLines },
       ).popularity
     const share = (days: number) => Object.fromEntries(after(days).map((p) => [p.subject, p.total]))
-    // Fascism is above 20%, so its 15 points count half: 7.5. The 62.5% left is split 4:2:1.
-    expect(share(80)).toMatchObject({ f: 0.375, d: 0.357143, c: 0.178571, n: 0.089286 })
+    // A gain is not scaled, even above 20%: fascism takes 15 points, the 55% left is split 4:2:1.
+    expect(share(80)).toMatchObject({ f: 0.45, d: 0.314286, c: 0.157143, n: 0.078571 })
     // Losing all 45 points gives them back in the same proportion: fascism is 0.
     expect(share(140).f).toBe(0)
     for (const days of [80, 140]) {
@@ -179,7 +179,7 @@ describe('countryStateAt', () => {
     }
   })
 
-  it('scales a gain by half for a party above 20%, but not a loss or a party at 20% or below', () => {
+  it('does not scale an add_popularity gain, whatever the party has', () => {
     const pop = (subject: string, value: string): EffectLine => ({
       ...modifier(0, 'add_popularity', value),
       subject,
@@ -191,14 +191,19 @@ describe('countryStateAt', () => {
         countryStateAt(
           schedulePlan(
             ['a'],
-            { a: focus('a', Object.entries(gain).map(([k, v]) => pop(k, v))) },
+            {
+              a: focus(
+                'a',
+                Object.entries(gain).map(([k, v]) => pop(k, v)),
+              ),
+            },
             { startDate: start, speedBonus: 0 },
           ),
           day(80),
           { tag: 'ROM', start: startLines },
         ).popularity.map((p) => [p.subject, p.total]),
       )
-    expect(after({ f: '0.1' }).f).toBeCloseTo(0.3, 5)
+    expect(after({ f: '0.1' }).f).toBeCloseTo(0.35, 5)
     expect(after({ c: '0.1' }).c).toBeCloseTo(0.3, 5)
     expect(after({ n: '0.1' }).n).toBeCloseTo(0.15, 5)
     expect(after({ f: '-0.1' }).f).toBeCloseTo(0.15, 5)
@@ -235,8 +240,9 @@ describe('countryStateAt', () => {
     // The focus ends on day 10; the drift then adds 0.1 points a day.
     expect(at(10).fascism).toBeCloseTo(0.2, 5)
     const later = at(110)
-    // 100 days at +0.1 points a day: ten points.
-    expect(later.fascism).toBeCloseTo(0.3, 5)
+    // +0.1 points a day, but only half of it once the party is above 20%: the first day is
+    // full (20% is not above), the other 99 count 0.05.
+    expect(later.fascism).toBeCloseTo(0.2505, 5)
     expect(later.democratic + later.fascism + later.communism + later.neutrality).toBeCloseTo(1, 5)
     // The others lose in proportion: 5 : 2 : 1.
     expect(later.democratic / later.communism).toBeCloseTo(2.5, 2)

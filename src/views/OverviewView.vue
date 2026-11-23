@@ -68,6 +68,8 @@ const popularity = computed(() =>
   asLevels(state.value.popularity).map((p, i) => ({
     ...p,
     key: state.value.popularity[i].subject,
+    // Two decimals, like the game's popularity screen.
+    stat: { ...p.stat, decimals: 2, fixedDecimals: true },
   })),
 )
 /** The national spirits: ideas that do not fill a politics slot (laws, advisors, designers). */
@@ -99,7 +101,7 @@ const levels = computed(() =>
     { label: 'Stability', value: state.value.stability },
     { label: 'War support', value: state.value.warSupport },
   ].flatMap((l) =>
-    l.value === undefined ? [] : [{ label: l.label, text: `${round(l.value * 100, 1)}%` }],
+    l.value === undefined ? [] : [{ label: l.label, text: `${(l.value * 100).toFixed(2)}%` }],
   ),
 )
 const hasGovernment = computed(() => state.value.rulingParty || popularity.value.length > 0)
@@ -152,7 +154,7 @@ const hasGovernment = computed(() => state.value.rulingParty || popularity.value
       <section v-if="politics">
         <h3>Political power</h3>
         <p>
-          {{ round(power.balance) }} political power, +{{ round(power.gain, 2) }} a day.
+          {{ round(power.balance, 2) }} political power, +{{ round(power.gain, 2) }} a day.
           <template v-if="power.teams > 0">
             Design teams: -{{ round(power.teamCost, 2) }} x {{ power.teams }}.
           </template>

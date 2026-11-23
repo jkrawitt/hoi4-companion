@@ -222,4 +222,9 @@ export interface ResearchOptions {
   defines: ResearchDefines
   /** The MIOs a queued tech can name as its design team. */
   mios?: MioData[]
+  /**
+   * Days of progress a tech that starts on the first day has already made, like a first focus
+   * (`PlanOptions.loadedDays`): the game seems to give the opening research slots a free day.
+   */
+  loadedDays?: number
 }

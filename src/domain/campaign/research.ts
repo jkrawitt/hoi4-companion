@@ -42,6 +42,8 @@ export interface ResearchPlanInput {
   startDate: Date
   /** How far to look for techs finishing. */
   until: Date
+  /** Days a tech starting on the first day has done already; see `ResearchOptions.loadedDays`. */
+  loadedDays?: number
 }
 
 /** The most times the focus plan and the research schedule are settled against each other. */
@@ -101,6 +103,7 @@ export const planResearch = (input: ResearchPlanInput): PlannedResearch => {
       until,
       defines: data.defines,
       mios,
+      loadedDays: input.loadedDays,
     })
     const settled = planned !== undefined && signature(planned.schedule) === signature(schedule)
     hasTech = answerFrom(schedule)
