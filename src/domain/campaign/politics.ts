@@ -123,10 +123,12 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
   let t = startDate
   let state = stateAt(t)
   let lump = lumpOf(state)
-  // Checked in game: the country shows one day's base gain on the first day, and picking the first
-  // focus takes that day's focus cost from it (2 - 1 = 1 for Romania).
-  let balance = lump + data.defines.baseGain - data.defines.focusCost
   let gain = gainOf(state)
+  // Checked in game (Romania and Finland): the country shows its first day's gain on 1 January
+  // (1 PP for Finland's 1.798, 2 for Romania's 2.076), and picking the first focus takes that
+  // day's focus cost from it (0 for Finland, 1 for Romania). So the balance starts at the net
+  // gain, which already has the focus cost taken off.
+  let balance = lump + gain
   /** The balance and gain from each moment the country changed, to work out any date from. */
   const points = [{ date: t, balance, gain }]
 
@@ -142,9 +144,23 @@ export const planPolitics = (input: PoliticsPlanInput): PlannedPolitics => {
     points.push({ date: t, balance, gain })
   }
 
+  /**
+   * The days the balance of power's weekly drift changes the range (and so the gain), looked up
+   * to the end of the time looked at. They depend on what is bought, so they are worked out again
+   * after each purchase.
+   */
+  let balanceChanges: { purchases: number; days: Date[] } | undefined
+  const driftChanges = (): Date[] => {
+    if (balanceChanges?.purchases !== steps.length) {
+      balanceChanges = { purchases: steps.length, days: stateAt(until).balanceChanges }
+    }
+    return balanceChanges.days
+  }
+
   /** The next time the country changes, within the time looked at. */
   const nextChange = (): Date | undefined => {
     const times = [
+      ...driftChanges(),
       ...(state.next ? [state.next.end] : []),
       // What the player entered from the game changes the gain on its day.
       ...(options.adjustments ?? []).map((step) => step.end),

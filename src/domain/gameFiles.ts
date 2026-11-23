@@ -47,6 +47,8 @@ export const GAME_PATHS = {
   resources: 'common/resources',
   /** The balances of power (`FIN.txt`: Finland's public trust) and what each range gives. */
   bop: 'common/bop',
+  /** The on actions: the country's weekly script moves its balance of power. */
+  onActions: 'common/on_actions',
   /** The decisions (and their categories) political power can buy. */
   decisions: 'common/decisions',
   factionTemplates: 'common/factions/templates',

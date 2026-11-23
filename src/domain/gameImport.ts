@@ -40,6 +40,7 @@ import { readTechnologies } from './parsers/technologies'
 import { readProduction } from './parsers/states'
 import { readMios } from './parsers/mios'
 import { readBalanceOfPower } from './parsers/balanceOfPower'
+import { readWeeklyRules } from './parsers/balanceOfPowerWeekly'
 import type { BalanceOfPower } from './balanceOfPower'
 import {
   defaultLawLines,
@@ -329,6 +330,7 @@ export const importCountryFocuses = async (
   const production = await readProduction(files, country.tag)
   const rawMios = await readMios(files, country.tag, ownedDlc)
   const rawBop = await readBalanceOfPower(files, country.tag)
+  const weeklyRules = rawBop ? await readWeeklyRules(files, country.tag) : []
   const lists = [
     ...focuses.map((f) => f.effects),
     ...focuses.map((f) => availabilityLines(f)),
@@ -418,6 +420,7 @@ export const importCountryFocuses = async (
   )
   const balanceOfPower: BalanceOfPower | undefined = rawBop && {
     ...rawBop,
+    ...(weeklyRules.length > 0 && { weekly: weeklyRules }),
     name: (names[rawBop.id] ?? '').trim() || humanize(rawBop.id),
     ranges: rawBop.ranges.map((r) => ({
       ...r,

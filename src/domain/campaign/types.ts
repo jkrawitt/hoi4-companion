@@ -143,6 +143,11 @@ export interface CountryState {
   leader?: CountryLeader
   /** The balance of power's value (Finland's public trust), once the start or a reward sets it. */
   balance?: number
+  /**
+   * The days the weekly drift took the balance into another range (a range's modifiers start or
+   * stop then), up to this date. Rewards that move the balance are change points of their own.
+   */
+  balanceChanges: Date[]
   /** The production of each resource added by completed focuses, summed. */
   resources: ResourceTotal[]
   /** The buildings added by completed focuses, summed per type. */
